@@ -1,0 +1,8 @@
+{"schema_version": 1, "run_id": "run-example-001", "seq": 0, "t": 0.0, "type": "run_start", "node": null, "level": null, "version": null, "payload": {"example": true, "total_nodes": 1000}}
+{"schema_version": 1, "run_id": "run-example-001", "seq": 1, "t": 0.1, "type": "move", "node": 42, "level": 0, "version": 1, "payload": {"example": true, "delta_norm": 0.045}}
+{"schema_version": 1, "run_id": "run-example-001", "seq": 2, "t": 0.1, "type": "cert_fail", "node": 42, "level": 0, "version": 1, "payload": {"example": true, "neighbor_id": 89, "reason": "relative_distance_violation"}}
+{"schema_version": 1, "run_id": "run-example-001", "seq": 3, "t": 0.1, "type": "enqueue", "node": 42, "level": 0, "version": 1, "payload": {"example": true, "priority": 1.25}}
+{"schema_version": 1, "run_id": "run-example-001", "seq": 4, "t": 0.15, "type": "pop", "node": 42, "level": 0, "version": 1, "payload": {"example": true, "heap_size": 0}}
+{"schema_version": 1, "run_id": "run-example-001", "seq": 5, "t": 0.18, "type": "edge_add", "node": 42, "level": 0, "version": 1, "payload": {"example": true, "target_id": 105}}
+{"schema_version": 1, "run_id": "run-example-001", "seq": 6, "t": 1.0, "type": "run_end", "node": null, "level": null, "version": null, "payload": {"example": true, "status": "completed"}}
+

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Khushicodes15/K-HNSW/docs/contracts/run_manifest.schema.json",
+  "title": "K-HNSW Run Manifest Schema",
+  "description": "Metadata manifest schema for recording reproducible benchmark experiment runs.",
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "description": "Unique experiment run identifier."
+    },
+    "created_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp when the experiment run was initiated."
+    },
+    "git_commit": {
+      "type": "string",
+      "description": "Git commit SHA at the time of execution."
+    },
+    "config_hash": {
+      "type": "string",
+      "description": "SHA-256 hash of the experiment configuration file."
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Random seed used for deterministic reproducibility."
+    },
+    "dataset": {
+      "type": "string",
+      "description": "Name or identifier of the dataset used."
+    },
+    "library_versions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Map of dependencies and their exact installed version strings."
+    },
+    "metrics_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Relative paths to output metrics files produced by the run."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Freeform context or observations regarding the experiment run."
+    }
+  },
+  "required": [
+    "run_id",
+    "created_utc",
+    "git_commit",
+    "config_hash",
+    "seed",
+    "dataset",
+    "library_versions",
+    "metrics_files",
+    "notes"
+  ],
+  "additionalProperties": false
+}
+

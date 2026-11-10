@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Khushicodes15/K-HNSW/docs/contracts/event.schema.json",
+  "title": "K-HNSW Trace Event Schema",
+  "description": "Schema definition for kinetic graph simulation and repair trace events.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Version of the event schema."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Unique identifier for the experiment or simulation run."
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonically increasing sequence index within the run."
+    },
+    "t": {
+      "type": "number",
+      "minimum": 0.0,
+      "description": "Simulation timestamp of the event."
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "run_start",
+        "move",
+        "cert_fail",
+        "enqueue",
+        "pop",
+        "stale_skip",
+        "edge_add",
+        "edge_remove",
+        "search",
+        "metric",
+        "run_end"
+      ],
+      "description": "Type of simulation or repair event."
+    },
+    "node": {
+      "type": ["integer", "null"],
+      "description": "Node identifier associated with this event, or null."
+    },
+    "level": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Hierarchy level index, or null."
+    },
+    "version": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Monotonic version of the target node, or null."
+    },
+    "payload": {
+      "type": "object",
+      "description": "Arbitrary event-specific data payload."
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "seq",
+    "t",
+    "type",
+    "node",
+    "level",
+    "version",
+    "payload"
+  ],
+  "additionalProperties": false
+}
+
