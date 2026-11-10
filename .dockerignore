@@ -1,0 +1,16 @@
+.git
+.venv
+venv
+node_modules
+dist
+frontend/dist
+frontend/public/py
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+htmlcov
+mlruns
+data/*
+!data/.gitkeep
+

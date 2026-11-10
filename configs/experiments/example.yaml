@@ -1,0 +1,14 @@
+name: "example_kinetic_drift"
+seed: 42
+dataset: "synthetic_gaussian_clusters"
+n_points: 10000
+dim: 128
+update_fraction: 0.05
+movement_model: "random_walk"
+params:
+  m: 16
+  ef_construction: 200
+  ef_search: 64
+  step_size: 0.01
+  repair_budget: 1000.0
+
