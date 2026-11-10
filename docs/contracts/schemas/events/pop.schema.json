@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Khushicodes15/K-HNSW/docs/contracts/schemas/events/pop.schema.json",
+  "title": "pop Event Schema",
+  "type": "object",
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "run_id": { "type": "string" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "t": { "type": "number", "minimum": 0.0 },
+    "type": { "type": "string", "const": "pop" },
+    "node": { "type": "integer" },
+    "level": { "type": "integer", "minimum": 0 },
+    "version": { "type": "integer", "minimum": 0 },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "heap_size": { "type": "integer", "minimum": 0 },
+        "priority": { "type": "number" },
+        "example": { "type": "boolean" }
+      },
+      "required": ["heap_size"]
+    }
+  },
+  "required": ["schema_version", "run_id", "seq", "t", "type", "node", "level", "version", "payload"]
+}

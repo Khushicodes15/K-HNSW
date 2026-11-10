@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Khushicodes15/K-HNSW/docs/contracts/schemas/events/run_end.schema.json",
+  "title": "run_end Event Schema",
+  "type": "object",
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "run_id": { "type": "string" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "t": { "type": "number", "minimum": 0.0 },
+    "type": { "type": "string", "const": "run_end" },
+    "node": { "type": "null" },
+    "level": { "type": "null" },
+    "version": { "type": "null" },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "string" },
+        "total_events": { "type": "integer", "minimum": 0 },
+        "elapsed_seconds": { "type": "number", "minimum": 0.0 },
+        "example": { "type": "boolean" }
+      },
+      "required": ["status"]
+    }
+  },
+  "required": ["schema_version", "run_id", "seq", "t", "type", "node", "level", "version", "payload"]
+}
