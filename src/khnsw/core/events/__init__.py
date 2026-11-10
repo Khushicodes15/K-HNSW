@@ -2,6 +2,7 @@
 
 from khnsw.core.events.schema import (
     Event,
+    EventEmitter,
     EventSink,
     EventType,
     JsonlSink,
@@ -11,6 +12,7 @@ from khnsw.core.events.schema import (
 
 __all__ = [
     "Event",
+    "EventEmitter",
     "EventSink",
     "EventType",
     "JsonlSink",
