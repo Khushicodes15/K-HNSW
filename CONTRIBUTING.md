@@ -45,3 +45,4 @@ npm run build
   - `run_manifest.json` conforming to `docs/contracts/run_manifest.schema.json`.
   - `metrics.csv` containing per-iteration or summary metrics.
 - Keep total PR diff sizes small.
+

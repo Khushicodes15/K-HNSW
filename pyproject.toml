@@ -9,7 +9,11 @@ description = "Kinetic Hierarchical Navigable Small World graph topology repair 
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-    { name = "K-HNSW Team" }
+    { name = "Khushi Dhona" },
+    { name = "Mansi Bhattacharjee" },
+    { name = "Arpanjot Kaur" },
+    { name = "Saanvi Srivastava" },
+    { name = "Ayushman Acharya" },
 ]
 dependencies = [
     "numpy>=1.26.0",

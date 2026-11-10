@@ -113,9 +113,19 @@ docker compose up --build
 └── tests/                     # Unit, property, parity, and contract tests
 ```
 
+## Team & Ownership
+- **Khushi Dhona** (Member 3 / Repo Owner): Update & Repair Engine (`src/khnsw/core/movement/`, `detection/`, `scheduling/`, `repair/`, `events/`)
+- **Mansi Bhattacharjee** (Member 1): Research & Algorithm Spec (`docs/algorithm/`, `docs/literature/`, `docs/contracts/metrics.md`)
+- **Arpanjot Kaur** (Member 2): Graph Engine & Baselines (`src/khnsw/core/graph/`, `src/khnsw/core/search/`, `src/khnsw/adapters/`)
+- **Saanvi Srivastava** (Member 4): Benchmarks & Evaluation (`benchmarks/`, `configs/`, `tests/parity/`)
+- **Ayushman Acharya** (Member 5): Frontend & System Integration (`frontend/`, `src/khnsw/api/`, `Dockerfile.backend`, `docker-compose.yml`, `.github/workflows/`)
+
+See [`docs/OWNERSHIP.md`](docs/OWNERSHIP.md) for the full role and review pairing matrix.
+
 ## Documentation Links
 - [Architecture Decision Record 0001: Monorepo](docs/adr/0001-monorepo.md)
 - [Team Ownership & Code Review Pairing Matrix](docs/OWNERSHIP.md)
 - [Work Checklists & Task Roadmaps](docs/TASKS.md)
 - [System Contracts & Schemas](docs/contracts/README.md)
 - [Evaluation Metrics & Protocols](docs/contracts/metrics.md)
+

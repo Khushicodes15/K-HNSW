@@ -12,3 +12,4 @@ Every AI assistant or autonomous agent working in this repository MUST strictly 
 8. **No Skipping Tests**: Never mark failing tests as `xfail` or `@pytest.mark.skip` to achieve a passing status. If an issue arises, diagnose and resolve it or report the failure honestly.
 9. **Keep Pull Requests Small**: Confine PRs to single discrete tasks from [`docs/TASKS.md`](file:///docs/TASKS.md).
 10. **Verify All Checks**: Before declaring a task complete, verify that `ruff check .`, `ruff format --check .`, `pytest`, `npm run lint`, `npm test`, and `npm run build` pass cleanly.
+
