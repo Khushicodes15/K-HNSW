@@ -1,9 +1,43 @@
 # GraphIndex Contract Specification
 
-The `GraphIndex` contract (`khnsw.core.interfaces.GraphIndex`) specifies the interface that any pure or adapted Hierarchical Navigable Small World graph implementation must fulfill.
+The index contracts specify the interfaces that any pure or adapted index implementations in K-HNSW must fulfill. The contracts are layered hierarchically:
 
-## Architectural Model
+```mermaid
+classDiagram
+    class ANNIndex {
+        +int dim
+        +add(ids, vectors)
+        +move(node_id, new_vector)
+        +search(query, k, ef) tuple
+        +size() int
+        +contains(node_id) bool
+        +remove(node_id)
+    }
+    class GraphIndex {
+        +neighbors(node_id, level) list
+        +in_neighbors(node_id, level) list
+        +node_level(node_id) int
+        +max_level() int
+        +entry_point() int
+        +vector(node_id) ndarray
+        +version(node_id) int
+        +ids() list
+        +max_degree(level) int
+        +int distance_computations
+        +snapshot() dict
+    }
+    class MutableGraphIndex {
+        +set_neighbors(node_id, level, neighbors)
+        +add_edge(u, v, level)
+        +remove_edge(u, v, level)
+    }
+    ANNIndex <|-- GraphIndex
+    GraphIndex <|-- MutableGraphIndex
+```
+
+## Architectural Model & Layer Hierarchy
 The graph is organized into $L + 1$ discrete layers indexed from $l = 0$ (dense base layer containing all nodes) up to $l = L$ (sparse top layer containing long-range links).
+An empty graph returns `max_level() == -1` and `entry_point() == None`.
 
 ```mermaid
 flowchart TD
@@ -22,22 +56,23 @@ flowchart TD
     end
 ```
 
-## Contract Invariants
-1. **Layer Hierarchy**: If a node exists at level $l$, it must also exist at all levels $0 \le l' < l$.
-2. **Degree Bounds**: For any node $v$ at level $l > 0$, out-degree $|N_l(v)| \le M$. For level 0, out-degree $|N_0(v)| \le M_0 = 2M$.
-3. **Entry Point**: The entry point $ep$ must be a valid node present at the highest non-empty layer $L = \text{max\_level}()$.
-4. **Reverse Edges**: In order to enable efficient kinetic updates, implementations must track incoming neighbors `in_neighbors(node_id, level)` such that $u \in \text{in\_neighbors}(v, l) \iff v \in \text{neighbors}(u, l)$.
+## Distance Metric & Coordinate Contracts
+- **Squared L2 Distance**: `search()` strictly computes and returns squared Euclidean distances ($\|q - v\|_2^2$).
+- **Cosine Data**: Any dataset operating under cosine similarity or angular distance must be $\ell_2$-normalized prior to insertion and query (under unit normalization, $\|q - v\|_2^2 = 2 - 2 \langle q, v \rangle$).
 
-## Operations
-- `dim`: Dimensionality of vectors stored in the graph.
-- `add(ids, vectors)`: Insert batches of vectors into the hierarchy.
-- `move(node_id, new_vector)`: Update node spatial coordinates without immediately reconstructing the entire graph.
-- `search(query, k, ef)`: Multi-layer greedy navigation followed by beam search at layer 0. Returns sorted top-$k$ IDs and distance metrics.
-- `neighbors(node_id, level)`: Returns list of target IDs for outgoing edges at given layer.
-- `in_neighbors(node_id, level)`: Returns incoming neighbor IDs for reverse-edge maintenance.
-- `node_level(node_id)`: Maximum layer assigned to node.
-- `max_level()`: Current top layer index.
-- `entry_point()`: Identifier of top-layer root node.
-- `vector(node_id)`: Current vector coordinates.
-- `snapshot()`: Serializable dictionary representation for inspection, debugging, and visualization.
+## Lifecycle, Versioning, and Call Order
+Under kinetic updates, components must follow a strict call sequence:
+1. **Read Old Vector**: Query `v_old = index.vector(node_id)`.
+2. **Move Node Coordinates**: Invoke `index.move(node_id, v_new)`. This updates the internal vector table and increments `version(node_id)` by 1.
+3. **Notify Repairer**: Invoke `repairer.on_move(index, node_id, v_old, v_new, sink)` to trigger certificate evaluations and repair queuing.
 
+## MutableGraphIndex Contract
+`MutableGraphIndex` provides primitive mutation methods used by repair algorithms:
+- `set_neighbors(node_id, level, neighbors)`: Atomically updates the forward neighbor list while updating reverse edge tables (`in_neighbors`) symmetrically for any added or severed links.
+- `add_edge(u, v, level)`: Adds a directed edge $u \to v$ at layer $l$, ensuring $u \in \text{in\_neighbors}(v, l)$.
+- `remove_edge(u, v, level)`: Removes directed edge $u \to v$ at layer $l$, ensuring $u \notin \text{in\_neighbors}(v, l)$.
+- **Accounting**: Every mutation method must account for any pairwise distance calculations executed by incrementing `distance_computations`.
+
+## Repair Budget & Invariants
+- **Budget Unit**: Repair budgets allocated to `run_repairs(index, budget, sink)` are denominated strictly in **distance computations**.
+- **Reachability Postcondition**: Reachability is **not** guaranteed to be preserved under arbitrary drift budgets; instead, reachability is **measured and reported** continuously as an evaluation metric.

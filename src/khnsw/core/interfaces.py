@@ -14,22 +14,20 @@ from numpy.typing import NDArray
 
 from khnsw.core.events.schema import EventSink
 
-# Re-export EventSink for convenience
 __all__ = [
+    "ANNIndex",
     "EventSink",
     "GraphIndex",
+    "LinearTrajectory",
     "MovementModel",
+    "MutableGraphIndex",
     "Repairer",
 ]
 
 
 @runtime_checkable
-class GraphIndex(Protocol):
-    """Protocol defining the Hierarchical Navigable Small World index contract.
-
-    Supports vector insertion, dynamic node movement, multi-layer neighbor exploration,
-    reverse-edge tracking, and approximate nearest neighbor search.
-    """
+class ANNIndex(Protocol):
+    """General Approximate Nearest Neighbor (ANN) index protocol."""
 
     @property
     def dim(self) -> int:
@@ -38,7 +36,7 @@ class GraphIndex(Protocol):
         Returns
         -------
         int
-            Dimension of vector embeddings stored in the graph.
+            Dimension of vector embeddings stored in the index.
         """
         ...
 
@@ -53,19 +51,22 @@ class GraphIndex(Protocol):
             2D array of vector coordinates, shape (N, dim).
 
         Preconditions:
-            - TODO (Owner: Member 2): len(ids) == len(vectors).
-            - TODO (Owner: Member 2): All ids non-negative and not already in index.
-            - TODO (Owner: Member 2): vectors.shape[1] == self.dim.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): len(ids) == len(vectors).
+            - TODO (Owner: Member 2 - Arpanjot Kaur): All ids non-negative and not in index.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): vectors.shape[1] == self.dim.
         Postconditions:
-            - TODO (Owner: Member 2): Added nodes assigned layers via decay distribution.
-            - TODO (Owner: Member 2): Out-degree at each layer obeys maximum M / M0 bounds.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): All points are queryable.
         Complexity:
-            - Expected: O(N * log(total_nodes) * M) distance computations.
+            - Expected: O(N * log(total_nodes)) for tree/graph structures.
         """
         ...
 
     def move(self, node_id: int, new_vector: NDArray[np.float32]) -> None:
         """Update the spatial coordinates of an existing node in the index.
+
+        Contract & Lifecycle:
+            - Call order: read old vector -> index.move -> repairer.on_move.
+            - Version increments: Calling move increments version(node_id) monotonically.
 
         Parameters
         ----------
@@ -75,13 +76,13 @@ class GraphIndex(Protocol):
             Updated 1D vector position, shape (dim,).
 
         Preconditions:
-            - TODO (Owner: Member 2): node_id exists in the graph.
-            - TODO (Owner: Member 2): new_vector.shape == (self.dim,).
+            - TODO (Owner: Member 2 - Arpanjot Kaur): node_id exists in the index.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): new_vector.shape == (self.dim,).
         Postconditions:
-            - TODO (Owner: Member 2): vector(node_id) returns new_vector.
-            - Note: graph edges may become kinetically invalid or sub-optimal until repaired.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): vector(node_id) returns new_vector.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): version(node_id) incremented by 1.
         Complexity:
-            - Expected: O(1) coordinate update or O(deg(node_id)) certificate evaluation.
+            - Expected: O(1) coordinate and version update.
         """
         ...
 
@@ -91,7 +92,12 @@ class GraphIndex(Protocol):
         k: int,
         ef: int,
     ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
-        """Perform greedy / beam search for approximate nearest neighbors.
+        """Perform search for approximate nearest neighbors.
+
+        Distance Metric Contract:
+            - Search returns squared L2 distances (||q - v||^2).
+            - For cosine similarity data, vectors must be normalized beforehand
+              (cosine distance on unit vectors equals 0.5 * squared L2).
 
         Parameters
         ----------
@@ -105,20 +111,69 @@ class GraphIndex(Protocol):
         Returns
         -------
         tuple[NDArray[np.int64], NDArray[np.float32]]
-            Tuple of (top_k_ids, top_k_distances).
+            Tuple of (top_k_ids, top_k_squared_l2_distances).
 
         Preconditions:
-            - TODO (Owner: Member 2): ef >= k >= 1.
-            - TODO (Owner: Member 2): query.shape == (self.dim,).
+            - TODO (Owner: Member 2 - Arpanjot Kaur): ef >= k >= 1.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): query.shape == (self.dim,).
         Postconditions:
-            - TODO (Owner: Member 2): Returns <= min(k, total_nodes) elements sorted by distance.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): Returns <= min(k, size()) sorted elements.
         Complexity:
             - Expected: O(ef * log(ef) * log(N)) distance computations.
         """
         ...
 
+    def size(self) -> int:
+        """Return the total number of indexed points.
+
+        Returns
+        -------
+        int
+            Total count of active vectors currently in the index.
+        """
+        ...
+
+    def contains(self, node_id: int) -> bool:
+        """Check whether a node_id is currently present in the index.
+
+        Parameters
+        ----------
+        node_id : int
+            Node identifier to query.
+
+        Returns
+        -------
+        bool
+            True if the node exists in the index, False otherwise.
+        """
+        ...
+
+    def remove(self, node_id: int) -> None:
+        """Remove a node from the index.
+
+        Parameters
+        ----------
+        node_id : int
+            Identifier of the node to remove.
+
+        Preconditions:
+            - TODO (Owner: Member 2 - Arpanjot Kaur): node_id exists in the index.
+        Postconditions:
+            - TODO (Owner: Member 2 - Arpanjot Kaur): contains(node_id) is False.
+        """
+        ...
+
+
+@runtime_checkable
+class GraphIndex(ANNIndex, Protocol):
+    """Protocol defining the Hierarchical Navigable Small World graph index contract.
+
+    Extends ANNIndex with multi-layer topology inspection, reverse-edge tracking,
+    and distance computation counters.
+    """
+
     def neighbors(self, node_id: int, level: int) -> list[int]:
-        """Return the list of outgoing neighbor identifiers for a node at a specific layer.
+        """Return outgoing neighbor identifiers for a node at a specific layer.
 
         Parameters
         ----------
@@ -133,16 +188,16 @@ class GraphIndex(Protocol):
             List of outgoing neighbor IDs.
 
         Preconditions:
-            - TODO (Owner: Member 2): node_id exists and level <= node_level(node_id).
+            - TODO (Owner: Member 2 - Arpanjot Kaur): node_id exists, level <= node_level(node_id).
         Postconditions:
-            - TODO (Owner: Member 2): Output list length <= max_m_for_level.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): len(neighbors) <= max_degree(level).
         Complexity:
             - Expected: O(1) or O(degree).
         """
         ...
 
     def in_neighbors(self, node_id: int, level: int) -> list[int]:
-        """Return the list of incoming neighbor identifiers (reverse edges) for a node at a layer.
+        """Return incoming neighbor identifiers (reverse edges) for a node at a layer.
 
         Parameters
         ----------
@@ -154,19 +209,19 @@ class GraphIndex(Protocol):
         Returns
         -------
         list[int]
-            List of incoming neighbor IDs that have an edge directed to node_id at this layer.
+            List of incoming neighbor IDs that have a directed edge to node_id.
 
         Preconditions:
-            - TODO (Owner: Member 2): Reverse-edge tracking enabled on graph.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): Reverse-edge tracking enabled.
         Postconditions:
-            - TODO (Owner: Member 2): Consistent with forward adjacency lists.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): u in in_neighbors <=> v in neighbors.
         Complexity:
-            - Expected: O(1) lookup in reverse adjacency index.
+            - Expected: O(1) lookup in reverse adjacency table.
         """
         ...
 
     def node_level(self, node_id: int) -> int:
-        """Return the highest layer assigned to the given node.
+        """Return the highest layer level assigned to the given node.
 
         Parameters
         ----------
@@ -179,9 +234,9 @@ class GraphIndex(Protocol):
             Maximum level index where this node appears.
 
         Preconditions:
-            - TODO (Owner: Member 2): node_id exists in the graph.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): node_id exists in the graph.
         Postconditions:
-            - TODO (Owner: Member 2): 0 <= level <= max_level().
+            - TODO (Owner: Member 2 - Arpanjot Kaur): 0 <= level <= max_level().
         Complexity:
             - Expected: O(1).
         """
@@ -193,12 +248,7 @@ class GraphIndex(Protocol):
         Returns
         -------
         int
-            Top-level index of the hierarchy (e.g. 0 for single layer, >=0 for multi-layer).
-
-        Preconditions:
-            - TODO (Owner: Member 2): Graph must have at least one node, else returns -1 or 0.
-        Complexity:
-            - Expected: O(1).
+            Top-level index of the hierarchy (>= 0 for non-empty graphs, -1 for empty graph).
         """
         ...
 
@@ -209,18 +259,11 @@ class GraphIndex(Protocol):
         -------
         int | None
             Node ID of the entry point, or None if the graph is empty.
-
-        Preconditions:
-            - None.
-        Postconditions:
-            - TODO (Owner: Member 2): If not None, node exists at level == max_level().
-        Complexity:
-            - Expected: O(1).
         """
         ...
 
     def vector(self, node_id: int) -> NDArray[np.float32]:
-        """Retrieve the current spatial vector coordinates for a given node.
+        """Retrieve current spatial vector coordinates for a given node.
 
         Parameters
         ----------
@@ -233,24 +276,172 @@ class GraphIndex(Protocol):
             Current vector representation, shape (dim,).
 
         Preconditions:
-            - TODO (Owner: Member 2): node_id exists.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): node_id exists.
         Complexity:
             - Expected: O(1).
         """
         ...
 
+    def version(self, node_id: int) -> int:
+        """Return the monotonic update version of a node.
+
+        Increments on each call to move(node_id, ...).
+
+        Parameters
+        ----------
+        node_id : int
+            Target node identifier.
+
+        Returns
+        -------
+        int
+            Monotonic version counter (starts at 0 on add, increments on move).
+        """
+        ...
+
+    def ids(self) -> list[int]:
+        """Return all active node identifiers in the graph index.
+
+        Returns
+        -------
+        list[int]
+            List of all node IDs present in the graph.
+        """
+        ...
+
+    def max_degree(self, level: int) -> int:
+        """Return the maximum allowable degree at a given layer level.
+
+        Parameters
+        ----------
+        level : int
+            Layer index (level 0 allows M0; level > 0 allows M).
+
+        Returns
+        -------
+        int
+            Maximum allowable outgoing edge count.
+        """
+        ...
+
+    @property
+    def distance_computations(self) -> int:
+        """Cumulative counter of distance computations performed by the index.
+
+        Returns
+        -------
+        int
+            Total number of pairwise distance calculations executed.
+        """
+        ...
+
     def snapshot(self) -> dict[str, Any]:
-        """Export a serializable snapshot of the graph topology and metadata.
+        """Export a serializable snapshot of graph topology and metadata.
 
         Returns
         -------
         dict[str, Any]
             Dictionary containing node counts, layer statistics, entry point, and edge distribution.
+        """
+        ...
+
+
+@runtime_checkable
+class MutableGraphIndex(GraphIndex, Protocol):
+    """Protocol defining graph mutation operations for repair and construction.
+
+    Each mutation method must keep the reverse index consistent and count its
+    distance computations.
+    """
+
+    def set_neighbors(self, node_id: int, level: int, neighbors: list[int]) -> None:
+        """Replace the outgoing neighbor list of a node at a given level.
+
+        Contract:
+            - Must keep the reverse index (`in_neighbors`) consistent for both added
+              and removed connections.
+            - Must count any distance computations performed during pruning/selection.
+
+        Parameters
+        ----------
+        node_id : int
+            Source node identifier.
+        level : int
+            Layer level index.
+        neighbors : list[int]
+            New list of outgoing neighbor IDs.
 
         Preconditions:
-            - None.
-        Complexity:
-            - Expected: O(V + E) for complete structural export.
+            - TODO (Owner: Member 2 - Arpanjot Kaur): len(neighbors) <= max_degree(level).
+        Postconditions:
+            - TODO (Owner: Member 2 - Arpanjot Kaur): Reverse index updated symmetrically.
+        """
+        ...
+
+    def add_edge(self, u: int, v: int, level: int) -> None:
+        """Add a directed edge from u to v at the specified level.
+
+        Contract:
+            - Must add u to in_neighbors(v, level) consistently.
+            - Must count any distance computations performed.
+
+        Parameters
+        ----------
+        u : int
+            Source node identifier.
+        v : int
+            Target node identifier.
+        level : int
+            Layer level index.
+
+        Preconditions:
+            - TODO (Owner: Member 2 - Arpanjot Kaur): u and v exist at this level.
+        Postconditions:
+            - TODO (Owner: Member 2 - Arpanjot Kaur): v in neighbors(u, level).
+            - TODO (Owner: Member 2 - Arpanjot Kaur): u in in_neighbors(v, level).
+        """
+        ...
+
+    def remove_edge(self, u: int, v: int, level: int) -> None:
+        """Remove the directed edge from u to v at the specified level.
+
+        Contract:
+            - Must remove u from in_neighbors(v, level) consistently.
+
+        Parameters
+        ----------
+        u : int
+            Source node identifier.
+        v : int
+            Target node identifier.
+        level : int
+            Layer level index.
+
+        Postconditions:
+            - TODO (Owner: Member 2 - Arpanjot Kaur): v not in neighbors(u, level).
+            - TODO (Owner: Member 2 - Arpanjot Kaur): u not in in_neighbors(v, level).
+        """
+        ...
+
+
+@runtime_checkable
+class LinearTrajectory(Protocol):
+    """Optional protocol for linear kinematic trajectories where p(t) = a + b * t."""
+
+    def trajectory(self, node_id: int) -> tuple[NDArray[np.float32], NDArray[np.float32]]:
+        """Return the linear trajectory coefficients (a, b) for a given node.
+
+        Position at simulation time t is parameterized as p(t) = a + b * t.
+
+        Parameters
+        ----------
+        node_id : int
+            Identifier of the target node.
+
+        Returns
+        -------
+        tuple[NDArray[np.float32], NDArray[np.float32]]
+            Tuple of (initial_offset_a, velocity_vector_b), each of shape (dim,).
         """
         ...
 
@@ -295,11 +486,28 @@ class MovementModel(Protocol):
             2D array of positions for all n points, shape (n, dim).
 
         Preconditions:
-            - TODO (Owner: Member 3): t >= 0.0 and monotonically non-decreasing in simulation loops.
+            - TODO (Owner: Member 3 - Khushi Dhona): t >= 0.0 and monotonically non-decreasing.
         Postconditions:
-            - TODO (Owner: Member 3): Output shape is strictly (n, dim) with finite float32 values.
+            - TODO (Owner: Member 3 - Khushi Dhona): Output shape is strictly (n, dim).
         Complexity:
             - Expected: O(n * dim) per simulation step.
+        """
+        ...
+
+    def changed_nodes(self, t_prev: float, t_curr: float) -> list[int]:
+        """Report node identifiers whose positions changed between t_prev and t_curr.
+
+        Parameters
+        ----------
+        t_prev : float
+            Previous simulation timestamp.
+        t_curr : float
+            Current simulation timestamp.
+
+        Returns
+        -------
+        list[int]
+            List of node IDs that moved during this time step.
         """
         ...
 
@@ -310,7 +518,7 @@ class Repairer(Protocol):
 
     def on_move(
         self,
-        index: GraphIndex,
+        index: MutableGraphIndex,
         node_id: int,
         old_vector: NDArray[np.float32],
         new_vector: NDArray[np.float32],
@@ -318,10 +526,13 @@ class Repairer(Protocol):
     ) -> None:
         """Handle a single node movement notification and trigger kinetic certificates/queues.
 
+        Execution Protocol:
+            - Call order is strictly: read old vector -> index.move -> repairer.on_move.
+
         Parameters
         ----------
-        index : GraphIndex
-            Target graph index instance.
+        index : MutableGraphIndex
+            Target mutable graph index instance.
         node_id : int
             Identifier of the moved node.
         old_vector : NDArray[np.float32]
@@ -332,9 +543,9 @@ class Repairer(Protocol):
             Event sink to emit certificate invalidations and queue events.
 
         Preconditions:
-            - TODO (Owner: Member 3): node_id exists in index.
+            - TODO (Owner: Member 3 - Khushi Dhona): node_id exists in index.
         Postconditions:
-            - TODO (Owner: Member 3): Invalidated edges are enqueued in repair heap.
+            - TODO (Owner: Member 3 - Khushi Dhona): Invalidated edges enqueued in repair heap.
         Complexity:
             - Expected: O(deg(node_id) * dim) certificate checks.
         """
@@ -342,18 +553,22 @@ class Repairer(Protocol):
 
     def run_repairs(
         self,
-        index: GraphIndex,
+        index: MutableGraphIndex,
         budget: float,
         sink: EventSink,
     ) -> dict[str, Any]:
         """Execute scheduled topological repairs within an allotted computational budget.
 
+        Budget Metric Contract:
+            - Budget unit = distance computations. Every pairwise distance calculation
+              performed during neighbor search or rewiring consumes 1 unit of budget.
+
         Parameters
         ----------
-        index : GraphIndex
-            Target graph index instance.
+        index : MutableGraphIndex
+            Target mutable graph index instance.
         budget : float
-            Computational repair budget (e.g. maximum distance calculations or operations).
+            Computational repair budget in distance computations (budget > 0.0).
         sink : EventSink
             Event sink to log edge modifications and repair metrics.
 
@@ -363,10 +578,11 @@ class Repairer(Protocol):
             Dictionary summarizing repair actions taken (edges added, removed, budget consumed).
 
         Preconditions:
-            - TODO (Owner: Member 3): budget > 0.0.
+            - TODO (Owner: Member 3 - Khushi Dhona): budget > 0.0.
         Postconditions:
-            - TODO (Owner: Member 3): Graph invariants (degree bounds, reachability) preserved.
+            - TODO (Owner: Member 3 - Khushi Dhona): Graph degree bounds are maintained;
+              reachability is measured and reported.
         Complexity:
-            - Expected: Consumes <= budget operations.
+            - Expected: Consumes <= budget distance computations.
         """
         ...
