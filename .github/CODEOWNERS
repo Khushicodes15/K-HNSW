@@ -1,0 +1,34 @@
+# K-HNSW Code Ownership
+# Placeholder lines are commented out with @TODO_MEMBER handles to avoid invalid GitHub mentions.
+
+# Global / Repo Owner (Member 3)
+# * @TODO_MEMBER3
+
+# Member 1: Research & Algorithm Spec
+# /docs/algorithm/ @TODO_MEMBER1
+# /docs/literature/ @TODO_MEMBER1
+# /docs/contracts/metrics.md @TODO_MEMBER1
+
+# Member 2: Graph Engine
+# /src/khnsw/core/graph/ @TODO_MEMBER2
+# /src/khnsw/adapters/ @TODO_MEMBER2
+
+# Member 3: Update & Repair Engine (Repo Owner)
+# /src/khnsw/core/movement/ @TODO_MEMBER3
+# /src/khnsw/core/detection/ @TODO_MEMBER3
+# /src/khnsw/core/scheduling/ @TODO_MEMBER3
+# /src/khnsw/core/repair/ @TODO_MEMBER3
+# /src/khnsw/core/events/ @TODO_MEMBER3
+
+# Member 4: Benchmarks & Parity
+# /benchmarks/ @TODO_MEMBER4
+# /configs/ @TODO_MEMBER4
+# /tests/parity/ @TODO_MEMBER4
+
+# Member 5: Frontend & Integration
+# /frontend/ @TODO_MEMBER5
+# /src/khnsw/api/ @TODO_MEMBER5
+# /Dockerfile.backend @TODO_MEMBER5
+# /docker-compose.yml @TODO_MEMBER5
+# /.github/workflows/ @TODO_MEMBER5
+
