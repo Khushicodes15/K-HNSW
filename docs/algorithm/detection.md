@@ -60,7 +60,7 @@ In fresh HNSW graphs constructed via standard heuristics (such as `hnswlib`), re
   - Newly added edges during rewiring: classified as **`appeared`** with their initial status; they never trigger spurious failure events.
 
 ### Invariance of Persistent Violations (VIOLATED -> VIOLATED)
-When an edge $(u, v, l)$ transitions from `VIOLATED` to `VIOLATED`—even if the identity of the canonical witness changes from $w_1$ to $w_2$—no `Transition` event is emitted, and the certificate store silently updates its internal record for $(u, v, l)$ to track the updated canonical witness. Emitting no event is mathematically sound because the edge was already known to need repair, so no new repair need be scheduled; the kinetic event heap already holds or will hold a repair for it, and the store witness update is just local bookkeeping so when repair runs it sees the freshest witness.
+When an edge $(u, v, l)$ transitions from `VIOLATED` to `VIOLATED`—even if the identity of the canonical witness changes from $w_1$ to $w_2$—no `Transition` event is emitted. Because the edge was already counted as violated, no new failure has occurred. The certificate store silently updates its stored witness for $(u, v, l)$ so that repair logic accesses the current witness at repair time. Note that the kinetic event heap tracks failure-time certificates for `VALID` edges only; `VIOLATED` edges are never pushed to the heap.
 
 ---
 
