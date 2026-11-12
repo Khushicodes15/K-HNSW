@@ -7,7 +7,7 @@ Coordinates KineticEventHeap, CertificateStore, and continuous kinematic traject
 from __future__ import annotations
 
 import math
-from typing import Callable
+from typing import Callable, Iterable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -32,9 +32,9 @@ class KineticDetector:
         heap: KineticEventHeap,
         trajectory_of: Callable[[int], tuple[NDArray[np.float64], NDArray[np.float64]]],
         meter: CostMeter,
+        sync_vector: Callable[[int, NDArray[np.float64]], None],
         emitter: EventEmitter | None = None,
         horizon: float = float("inf"),
-        sync_vector: Callable[[int, float], None] | None = None,
     ) -> None:
         """Initialize kinetic detector.
 
@@ -50,21 +50,26 @@ class KineticDetector:
             Function returning (offset_a, velocity_b) for a node ID in float64.
         meter : CostMeter
             Cost meter for distance computation accounting during confirmation.
+        sync_vector : Callable[[int, NDArray[np.float64]], None]
+            Required callback to update a node's stored vector from float64 position
+            without bumping index versions. The driver typically stores float32(pos).
         emitter : EventEmitter | None, default=None
             Optional event emitter for streaming trace events.
         horizon : float, default=infinity
             Lookahead time horizon duration. Only events within [t, t + horizon] are scheduled.
-        sync_vector : Callable[[int, float], None] | None, default=None
-            Optional callback to update a node's vector to time t without bumping version.
         """
         self._index = index
         self._store = store
         self._heap = heap
         self._trajectory_of = trajectory_of
         self._meter = meter
+        self._sync_vector = sync_vector
         self._emitter = emitter
         self._horizon = float(horizon)
-        self._sync_vector = sync_vector
+
+        # Time window state for window refresh
+        self._window_start: float = 0.0
+        self._window_end: float = float(horizon) if math.isfinite(horizon) else float("inf")
 
         # Diagnostic and accounting counters
         self._scheduled: int = 0
@@ -73,23 +78,32 @@ class KineticDetector:
         self._false_alarms: int = 0
         self._rescheduled: int = 0
         self._fail_time_evals: int = 0
+        self._window_refreshes: int = 0
+        self._initial_evals: int = 0
+        self._reschedule_evals: int = 0
+        self._refresh_evals: int = 0
 
     def _sync_node(self, node_id: int, t: float) -> None:
         """Synchronize node vector to simulation timestamp t without bumping version."""
-        if self._sync_vector is not None:
-            self._sync_vector(node_id, t)
-            return
-
         a, b = self._trajectory_of(node_id)
-        pos = np.asarray(a + b * float(t), dtype=np.float32)
+        pos = a + b * float(t)
+        self._sync_vector(node_id, pos)
 
-        # Non-versioning vector update
-        if hasattr(self._index, "_store") and hasattr(self._index._store, "set_vector"):
-            self._index._store.set_vector(node_id, pos)
-        elif hasattr(self._index, "_vectors") and isinstance(self._index._vectors, dict):
-            self._index._vectors[node_id] = pos
-        elif hasattr(self._index, "set_vector") and callable(self._index.set_vector):
-            self._index.set_vector(node_id, pos)
+    def sync_nodes(self, nodes: Iterable[int], t: float) -> None:
+        """Synchronize stored vectors for the given nodes to simulation timestamp t.
+
+        Applies the injected sync_vector callback without modifying index versions.
+
+        Parameters
+        ----------
+        nodes : Iterable[int]
+            Collection of node IDs to synchronize.
+        t : float
+            Simulation timestamp.
+        """
+        t_f = float(t)
+        for u in nodes:
+            self._sync_node(int(u), t_f)
 
     def _evaluate_and_schedule_edge(
         self,
@@ -130,6 +144,9 @@ class KineticDetector:
     def schedule_all(self, t0: float = 0.0) -> None:
         """Schedule kinetic certificates for all VALID edges across all hierarchy layers."""
         t0_f = float(t0)
+        self._window_start = t0_f
+        self._window_end = t0_f + self._horizon if math.isfinite(self._horizon) else float("inf")
+
         max_lvl = self._index.max_level()
         for level in range(max_lvl + 1):
             for u in self._index.ids():
@@ -137,24 +154,35 @@ class KineticDetector:
                     continue
                 for v in self._index.neighbors(u, level):
                     edge = (int(u), int(v), int(level))
+                    before_evals = self._fail_time_evals
                     if self._evaluate_and_schedule_edge(edge, t0=t0_f, now=t0_f):
                         self._scheduled += 1
+                    self._initial_evals += self._fail_time_evals - before_evals
 
-    def advance(self, t: float) -> list[tuple[int, int, int]]:
-        """Advance simulation time to t, popping due events and verifying failures.
+    def _refresh_window(self) -> None:
+        """Advance time window by horizon and reschedule all currently valid edges."""
+        win_start = self._window_end
+        win_end = win_start + self._horizon
+        self._window_start = win_start
+        self._window_end = win_end
+        self._window_refreshes += 1
 
-        Parameters
-        ----------
-        t : float
-            Current simulation timestamp.
+        max_lvl = self._index.max_level()
+        for level in range(max_lvl + 1):
+            for u in self._index.ids():
+                if self._index.node_level(u) < level:
+                    continue
+                for v in self._index.neighbors(u, level):
+                    edge = (int(u), int(v), int(level))
+                    if self._store.status(edge) == EdgeStatus.VALID.value:
+                        self._heap.invalidate_edge(edge)
+                        before_evals = self._fail_time_evals
+                        self._evaluate_and_schedule_edge(edge, t0=win_start, now=win_start)
+                        self._refresh_evals += self._fail_time_evals - before_evals
 
-        Returns
-        -------
-        list[tuple[int, int, int]]
-            List of confirmed violated edges (u, v, level).
-        """
-        t_curr = float(t)
-        due = self._heap.pop_due(t_curr)
+    def _process_due(self, t_bound: float) -> list[tuple[int, int, int]]:
+        """Pop due events up to t_bound and evaluate confirmation or false alarm."""
+        due = self._heap.pop_due(t_bound)
         self._popped += len(due)
 
         confirmed_edges: list[tuple[int, int, int]] = []
@@ -177,10 +205,10 @@ class KineticDetector:
 
             source_key = (u, level)
             if source_key not in evaluated_sources:
-                # Sync source and outgoing neighbors to current time in float32
-                self._sync_node(u, t_curr)
+                # Sync source and outgoing neighbors to current evaluation time in float32
+                self._sync_node(u, t_bound)
                 for w in nbrs:
-                    self._sync_node(w, t_curr)
+                    self._sync_node(w, t_bound)
                 # Recheck via CertificateStore using real float32 stored vectors
                 results = self._store.certify_source(self._index, u, level, self._meter)
                 evaluated_sources[source_key] = results
@@ -201,16 +229,42 @@ class KineticDetector:
                             "neighbor_id": v,
                             "reason": "relative_distance_violation",
                             "witness_id": witness if witness is not None else item.witness,
-                            "t": t_curr,
+                            "t": t_bound,
                         },
                     )
             else:
-                # Float64 prediction was not confirmed in float32 (near-tie/numerical discrepancy)
+                # Float64 prediction not confirmed in float32 (near-tie / discrepancy / transient)
                 self._false_alarms += 1
-                eps = 1e-9 * max(1.0, abs(t_curr))
-                if self._evaluate_and_schedule_edge(edge, t0=t_curr + eps, now=t_curr):
+                eps = 1e-9 * max(1.0, abs(t_bound))
+                before_evals = self._fail_time_evals
+                if self._evaluate_and_schedule_edge(edge, t0=t_bound + eps, now=t_bound):
                     self._rescheduled += 1
+                self._reschedule_evals += self._fail_time_evals - before_evals
 
+        return confirmed_edges
+
+    def advance(self, t: float) -> list[tuple[int, int, int]]:
+        """Advance simulation time to t, popping due events and verifying failures.
+
+        Parameters
+        ----------
+        t : float
+            Current simulation timestamp.
+
+        Returns
+        -------
+        list[tuple[int, int, int]]
+            List of confirmed violated edges (u, v, level).
+        """
+        t_curr = float(t)
+        confirmed_edges: list[tuple[int, int, int]] = []
+
+        if math.isfinite(self._horizon):
+            while t_curr > self._window_end:
+                confirmed_edges.extend(self._process_due(self._window_end))
+                self._refresh_window()
+
+        confirmed_edges.extend(self._process_due(t_curr))
         return confirmed_edges
 
     def on_trajectory_change(self, node: int, t: float = 0.0) -> None:
@@ -239,8 +293,10 @@ class KineticDetector:
 
         for edge in affected:
             self._heap.invalidate_edge(edge)
+            before_evals = self._fail_time_evals
             if self._evaluate_and_schedule_edge(edge, t0=t_curr, now=t_curr):
                 self._rescheduled += 1
+            self._reschedule_evals += self._fail_time_evals - before_evals
 
     def on_topology_change(self, u: int, level: int, t: float = 0.0) -> None:
         """Update certificates after topological mutation on (u, level).
@@ -262,8 +318,10 @@ class KineticDetector:
 
         for v in self._index.neighbors(u_int, lvl_int):
             edge = (u_int, int(v), lvl_int)
+            before_evals = self._fail_time_evals
             if self._evaluate_and_schedule_edge(edge, t0=t_curr, now=t_curr):
                 self._rescheduled += 1
+            self._reschedule_evals += self._fail_time_evals - before_evals
 
     def stats(self) -> dict[str, int]:
         """Return diagnostic counters for scheduling and confirmation.
@@ -272,7 +330,8 @@ class KineticDetector:
         -------
         dict[str, int]
             Dictionary with counts of scheduled, popped, confirmed, false_alarms,
-            rescheduled, and fail_time_evals.
+            rescheduled, fail_time_evals, window_refreshes, initial_evals,
+            reschedule_evals, and refresh_evals.
         """
         return {
             "scheduled": self._scheduled,
@@ -281,4 +340,8 @@ class KineticDetector:
             "false_alarms": self._false_alarms,
             "rescheduled": self._rescheduled,
             "fail_time_evals": self._fail_time_evals,
+            "window_refreshes": self._window_refreshes,
+            "initial_evals": self._initial_evals,
+            "reschedule_evals": self._reschedule_evals,
+            "refresh_evals": self._refresh_evals,
         }

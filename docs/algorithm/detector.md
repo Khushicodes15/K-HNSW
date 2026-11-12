@@ -1,6 +1,6 @@
 # Kinetic Detector Specification and Synchronization Model (`docs/algorithm/detector.md`)
 
-This document specifies the operational design, scheduling mechanics, and vector synchronization contract for the `KineticDetector` engine in K-HNSW (`src/khnsw/core/detection/kinetic.py`).
+This document specifies the operational design, scheduling mechanics, window refresh protocol, and vector synchronization contract for the `KineticDetector` engine in K-HNSW (`src/khnsw/core/detection/kinetic.py`).
 
 ---
 
@@ -22,29 +22,30 @@ In K-HNSW, `index.version(node)` is a monotonic counter strictly reserved for **
 
 ### Vector Synchronization Mechanics
 To perform the required `float32` confirmation re-check at simulation timestamp $t$:
-1. **Who Synchronizes Coordinates**:
-   - The detector accepts an optional callback: `sync_vector: Callable[[int, float], None] | None`.
-   - If provided, `sync_vector(node_id, t)` updates the spatial vector of `node_id` in the underlying index to `float32(p(t))` without incrementing `version(node_id)`.
-   - If not provided, the detector updates the node coordinates directly on the underlying storage (e.g. `index._store.set_vector` on `HNSWIndex`, or `index._vectors[node_id]` on `ReferenceGraph`), strictly bypassing `index.move()` so that `index.version(node_id)` remains unmodified.
-   - The driver may also bulk-synchronize coordinates to $t$ before calling `detector.advance(t)`. The detector's localized synchronization is idempotent.
-2. **Granularity of Synchronization**:
+1. **Required Injected Callback**:
+   - The detector constructor takes a **required** injected callable: `sync_vector: Callable[[int, NDArray[np.float64]], None]`.
+   - The core code adheres strictly to core purity and never accesses private attributes (such as `_store` or `_vectors`) or uses reflection fallback chains.
+   - `sync_vector(node_id, pos)` receives the unquantized `float64` coordinate array $p(t) = a + b \cdot t$. The driver is responsible for converting to `float32(pos)` and storing the coordinate in index storage without bumping `version(node_id)`.
+2. **Public Helper `sync_nodes`**:
+   - The detector exposes `sync_nodes(nodes: Iterable[int], t: float)` to synchronize arbitrary sets of nodes to simulation timestamp $t$ without modifying index versions. This method is used by repair loops to align coordinates before repair planning.
+3. **Granularity of Synchronization**:
    - When an event for edge $(u, v, l)$ is due at timestamp $t$, the detector synchronizes source node $u$, target node $v$, and all sibling neighbors $w \in N_l(u)$ to timestamp $t$ immediately before invoking `store.certify_source(index, u, l, meter)`.
-3. **Post-Evaluation State**:
+4. **Post-Evaluation State**:
    - Versions remain unchanged. Heap entries for other edges and nodes remain active and valid.
 
 ### Trajectory Changes vs Time Advancement
 - **Time Advancement (`detector.advance(t)`)**:
-  Continuous motion along fixed trajectories $p(t) = a + b \cdot t$. Vectors are updated in `float32` without bumping versions; heap entries remain valid; due events are popped, checked, and either confirmed (`VIOLATED`) or rescheduled.
+  Continuous motion along fixed trajectories $p(t) = a + b \cdot t$. Vectors are updated in `float32` via `sync_vector` without bumping versions; heap entries remain valid; due events are popped, checked, and either confirmed (`VIOLATED`) or rescheduled.
 - **Trajectory Mutation (`detector.on_trajectory_change(node, t)`)**:
   Occurs when the driver updates a node's physical path via `index.move(node, new_vec)`. This increments `index.version(node)`, naturally invalidating older heap entries. The detector then invalidates and reschedules all candidate edges involving `node` as source, target, or witness.
 
 ---
 
-## 3. Event Scheduling and Lookahead Horizon
+## 3. Event Scheduling, Lookahead Horizon, and Window Refresh
 
 ### Window Parameter: `horizon`
 - In `KineticDetector`, `horizon: float` denotes the lookahead duration $\Delta t$ (defaulting to `float('inf')`).
-- When scheduling from timestamp $t_0$, the absolute evaluation window end passed to `edge_failure_time` is $t_{\text{end}} = t_0 + \text{horizon}$ (if finite).
+- When scheduling from timestamp $t_0$, the initial evaluation window is $[t_0, t_0 + \text{horizon}]$.
 - **Infinite Horizon Behavior and the $10^6$ Cap**:
   In `certificates.py`, `first_violation_time` deduplicates root partitions using a purely relative tolerance:
   $$\text{time\_scale} = \max(|t_0|, |t_{\text{end}}|), \quad \varepsilon = \text{tol} \cdot \text{time\_scale}$$
@@ -55,6 +56,19 @@ To perform the required `float32` confirmation re-check at simulation timestamp 
 - Only finite failure times satisfying $t_0 \le t_{\text{fail}} \le t_{\text{end}}$ are pushed to the heap.
 - Edges that are currently `VIOLATED` in `CertificateStore` receive **no certificate** (only `VALID` edges are scheduled).
 
+### Window Refresh Protocol
+When `advance(t)` is called with $t > W_{\text{end}}$ (the boundary of the current lookahead window):
+1. **Window-Boundary Processing**:
+   The detector first processes and verifies all events due up to $W_{\text{end}}$ via `_process_due(W_end)`.
+2. **Window Advance**:
+   The window advances to $[W_{\text{end}}, W_{\text{end}} + \text{horizon}]$, and `window_refreshes` is incremented.
+3. **Reschedule of All Valid Edges**:
+   For every edge in the graph that is currently `VALID`:
+   - Any prior certificate in the heap is dropped via `heap.invalidate_edge(edge)`.
+   - A new certificate is computed via `edge_failure_time` over the new window $[W_{\text{end}}, W_{\text{end}} + \text{horizon}]$ and pushed to the heap.
+   - Extra evaluations performed during the refresh are added to `fail_time_evals` and tracked in `refresh_evals`.
+   - This refresh rule holds universally, including for edges rescheduled mid-window by `on_trajectory_change`, `on_topology_change`, or false alarms.
+
 ### Witness Set Alignment
 For every directed edge $u \to v$ at layer $l$, the witness set evaluated by `edge_failure_time` is identically:
 $$W_l(u \to v) = N_l(u) \setminus \{v\}$$
@@ -62,7 +76,7 @@ This guarantees 100% structural agreement with `CertificateStore.certify_source`
 
 ---
 
-## 4. Re-check, Confirmation, and False Alarm Handling
+## 4. Re-check, Confirmation, False Alarms, and Sampled-Time Semantics
 
 When an event pops at time $t$ with predicted failure $t_{\text{fail}} \le t$:
 1. **Re-check via `CertificateStore`**:
@@ -75,11 +89,14 @@ When an event pops at time $t$ with predicted failure $t_{\text{fail}} \le t$:
      - `node = u`, `level = level`, `version = index.version(u)`
      - `payload = {"neighbor_id": v, "reason": "relative_distance_violation", "witness_id": witness, "t": t}`.
    - The edge is returned in `advance(t)`'s confirmed failures list.
-3. **False Alarm (Numerical Boundary Disagreement)**:
+3. **False Alarms and Sampled-Time Semantics**:
    - If the store marks $(u, v, l)$ as `VALID`:
-   - The predicted root in `float64` does not constitute a violation under `float32` static evaluation (e.g. near-tie asymmetry or rounding).
+   - **Sampled-time Semantics**: If a violation began and ended strictly between observation timestamps (a transient violation), or if continuous float64 predicted a violation that evaluates to VALID in float32 at observation instant $t$, the edge is NOT confirmed as a failure at time $t$. Under sampled-time semantics, only persistent violations present at evaluation moments constitute failures.
    - Detector increments `false_alarms` counter.
-   - **Rescheduling**: The edge is NEVER silently dropped. The detector evaluates `edge_failure_time` over $W_l(u \to v)$ starting from $t_0 = t + \varepsilon$ (where $\varepsilon = 10^{-9} \cdot \max(1.0, |t|)$) to $t_{\text{end}} = t + \text{horizon}$. If a subsequent failure is found, it is pushed to the heap with `heap.push(edge, t_next, witness, now=t)`.
+   - **Rescheduling**: The edge is NEVER silently dropped. The detector evaluates `edge_failure_time` over $W_l(u \to v)$ starting strictly after $t$:
+     $$t_0 = t + \varepsilon, \quad \varepsilon = 10^{-9} \cdot \max(1.0, |t|)$$
+     If a subsequent failure is found in $(t_0, t_0 + \text{horizon}]$, it is pushed to the heap with `heap.push(edge, t_next, witness, now=t)`.
+     The positive $\varepsilon$ offset strictly prevents zero-delay re-triggering of grazing or transient ties at timestamp $t$.
 
 ---
 
@@ -95,4 +112,3 @@ When an event pops at time $t$ with predicted failure $t_{\text{fail}} \le t$:
   Called after topological repairs (e.g. `apply_plan`).
   - Drops existing heap entries for $(u, level)$ via `heap.invalidate_source(u, level)`.
   - For each new neighbor $v \in N_l(u)$, if $(u, v, level)$ is `VALID`, schedules a fresh certificate.
-

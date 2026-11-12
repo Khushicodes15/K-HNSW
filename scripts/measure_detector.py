@@ -1,18 +1,19 @@
 """Measurement script evaluating KineticDetector performance vs naive periodic recertification.
 
-Evaluates on HNSWIndex (n=200, M=8, d in {2, 8}) under LinearDrift motion over time T:
-- Failures confirmed and failure percentage (~10-30% range).
-- False alarms and boundary cases.
-- Pure-math failure-time evaluations (fail_time_evals).
-- Reschedules from on_trajectory_change and false alarms.
-- Detection cost reported three ways:
-  1. Confirmation distance computations only (CostMeter).
-  2. + fail_time_evals x 1 (1 distance equivalent per witness evaluation).
-  3. + fail_time_evals x 3 (3 dot products equivalent per quadratic polynomial setup).
-- Cost comparison against naive periodic full recertification baseline.
+Evaluates on HNSWIndex (n=200, M=8, d in {2, 8}) under LinearDrift and ClusterDrift:
+- Confirmed failures, false alarms, and boundary cases.
+- Pure-math failure-time evaluations (fail_time_evals) split into:
+  - Initial schedule evaluations
+  - Reschedule evaluations (trajectory changes and false alarms)
+  - Window refresh evaluations
+- Confirmation distance computations (CostMeter).
+- Cost comparison against naive periodic full recertification baseline charging
+  evaluations at 0x (confirmation only), 1x, and 3x.
 """
 
 from __future__ import annotations
+
+from typing import Any, Callable
 
 import numpy as np
 
@@ -20,10 +21,20 @@ from khnsw.core.detection.certificate_store import CertificateStore, EdgeStatus
 from khnsw.core.detection.cost import CostMeter
 from khnsw.core.detection.kinetic import KineticDetector
 from khnsw.core.graph.hnsw import HNSWIndex
+from khnsw.core.movement.cluster import ClusterDrift
 from khnsw.core.movement.linear import LinearDrift
 from khnsw.core.repair.apply import apply_plan
 from khnsw.core.repair.plan import khnsw_plan
 from khnsw.core.scheduling.event_heap import KineticEventHeap
+
+
+def make_hnsw_sync(index: HNSWIndex) -> Callable[[int, np.ndarray], None]:
+    """Test callback syncing HNSWIndex vectors to float32."""
+
+    def _sync(node_id: int, pos: np.ndarray) -> None:
+        index._store.set_vector(node_id, pos.astype(np.float32))
+
+    return _sync
 
 
 def _settle_hnsw(index: HNSWIndex, store: CertificateStore, meter: CostMeter) -> None:
@@ -39,9 +50,18 @@ def _settle_hnsw(index: HNSWIndex, store: CertificateStore, meter: CostMeter) ->
         apply_plan(index, plan, store=store, meter=meter)
 
 
-def measure_dimension(d: int, n: int = 200, m: int = 8, seed: int = 42) -> dict[str, object]:
-    """Run detector benchmark and naive baseline comparison for a given dimension."""
-    rng = np.random.default_rng(seed)
+def measure_configuration(
+    model_name: str,
+    d: int,
+    n: int = 200,
+    m: int = 8,
+    seed: int = 42,
+    horizon: float = 0.05,
+    T: float = 0.30,
+    steps: int = 10,
+) -> dict[str, Any]:
+    """Run detector benchmark and naive baseline comparison for a model and dimension."""
+    rng = np.random.default_rng(seed + d)
     X = rng.standard_normal((n, d), dtype=np.float32)
 
     index = HNSWIndex(dim=d, m=m, seed=seed)
@@ -54,12 +74,13 @@ def measure_dimension(d: int, n: int = 200, m: int = 8, seed: int = 42) -> dict[
 
     total_edges = len(store._edge_status)
 
-    # Simulation setup: T=0.30, 10 steps (~15-27% failures)
-    steps = 10
-    T = 0.30
     dt = T / steps
-    model = LinearDrift(X, seed=seed, speed=1.0)
-    trajs = {i: model.trajectory(i) for i in range(n)}
+    if model_name == "LinearDrift":
+        motion_model: LinearDrift | ClusterDrift = LinearDrift(X, seed=seed, speed=1.0)
+    else:
+        motion_model = ClusterDrift(X, seed=seed, n_clusters=4, speed=1.0, noise=0.1)
+
+    trajs = {i: motion_model.trajectory(i) for i in range(n)}
 
     # 1. Kinetic Detector Run
     heap = KineticEventHeap(version_of=index.version)
@@ -70,13 +91,15 @@ def measure_dimension(d: int, n: int = 200, m: int = 8, seed: int = 42) -> dict[
         heap=heap,
         trajectory_of=lambda nid: trajs[nid],
         meter=detector_meter,
+        horizon=horizon,
+        sync_vector=make_hnsw_sync(index),
     )
     detector.schedule_all(t0=0.0)
 
     cumulative_confirmed: set[tuple[int, int, int]] = set()
     for step in range(1, steps + 1):
         t = round(step * dt, 5)
-        # Mid-run trajectory change on a connected node
+        # Mid-run trajectory change at step 5
         if step == 5:
             moved_node = max(index.ids(), key=lambda i: len(index.neighbors(i, 0)))
             old_a, old_b = trajs[moved_node]
@@ -95,7 +118,10 @@ def measure_dimension(d: int, n: int = 200, m: int = 8, seed: int = 42) -> dict[
     pct_failed = (confirmed_count / total_edges) * 100.0 if total_edges > 0 else 0.0
     false_alarms = stats["false_alarms"]
     fail_time_evals = stats["fail_time_evals"]
-    rescheduled_count = stats["rescheduled"]
+    initial_evals = stats["initial_evals"]
+    reschedule_evals = stats["reschedule_evals"]
+    refresh_evals = stats["refresh_evals"]
+    window_refreshes = stats["window_refreshes"]
     det_dist_comps = detector_meter.count
 
     # 2. Naive Periodic Recertification Baseline
@@ -137,6 +163,7 @@ def measure_dimension(d: int, n: int = 200, m: int = 8, seed: int = 42) -> dict[
     boundary_cases = len(oracle_violated - cumulative_confirmed)
 
     return {
+        "model": model_name,
         "d": d,
         "total_edges": total_edges,
         "confirmed": confirmed_count,
@@ -144,65 +171,53 @@ def measure_dimension(d: int, n: int = 200, m: int = 8, seed: int = 42) -> dict[
         "false_alarms": false_alarms,
         "boundary_cases": boundary_cases,
         "fail_time_evals": fail_time_evals,
-        "rescheduled": rescheduled_count,
+        "initial_evals": initial_evals,
+        "reschedule_evals": reschedule_evals,
+        "refresh_evals": refresh_evals,
+        "window_refreshes": window_refreshes,
+        "det_dist_comps": det_dist_comps,
+        "base_dist_comps": base_dist_comps,
         "cost_conf_only": cost_conf_only,
         "savings_conf": savings_conf,
         "cost_evals_x1": cost_evals_x1,
         "savings_x1": savings_x1,
         "cost_evals_x3": cost_evals_x3,
         "savings_x3": savings_x3,
-        "base_dist_comps": base_dist_comps,
     }
 
 
 def main() -> None:
-    """Run detector measurement across d in {2, 8} and print comparison table."""
-    print("=" * 86)
-    print("  KINETIC DETECTOR THREE-WAY MEASUREMENT (n=200, M=8, LinearDrift, 10 steps)")
-    print("=" * 86)
+    """Run detector measurement across models and dimensions."""
+    print("=" * 115)
+    print("  KINETIC DETECTOR MEASUREMENT (n=200, M=8, T=0.30, steps=10, horizon=0.05)")
+    print("=" * 115)
 
-    results = []
-    for d in [2, 8]:
-        res = measure_dimension(d=d)
-        results.append(res)
+    runs: list[dict[str, Any]] = []
+    for model_name in ["LinearDrift", "ClusterDrift"]:
+        for d in [2, 8]:
+            res = measure_configuration(model_name=model_name, d=d)
+            runs.append(res)
 
-    r0, r1 = results[0], results[1]
-    print("\n| Metric | d = 2 | d = 8 |")
-    print("| :--- | :---: | :---: |")
-    print(f"| Total Edges (E) | {r0['total_edges']} | {r1['total_edges']} |")
-    print(
-        f"| Confirmed Failures | {r0['confirmed']} ({r0['pct_failed']:.1f}%) | "
-        f"{r1['confirmed']} ({r1['pct_failed']:.1f}%) |"
+    header = (
+        f"{'MODEL':<13} {'D':<3} {'EDGES':<6} {'CONF':<6} {'FA':<4} {'BOUND':<6} "
+        f"{'INIT_EV':<8} {'RESCH_EV':<9} {'REFR_EV':<8} {'TOTAL_EV':<9} "
+        f"{'CONF_DIST':<10} {'BASE_DIST':<10} {'SAV(0x)':<8} {'SAV(1x)':<8} {'SAV(3x)':<8}"
     )
-    print(f"| False Alarms | {r0['false_alarms']} | {r1['false_alarms']} |")
-    print(f"| Boundary Cases | {r0['boundary_cases']} | {r1['boundary_cases']} |")
-    print(
-        f"| Pure-Math Evaluations (`fail_time_evals`) | {r0['fail_time_evals']} | "
-        f"{r1['fail_time_evals']} |"
-    )
-    print(
-        f"| Total Rescheduled (inc. trajectory move) | {r0['rescheduled']} | {r1['rescheduled']} |"
-    )
-    print(
-        f"| Naive Baseline Distance Comps (Full) | {r0['base_dist_comps']} | "
-        f"{r1['base_dist_comps']} |"
-    )
-    s_conf_0, s_conf_1 = f"{r0['savings_conf']:.1f}x", f"{r1['savings_conf']:.1f}x"
-    s_x1_0, s_x1_1 = f"{r0['savings_x1']:.1f}x", f"{r1['savings_x1']:.1f}x"
-    s_x3_0, s_x3_1 = f"{r0['savings_x3']:.1f}x", f"{r1['savings_x3']:.1f}x"
-    print(
-        f"| 1. Confirmation Only Cost | {r0['cost_conf_only']} ({s_conf_0}) | "
-        f"{r1['cost_conf_only']} ({s_conf_1}) |"
-    )
-    print(
-        f"| 2. Cost (+ fail_time_evals x 1) | {r0['cost_evals_x1']} ({s_x1_0}) | "
-        f"{r1['cost_evals_x1']} ({s_x1_1}) |"
-    )
-    print(
-        f"| 3. Cost (+ fail_time_evals x 3) | {r0['cost_evals_x3']} ({s_x3_0}) | "
-        f"{r1['cost_evals_x3']} ({s_x3_1}) |"
-    )
-    print("=" * 86)
+    print(header)
+    print("-" * 115)
+
+    for r in runs:
+        s0 = f"{r['savings_conf']:.1f}x"
+        s1 = f"{r['savings_x1']:.1f}x"
+        s3 = f"{r['savings_x3']:.1f}x"
+        line = (
+            f"{r['model']:<13} {r['d']:<3} {r['total_edges']:<6} {r['confirmed']:<6} "
+            f"{r['false_alarms']:<4} {r['boundary_cases']:<6} {r['initial_evals']:<8} "
+            f"{r['reschedule_evals']:<9} {r['refresh_evals']:<8} {r['fail_time_evals']:<9} "
+            f"{r['det_dist_comps']:<10} {r['base_dist_comps']:<10} {s0:<8} {s1:<8} {s3:<8}"
+        )
+        print(line)
+    print("=" * 115)
 
 
 if __name__ == "__main__":

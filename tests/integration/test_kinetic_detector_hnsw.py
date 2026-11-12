@@ -79,6 +79,15 @@ class OracleIndexWrapper(GraphIndex):
         return self._base.snapshot()
 
 
+def make_hnsw_sync(index: HNSWIndex):
+    """Test callback syncing HNSWIndex vectors to float32. Test code may use private fields."""
+
+    def _sync(node_id: int, pos: np.ndarray) -> None:
+        index._store.set_vector(node_id, pos.astype(np.float32))
+
+    return _sync
+
+
 def _settle_hnsw(index: HNSWIndex, store: CertificateStore, meter: CostMeter) -> None:
     """Run khnsw_plan to settle any construction-time edge violations on HNSWIndex."""
     violated: dict[tuple[int, int], list[int]] = {}
@@ -123,6 +132,7 @@ def test_hnsw_detector_no_missed_failures(d: int, model_type: str) -> None:
         heap=heap,
         trajectory_of=model.trajectory,
         meter=meter,
+        sync_vector=make_hnsw_sync(index),
     )
     detector.schedule_all(t0=0.0)
 
@@ -219,6 +229,8 @@ def test_hnsw_detector_t0_non_zero(d: int, model_type: str) -> None:
         heap=heap,
         trajectory_of=model.trajectory,
         meter=meter,
+        horizon=1.0,
+        sync_vector=make_hnsw_sync(index),
     )
     detector.schedule_all(t0=t0)
     assert detector.stats()["scheduled"] > 0, "Non-vacuity: certificates scheduled at t0=2.5"
@@ -286,6 +298,7 @@ def test_hnsw_detector_trajectory_change() -> None:
         heap=heap,
         trajectory_of=traj_fn,
         meter=meter,
+        sync_vector=make_hnsw_sync(index),
     )
     detector.schedule_all(t0=0.0)
 
@@ -377,6 +390,7 @@ def test_hnsw_detector_topology_change() -> None:
         heap=heap,
         trajectory_of=model.trajectory,
         meter=meter,
+        sync_vector=make_hnsw_sync(index),
     )
     detector.schedule_all(t0=0.0)
 
@@ -430,3 +444,42 @@ def test_hnsw_detector_topology_change() -> None:
         assert len(missed) <= 2, f"Missed failures after repair at t={t}: {missed}"
 
     assert len(oracle_ever_violated) > 0, "Non-vacuity: oracle must observe violations"
+
+
+def test_hnsw_sync_nodes_updates_stored_vectors_without_bumping_version() -> None:
+    """Public sync_nodes on HNSWIndex updates stored float32 coordinates without version bumping."""
+    n = 50
+    m = 8
+    d = 4
+    seed = 999
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((n, d), dtype=np.float32)
+
+    index = HNSWIndex(dim=d, m=m, seed=seed)
+    index.add(np.arange(n, dtype=np.int64), X)
+
+    meter = CostMeter()
+    store = CertificateStore()
+    store.build(index, meter)
+
+    model = LinearDrift(X, seed=seed, speed=1.5)
+    heap = KineticEventHeap(version_of=index.version)
+    detector = KineticDetector(
+        index=index,
+        store=store,
+        heap=heap,
+        trajectory_of=model.trajectory,
+        meter=meter,
+        sync_vector=make_hnsw_sync(index),
+    )
+
+    t = 2.45
+    target_nodes = [3, 11, 24, 39]
+    versions_before = {u: index.version(u) for u in target_nodes}
+
+    detector.sync_nodes(target_nodes, t=t)
+
+    expected_pos = model.positions(t)
+    for u in target_nodes:
+        np.testing.assert_allclose(index.vector(u), expected_pos[u].astype(np.float32))
+        assert index.version(u) == versions_before[u], f"Version of node {u} must not bump"

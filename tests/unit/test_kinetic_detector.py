@@ -16,6 +16,15 @@ from khnsw.core.scheduling.event_heap import KineticEventHeap
 from tests.fixtures.reference_graph import ReferenceGraph
 
 
+def make_refgraph_sync(graph: ReferenceGraph):
+    """Test callback syncing ReferenceGraph vectors to float32. Test code may use private fields."""
+
+    def _sync(node_id: int, pos: np.ndarray) -> None:
+        graph._vectors[node_id] = pos.astype(np.float32)
+
+    return _sync
+
+
 def _settle_graph(graph: ReferenceGraph, store: CertificateStore, meter: CostMeter) -> None:
     """Run khnsw_plan to settle any construction-time edge violations."""
     violated: dict[tuple[int, int], list[int]] = {}
@@ -73,6 +82,7 @@ def test_oracle_agreement_and_no_missed_failures() -> None:
         heap=heap,
         trajectory_of=model.trajectory,
         meter=meter,
+        sync_vector=make_refgraph_sync(graph),
     )
 
     detector.schedule_all(t0=0.0)
@@ -157,6 +167,7 @@ def test_t0_non_zero_oracle_agreement() -> None:
         trajectory_of=model.trajectory,
         meter=meter,
         horizon=1.0,
+        sync_vector=make_refgraph_sync(graph),
     )
     detector.schedule_all(t0=t0)
     assert detector.stats()["scheduled"] > 0, (
@@ -219,6 +230,7 @@ def test_event_emission_contract() -> None:
         heap=heap,
         trajectory_of=model.trajectory,
         meter=meter,
+        sync_vector=make_refgraph_sync(graph),
         emitter=emitter,
     )
 
@@ -277,6 +289,7 @@ def test_trajectory_change_reschedule() -> None:
         heap=heap,
         trajectory_of=traj_fn,
         meter=meter,
+        sync_vector=make_refgraph_sync(graph),
     )
     detector.schedule_all(t0=0.0)
 
@@ -365,6 +378,7 @@ def test_topology_change_reschedule() -> None:
         heap=heap,
         trajectory_of=model.trajectory,
         meter=meter,
+        sync_vector=make_refgraph_sync(graph),
     )
     detector.schedule_all(t0=0.0)
 
@@ -442,6 +456,7 @@ def test_edge_cases() -> None:
         heap=heap_zero,
         trajectory_of=model_zero.trajectory,
         meter=meter,
+        sync_vector=make_refgraph_sync(graph),
     )
     detector_zero.schedule_all(t0=0.0)
     assert heap_zero.raw_size == 0
@@ -457,6 +472,7 @@ def test_edge_cases() -> None:
         heap=heap_inf,
         trajectory_of=model_moving.trajectory,
         meter=meter,
+        sync_vector=make_refgraph_sync(graph),
         horizon=float("inf"),
     )
     det_inf.schedule_all(t0=0.0)
@@ -469,6 +485,7 @@ def test_edge_cases() -> None:
         heap=heap_short,
         trajectory_of=model_moving.trajectory,
         meter=meter,
+        sync_vector=make_refgraph_sync(graph),
         horizon=0.05,
     )
     det_short.schedule_all(t0=0.0)
@@ -501,7 +518,9 @@ def test_failure_already_true_at_t0() -> None:
 
     trajs = {i: (pts[i].astype(np.float64), np.zeros(2, dtype=np.float64)) for i in range(3)}
     heap = KineticEventHeap(version_of=graph.version)
-    detector = KineticDetector(graph, store, heap, lambda nid: trajs[nid], meter)
+    detector = KineticDetector(
+        graph, store, heap, lambda nid: trajs[nid], meter, sync_vector=make_refgraph_sync(graph)
+    )
     detector.schedule_all(t0=0.0)
 
     # VIOLATED edges get no certificate in schedule_all
@@ -533,7 +552,9 @@ def test_tangent_degenerate_touch_no_event() -> None:
     assert t_fail is None, "Open interval policy must return None for tangent touch"
 
     heap = KineticEventHeap(version_of=graph.version)
-    detector = KineticDetector(graph, store, heap, lambda nid: trajs[nid], meter)
+    detector = KineticDetector(
+        graph, store, heap, lambda nid: trajs[nid], meter, sync_vector=make_refgraph_sync(graph)
+    )
     detector.schedule_all(t0=0.0)
     assert detector.stats()["scheduled"] == 0
 
@@ -575,7 +596,9 @@ def test_two_events_at_identical_time_deterministic_order() -> None:
     }
 
     heap = KineticEventHeap(version_of=graph.version)
-    detector = KineticDetector(graph, store, heap, lambda nid: trajs[nid], meter)
+    detector = KineticDetector(
+        graph, store, heap, lambda nid: trajs[nid], meter, sync_vector=make_refgraph_sync(graph)
+    )
     detector.schedule_all(t0=0.0)
     assert detector.stats()["scheduled"] == 2
 
@@ -596,7 +619,7 @@ def test_two_events_at_identical_time_deterministic_order() -> None:
 
 
 def test_false_alarm_rescheduling() -> None:
-    """When a predicted event is a false alarm in float32, detector reschedules the edge."""
+    """When predicted event is a false alarm in float32, detector reschedules strictly forward."""
     dim = 2
     graph = ReferenceGraph(dim=dim, M=4)
     u_vec = np.array([0.0, 0.0], dtype=np.float32)
@@ -621,6 +644,14 @@ def test_false_alarm_rescheduling() -> None:
     assert t_fail is not None
     assert abs(t_fail - 1.0) < 1e-6
 
+    # Test callback where at t=1.0, w is slightly further away in float32 (simulating near-tie),
+    # so float32 store evaluates VALID (false alarm at boundary t=1.0).
+    def _sync(node_id: int, pos: np.ndarray) -> None:
+        if node_id == 2 and abs(pos[0] - 1.0) < 1e-5:
+            graph._vectors[node_id] = np.array([1.01, 0.0], dtype=np.float32)
+        else:
+            graph._vectors[node_id] = pos.astype(np.float32)
+
     heap = KineticEventHeap(version_of=graph.version)
     detector = KineticDetector(
         index=graph,
@@ -628,18 +659,34 @@ def test_false_alarm_rescheduling() -> None:
         heap=heap,
         trajectory_of=lambda nid: trajs[nid],
         meter=meter,
+        sync_vector=_sync,
     )
-    # Inject an early due event at t=0.5 to trigger a false alarm re-check
-    heap.push((0, 1, 0), t_fail=0.5, witness=2, now=0.0)
+    # Schedule certificates: event for (0, 1, 0) scheduled at t=1.0
+    detector.schedule_all(t0=0.0)
+    assert detector.stats()["scheduled"] == 1
+    assert heap.peek_time() == 1.0
 
-    # At t=0.5: popped event is evaluated, found to be VALID in float32 (false alarm),
-    # and rescheduled forward for the true violation at t=1.0.
-    c1 = detector.advance(0.5)
-    assert len(c1) == 0, "False alarm must not be confirmed as a failure"
-    assert detector.stats()["false_alarms"] == 1, "False alarm counter must increment"
-    assert detector.stats()["rescheduled"] == 1, "Edge must be rescheduled after false alarm"
+    # Advance to t=1.0: event pops, evaluates as VALID (false alarm at t=1.0)
+    c1 = detector.advance(1.0)
+    assert len(c1) == 0, "False alarm at t=1.0 must not be confirmed"
+    assert detector.stats()["false_alarms"] == 1
+    assert detector.stats()["rescheduled"] == 1
 
-    # At t=1.1: the rescheduled event is now due, verified, and confirmed
+    # Strengthen to kill Mutation (h):
+    # After false alarm at t_curr=1.0, heap's next event MUST be strictly > 1.0
+    next_event_t = heap.peek_time()
+    assert next_event_t is not None and next_event_t > 1.0, (
+        f"Heap next event time {next_event_t} must be strictly > t_curr (1.0)"
+    )
+
+    # A second advance(1.0) must NOT pop or create a second false alarm
+    c1_repeat = detector.advance(1.0)
+    assert len(c1_repeat) == 0
+    assert detector.stats()["false_alarms"] == 1, (
+        "Second advance(t_curr) must not produce another false alarm or pop"
+    )
+
+    # At t=1.1: trajectories continue, violation occurs and is confirmed
     c2 = detector.advance(1.1)
     assert (0, 1, 0) in c2, "Rescheduled event must be confirmed when violation occurs"
     assert detector.stats()["confirmed"] == 1
@@ -671,6 +718,7 @@ def test_advance_past_horizon_without_refresh() -> None:
         trajectory_of=model.trajectory,
         meter=meter,
         horizon=horizon,
+        sync_vector=make_refgraph_sync(graph),
     )
     detector.schedule_all(t0=0.0)
     assert detector.stats()["scheduled"] > 0, "Non-vacuity: certificates must be scheduled"
@@ -687,9 +735,181 @@ def test_advance_past_horizon_without_refresh() -> None:
     oracle_violated = {
         e for e, s in oracle_store._edge_status.items() if s == EdgeStatus.VIOLATED.value
     }
-    assert len(oracle_violated) > len(cumulative_confirmed), (
-        "Precondition: distant violations exist"
-    )
+    assert len(oracle_violated) > 0, "Precondition: distant violations exist"
     missed = oracle_violated - cumulative_confirmed
-    # Per prompt B: "if A3 shows no refresh, add a failing test and report, do not fix"
-    assert len(missed) == 0, f"Distant failures missed due to lack of window refresh: {missed}"
+    assert len(missed) == 0, f"Distant failures missed after window refreshes: {missed}"
+    assert detector.stats()["window_refreshes"] >= 5, "Window refreshes must have occurred"
+
+
+def test_sync_nodes_updates_stored_vectors_without_bumping_version() -> None:
+    """Public sync_nodes applies callback at time t without modifying node versions."""
+    n = 10
+    d = 2
+    rng = np.random.default_rng(123)
+    X = rng.standard_normal((n, d), dtype=np.float32)
+    graph = ReferenceGraph.from_points(X, M=4, seed=123)
+    meter = CostMeter()
+    store = CertificateStore()
+    store.build(graph, meter)
+
+    model = LinearDrift(X, seed=123, speed=2.0)
+    heap = KineticEventHeap(version_of=graph.version)
+    detector = KineticDetector(
+        index=graph,
+        store=store,
+        heap=heap,
+        trajectory_of=model.trajectory,
+        meter=meter,
+        sync_vector=make_refgraph_sync(graph),
+    )
+
+    t = 1.75
+    nodes_to_sync = [2, 5, 8]
+    versions_before = {u: graph.version(u) for u in nodes_to_sync}
+
+    detector.sync_nodes(nodes_to_sync, t=t)
+
+    expected_pos = model.positions(t)
+    for u in nodes_to_sync:
+        np.testing.assert_allclose(graph.vector(u), expected_pos[u].astype(np.float32))
+        assert graph.version(u) == versions_before[u], f"Version of node {u} must not bump"
+
+
+def test_transient_violation_sampled_time_semantics() -> None:
+    """Transient violations resolving between sample steps are counted as false alarms."""
+    dim = 2
+    graph = ReferenceGraph(dim=dim, M=4)
+    # Static u=(0,0), static v=(1,0). Distance = 1.0
+    u_vec = np.array([0.0, 0.0], dtype=np.float32)
+    v_vec = np.array([1.0, 0.0], dtype=np.float32)
+    # w moves along y: w(t) = (0.5, 2.0 - 4.0 * t)
+    # At t=0: w=(0.5, 2.0). D(u, w)=4.25 > 1.0. VALID.
+    # At t=0.5: w=(0.5, 0.0). D(u, w)=0.25 < 1.0, D(v, w)=0.25 < 1.0. VIOLATED.
+    # At t=1.0: w=(0.5, -2.0). D(u, w)=4.25 > 1.0. VALID again.
+    w_vec = np.array([0.5, 2.0], dtype=np.float32)
+
+    graph.add(np.arange(3, dtype=np.int64), np.stack([u_vec, v_vec, w_vec]))
+    graph.set_neighbors(0, 0, [1, 2])
+
+    meter = CostMeter()
+    store = CertificateStore()
+    store.build(graph, meter)
+    assert store.status((0, 1, 0)) == EdgeStatus.VALID.value
+
+    trajs = {
+        0: (np.array([0.0, 0.0], dtype=np.float64), np.array([0.0, 0.0], dtype=np.float64)),
+        1: (np.array([1.0, 0.0], dtype=np.float64), np.array([0.0, 0.0], dtype=np.float64)),
+        2: (np.array([0.5, 2.0], dtype=np.float64), np.array([0.0, -4.0], dtype=np.float64)),
+    }
+
+    heap = KineticEventHeap(version_of=graph.version)
+    detector = KineticDetector(
+        index=graph,
+        store=store,
+        heap=heap,
+        trajectory_of=lambda nid: trajs[nid],
+        meter=meter,
+        sync_vector=make_refgraph_sync(graph),
+    )
+    detector.schedule_all(t0=0.0)
+    assert detector.stats()["scheduled"] == 1, "Transient violation event must be scheduled"
+
+    # Advance directly to t=1.0, jumping over the transient violation interval [0.28, 0.72]
+    confirmed = detector.advance(1.0)
+
+    # Sampled-time semantics: at t=1.0, edge is VALID.
+    # Counted as false alarm, NOT confirmed failure.
+    assert len(confirmed) == 0, "Transient violation must not be confirmed at t=1.0"
+    assert detector.stats()["confirmed"] == 0
+    assert detector.stats()["false_alarms"] == 1, (
+        "Transient violation must be logged as false alarm"
+    )
+
+
+def test_window_refresh_with_trajectory_and_topology_change() -> None:
+    """Window refresh preserves oracle agreement across mutations after refresh."""
+    n = 25
+    d = 4
+    M = 4
+    seed = 505
+
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((n, d), dtype=np.float32)
+    graph = ReferenceGraph.from_points(X, M=M, seed=seed)
+
+    meter = CostMeter()
+    store = CertificateStore()
+    store.build(graph, meter)
+    _settle_graph(graph, store, meter)
+
+    model = LinearDrift(X, seed=seed, speed=1.0)
+    trajectories = {i: model.trajectory(i) for i in range(n)}
+
+    def traj_fn(nid: int) -> tuple[np.ndarray, np.ndarray]:
+        return trajectories[nid]
+
+    heap = KineticEventHeap(version_of=graph.version)
+    horizon = 0.05
+    detector = KineticDetector(
+        index=graph,
+        store=store,
+        heap=heap,
+        trajectory_of=traj_fn,
+        meter=meter,
+        horizon=horizon,
+        sync_vector=make_refgraph_sync(graph),
+    )
+    detector.schedule_all(t0=0.0)
+
+    cumulative_confirmed: set[tuple[int, int, int]] = set()
+
+    # Step 1: Advance to 0.05
+    c1 = detector.advance(0.05)
+    cumulative_confirmed.update(c1)
+
+    # Step 2: Advance to 0.10 (triggers first window refresh from [0, 0.05] to [0.05, 0.10])
+    c2 = detector.advance(0.10)
+    cumulative_confirmed.update(c2)
+    assert detector.stats()["window_refreshes"] >= 1, "Window refresh must have occurred"
+
+    # Mutate trajectory of a node at t=0.10
+    moved_node = 0
+    old_a, old_b = trajectories[moved_node]
+    pos_at_t = old_a + old_b * 0.10
+    new_velocity = -old_b * 2.0
+    trajectories[moved_node] = (pos_at_t - new_velocity * 0.10, new_velocity)
+    graph.move(moved_node, pos_at_t.astype(np.float32))
+    detector.on_trajectory_change(moved_node, t=0.10)
+
+    # Mutate topology: repair a node if any violations exist
+    if cumulative_confirmed:
+        target_u = list(cumulative_confirmed)[0][0]
+        target_lvl = list(cumulative_confirmed)[0][2]
+        plan = khnsw_plan(
+            graph,
+            violated={(target_u, target_lvl): list(graph.neighbors(target_u, target_lvl))},
+            meter=meter,
+        )
+        apply_plan(graph, plan, store=store, meter=meter)
+        store.on_neighbor_change(graph, target_u, target_lvl, meter)
+        detector.on_topology_change(target_u, target_lvl, t=0.10)
+
+    # Step 3: Advance past next window boundaries to 0.20 (triggers additional window refreshes)
+    for step in range(3, 5):
+        t = round(step * 0.05, 4)
+        c = detector.advance(t)
+        cumulative_confirmed.update(c)
+
+    assert detector.stats()["window_refreshes"] >= 3, "Multiple refreshes must occur"
+
+    # Oracle agreement check at t=0.20
+    pos_20 = np.zeros((n, d), dtype=np.float32)
+    for i in range(n):
+        a_i, b_i = trajectories[i]
+        pos_20[i] = (a_i + b_i * 0.20).astype(np.float32)
+    oracle_store = _build_oracle_store(graph, pos_20)
+    oracle_violated = {
+        e for e, s in oracle_store._edge_status.items() if s == EdgeStatus.VIOLATED.value
+    }
+    missed = oracle_violated - cumulative_confirmed
+    assert len(missed) == 0, f"Missed failures after refresh and mutations: {missed}"
