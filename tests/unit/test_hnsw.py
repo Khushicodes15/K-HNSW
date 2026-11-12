@@ -197,6 +197,57 @@ class TestInvariantsAfterInserts:
 
 
 # ---------------------------------------------------------------------------
+# Test: keep_pruned_connections parameter and degree contrast
+# ---------------------------------------------------------------------------
+
+
+class TestKeepPrunedConnections:
+    def test_default_keep_pruned_connections_is_false(self) -> None:
+        idx = HNSWIndex(dim=4, m=4)
+        assert idx.keep_pruned_connections is False
+
+    def test_keep_pruned_connections_degree_contrast_and_invariants(self) -> None:
+        """With False (default), level 0 min/mean degree is strictly below cap M0.
+        With True, nodes top up pruned connections and reach cap M0."""
+        from khnsw.core.graph.audit import degree_stats, validate_invariants
+
+        seed = 7
+        n = 800
+        dim = 16
+        m = 16
+        m0 = 32
+
+        rng = np.random.default_rng(seed)
+        data = rng.standard_normal((n, dim)).astype(np.float32)
+        ids_arr = np.arange(n, dtype=np.int64)
+
+        # Default: keep_pruned_connections=False
+        idx_default = HNSWIndex(dim=dim, m=m, ef_construction=100, seed=seed)
+        idx_default.add(ids_arr, data)
+
+        violations_default = validate_invariants(idx_default)
+        assert violations_default == []
+
+        stats_default = degree_stats(idx_default)
+        assert stats_default[0]["min"] < m0
+        assert stats_default[0]["mean"] < m0
+
+        # Explicit: keep_pruned_connections=True
+        idx_true = HNSWIndex(
+            dim=dim, m=m, ef_construction=100, seed=seed, keep_pruned_connections=True
+        )
+        idx_true.add(ids_arr, data)
+
+        violations_true = validate_invariants(idx_true)
+        assert violations_true == []
+
+        stats_true = degree_stats(idx_true)
+        # With True, all nodes top up to cap M0
+        assert stats_true[0]["min"] == m0
+        assert stats_true[0]["mean"] == pytest.approx(float(m0))
+
+
+# ---------------------------------------------------------------------------
 # Test: recall@10 >= 0.9 on seeded random data
 # ---------------------------------------------------------------------------
 

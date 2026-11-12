@@ -38,6 +38,7 @@ class HNSWIndex:
         ef_construction: int = 200,
         seed: int | None = None,
         m0: int | None = None,
+        keep_pruned_connections: bool = False,
     ) -> None:
         if dim <= 0:
             raise ValueError(f"dim must be positive, got {dim}")
@@ -55,6 +56,7 @@ class HNSWIndex:
         self._ef_construction = ef_construction
         self._dist_counter = DistanceCounter(0)
         self._versions: dict[int, int] = {}
+        self._keep_pruned_connections = bool(keep_pruned_connections)
 
     # ------------------------------------------------------------------
     # ANNIndex.dim (property)
@@ -63,6 +65,11 @@ class HNSWIndex:
     def dim(self) -> int:
         """Vector dimensionality of the index."""
         return self._store.dim
+
+    @property
+    def keep_pruned_connections(self) -> bool:
+        """Whether neighbor selection keeps pruned connections to fill to M."""
+        return self._keep_pruned_connections
 
     # ------------------------------------------------------------------
     # ANNIndex.add
@@ -164,7 +171,7 @@ class HNSWIndex:
                 node_id,
                 candidate_ids,
                 m=max_m,
-                keep_pruned_connections=True,
+                keep_pruned_connections=self._keep_pruned_connections,
             )
 
             # Set forward neighbors for the new node at this level
@@ -185,7 +192,7 @@ class HNSWIndex:
                         nbr,
                         nbr_neighbors,
                         m=max_m,
-                        keep_pruned_connections=True,
+                        keep_pruned_connections=self._keep_pruned_connections,
                     )
                     self._store.set_neighbors(nbr, lc, pruned)
                 else:
