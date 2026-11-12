@@ -109,11 +109,27 @@ class GraphStore:
             raise KeyError(f"node_id {node_id} does not exist in graph")
         return self._levels[node_id]
 
+    def ids(self) -> list[int]:
+        """Return all indexed node identifiers in sorted order."""
+        return sorted(self._levels.keys())
+
     def vector(self, node_id: int) -> NDArray[np.float32]:
         """Retrieve vector coordinates for a node as float32 array of shape (dim,)."""
         if node_id not in self._vectors:
             raise KeyError(f"node_id {node_id} does not exist in graph")
         return self._vectors[node_id]
+
+    def set_vector(self, node_id: int, vector: NDArray[np.float32]) -> None:
+        """Update spatial vector coordinates for an existing node with a read-only copy."""
+        if node_id not in self._levels:
+            raise KeyError(f"node_id {node_id} does not exist in graph")
+
+        vec = np.array(vector, dtype=np.float32, copy=True)
+        if vec.shape != (self._dim,):
+            raise ValueError(f"vector shape must be ({self._dim},), got {vec.shape}")
+        vec.flags.writeable = False
+
+        self._vectors[node_id] = vec
 
     def add_node(self, node_id: int, vector: NDArray[np.float32], level: int) -> None:
         """Add a single node with given vector coordinates and maximum level.
@@ -141,9 +157,10 @@ class GraphStore:
         if level < 0:
             raise ValueError(f"level must be non-negative, got {level}")
 
-        vec = np.asarray(vector, dtype=np.float32)
+        vec = np.array(vector, dtype=np.float32, copy=True)
         if vec.shape != (self._dim,):
             raise ValueError(f"vector shape must be ({self._dim},), got {vec.shape}")
+        vec.flags.writeable = False
 
         # Store vector and level
         self._vectors[node_id] = vec
@@ -158,7 +175,7 @@ class GraphStore:
             self._entry_point = node_id
 
     def neighbors(self, node_id: int, level: int) -> list[int]:
-        """Return list of outgoing neighbor identifiers at given level."""
+        """Return sorted list of outgoing neighbor identifiers at given level."""
         if node_id not in self._levels:
             raise KeyError(f"node_id {node_id} does not exist in graph")
         node_lvl = self._levels[node_id]
@@ -166,10 +183,10 @@ class GraphStore:
             raise ValueError(
                 f"level {level} out of bounds for node {node_id} (0 <= level <= {node_lvl})"
             )
-        return list(self._forward[node_id][level])
+        return sorted(self._forward[node_id][level])
 
     def in_neighbors(self, node_id: int, level: int) -> list[int]:
-        """Return list of incoming neighbor identifiers (reverse edges) at given level."""
+        """Return sorted list of incoming neighbor identifiers (reverse edges) at given level."""
         if node_id not in self._levels:
             raise KeyError(f"node_id {node_id} does not exist in graph")
         node_lvl = self._levels[node_id]
@@ -177,7 +194,7 @@ class GraphStore:
             raise ValueError(
                 f"level {level} out of bounds for node {node_id} (0 <= level <= {node_lvl})"
             )
-        return list(self._reverse[node_id][level])
+        return sorted(self._reverse[node_id][level])
 
     def add_edge(self, u: int, v: int, level: int) -> None:
         """Add a directed edge u -> v at a level, updating forward and reverse together.

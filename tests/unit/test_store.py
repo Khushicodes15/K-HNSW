@@ -291,3 +291,80 @@ def test_store_forward_reverse_sync_property(
             rev = store.in_neighbors(v, layer)
             for u in rev:
                 assert v in store.neighbors(u, layer)
+
+
+def test_store_set_vector_validation_and_update() -> None:
+    store = GraphStore(dim=3)
+    orig_vec = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    store.add_node(0, orig_vec, level=1)
+
+    new_vec = np.array([10.0, 20.0, 30.0], dtype=np.float32)
+    store.set_vector(0, new_vec)
+    np.testing.assert_array_equal(store.vector(0), new_vec)
+
+    # Validate non-existent node raises KeyError
+    with pytest.raises(KeyError, match="does not exist"):
+        store.set_vector(999, new_vec)
+
+    # Validate dimension mismatch raises ValueError
+    bad_vec = np.array([1.0, 2.0], dtype=np.float32)
+    with pytest.raises(ValueError, match="vector shape must be"):
+        store.set_vector(0, bad_vec)
+
+
+def test_store_vector_readonly_and_no_aliasing() -> None:
+    store = GraphStore(dim=2)
+    input_vec = np.array([1.0, 2.0], dtype=np.float32)
+    store.add_node(0, input_vec, level=0)
+
+    # Modifying caller's original array must not mutate stored vector
+    input_vec[0] = 999.0
+    assert store.vector(0)[0] == 1.0
+
+    # Stored array must be marked read-only
+    stored = store.vector(0)
+    assert not stored.flags.writeable
+    with pytest.raises(ValueError):
+        stored[0] = 42.0
+
+    # Test set_vector no-aliasing and read-only flags
+    update_vec = np.array([5.0, 6.0], dtype=np.float32)
+    store.set_vector(0, update_vec)
+    update_vec[0] = 888.0
+    assert store.vector(0)[0] == 5.0
+
+    stored_updated = store.vector(0)
+    assert not stored_updated.flags.writeable
+    with pytest.raises(ValueError):
+        stored_updated[0] = 777.0
+
+
+def test_store_neighbors_sorted() -> None:
+    store = GraphStore(dim=2, m=10, m0=10)
+    dummy_vec = np.zeros(2, dtype=np.float32)
+
+    for i in [10, 5, 2, 8, 1, 0]:
+        store.add_node(i, dummy_vec, level=0)
+
+    # Add edges in non-sorted order
+    for target in [8, 2, 5, 1]:
+        store.add_edge(0, target, level=0)
+
+    # Outgoing neighbors must be sorted
+    assert store.neighbors(0, level=0) == [1, 2, 5, 8]
+
+    # Incoming neighbors must be sorted
+    for src in [10, 5, 2]:
+        store.add_edge(src, 1, level=0)
+    assert store.in_neighbors(1, level=0) == [0, 2, 5, 10]
+
+
+def test_store_ids_sorted() -> None:
+    store = GraphStore(dim=2)
+    assert store.ids() == []
+
+    dummy_vec = np.zeros(2, dtype=np.float32)
+    for i in [42, 7, 99, 0, 15]:
+        store.add_node(i, dummy_vec, level=0)
+
+    assert store.ids() == [0, 7, 15, 42, 99]
