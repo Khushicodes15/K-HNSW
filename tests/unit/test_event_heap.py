@@ -239,6 +239,58 @@ def test_events_schemas_and_sequencing(
         jsonschema.validate(instance=data, schema=type_schema)
 
 
+def test_same_edge_repush_identical_tfail_event_order() -> None:
+    """Same-edge re-push at identical t_fail breaks ties by push_counter (FIFO)."""
+    expected_types = [
+        EventType.enqueue,
+        EventType.enqueue,
+        EventType.stale_skip,
+        EventType.pop,
+    ]
+
+    # Variant 1: witness 5 first, witness 3 second (decreasing witness ID)
+    sink1 = ListSink()
+    emitter1 = EventEmitter(run_id="repush-run-1", sink=sink1)
+    versions1 = {1: 0, 2: 0, 3: 0, 5: 0}
+    heap1 = KineticEventHeap(version_of=lambda nid: versions1.get(nid, 0), emitter=emitter1)
+
+    heap1.push(edge=(1, 2, 0), t_fail=1.0, witness=5, now=0.0)
+    heap1.push(edge=(1, 2, 0), t_fail=1.0, witness=3, now=0.0)
+
+    due1 = heap1.pop_due(t_now=1.0)
+    # (a) exactly one DueEvent is returned and it carries witness 3
+    assert len(due1) == 1
+    assert due1[0] == DueEvent(t=1.0, edge=(1, 2, 0), witness=3)
+
+    # (b) emitted event types in order are exactly: enqueue, enqueue, stale_skip, pop
+    assert [e.type for e in sink1.events] == expected_types
+
+    # (c) seq is strictly increasing
+    seqs1 = [e.seq for e in sink1.events]
+    assert all(seqs1[i] < seqs1[i + 1] for i in range(len(seqs1) - 1))
+
+    # Variant 2: witness 3 first, witness 5 second (increasing witness ID)
+    sink2 = ListSink()
+    emitter2 = EventEmitter(run_id="repush-run-2", sink=sink2)
+    versions2 = {1: 0, 2: 0, 3: 0, 5: 0}
+    heap2 = KineticEventHeap(version_of=lambda nid: versions2.get(nid, 0), emitter=emitter2)
+
+    heap2.push(edge=(1, 2, 0), t_fail=1.0, witness=3, now=0.0)
+    heap2.push(edge=(1, 2, 0), t_fail=1.0, witness=5, now=0.0)
+
+    due2 = heap2.pop_due(t_now=1.0)
+    # (a) exactly one DueEvent is returned and it carries witness 5
+    assert len(due2) == 1
+    assert due2[0] == DueEvent(t=1.0, edge=(1, 2, 0), witness=5)
+
+    # (b) emitted event types in order are exactly: enqueue, enqueue, stale_skip, pop
+    assert [e.type for e in sink2.events] == expected_types
+
+    # (c) seq is strictly increasing
+    seqs2 = [e.seq for e in sink2.events]
+    assert all(seqs2[i] < seqs2[i + 1] for i in range(len(seqs2) - 1))
+
+
 # =============================================================================
 # 4. Compaction Mechanics
 # =============================================================================
