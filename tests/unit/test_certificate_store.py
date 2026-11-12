@@ -108,7 +108,8 @@ def test_transition_semantics_and_hand_built_scenarios() -> None:
     # 2. Graph with mimic_reverse_append has legacy violations but produces no failures at build
     g_rev = ReferenceGraph.from_points(X, M=4, seed=123, mimic_reverse_append=True)
     store_rev = CertificateStore()
-    store_rev.build(g_rev, meter)
+    build_events = store_rev.build(g_rev, meter)
+    assert build_events == []
     assert store_rev.counts()["violated"] > 0
     assert store_rev.baseline_violation_rate() > 0.0
 

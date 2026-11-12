@@ -75,7 +75,7 @@ class CertificateStore:
         self._baseline_total: int = 0
         self._baseline_violated: int = 0
 
-    def build(self, index: GraphIndex, meter: CostMeter) -> None:
+    def build(self, index: GraphIndex, meter: CostMeter) -> list[Transition]:
         """Certify every edge at every level of the graph to establish the initial baseline.
 
         Baseline violations resulting from standard asymmetric reverse-link appending
@@ -87,6 +87,11 @@ class CertificateStore:
             Initial graph index.
         meter : CostMeter
             Cost meter for distance computation accounting.
+
+        Returns
+        -------
+        list[Transition]
+            Empty list, as legacy baseline violations produce no failure transitions.
         """
         self._edge_status.clear()
         self._edge_witness.clear()
@@ -95,7 +100,7 @@ class CertificateStore:
         if top_lvl < 0:
             self._baseline_total = 0
             self._baseline_violated = 0
-            return
+            return []
 
         sorted_ids = sorted(index.ids())
         for lvl in range(top_lvl + 1):
@@ -107,6 +112,7 @@ class CertificateStore:
         self._baseline_violated = sum(
             1 for s in self._edge_status.values() if s == EdgeStatus.VIOLATED.value
         )
+        return []
 
     def certify_source(
         self,
