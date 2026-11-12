@@ -161,3 +161,23 @@ def test_search_layer_validation_and_edge_cases() -> None:
 
     # empty entry points list
     assert search_layer(store, np.zeros(2, dtype=np.float32), entry_points=[], ef=1, level=0) == []
+
+
+def test_search_layer_distance_counter() -> None:
+    from khnsw.core.search.search_layer import DistanceCounter
+
+    dim = 2
+    store = GraphStore(dim=dim, m=4, m0=8)
+    coords = [np.array([float(i), 0.0], dtype=np.float32) for i in range(8)]
+    for i, c in enumerate(coords):
+        store.add_node(i, c, level=0)
+    for i in range(7):
+        store.add_edge(i, i + 1, level=0)
+        store.add_edge(i + 1, i, level=0)
+
+    query = np.array([3.2, 0.0], dtype=np.float32)
+    counter = DistanceCounter()
+    results = search_layer(store, query, entry_points=[0], ef=8, level=0, counter=counter)
+    assert len(results) == 8
+    # 1 entry point + neighbor checks
+    assert counter.value >= 8

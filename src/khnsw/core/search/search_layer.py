@@ -21,12 +21,26 @@ class SearchResult(NamedTuple):
     node_id: int
 
 
+class DistanceCounter:
+    """Mutable counter that accumulates distance computation counts across calls.
+
+    Pass the same instance to multiple ``search_layer`` invocations to
+    accumulate a running total without changing the function's return type.
+    """
+
+    __slots__ = ("value",)
+
+    def __init__(self, value: int = 0) -> None:
+        self.value = value
+
+
 def search_layer(
     store: GraphStore,
     query: NDArray[np.float32],
     entry_points: Sequence[int] | set[int] | int,
     ef: int,
     level: int,
+    counter: DistanceCounter | None = None,
 ) -> list[SearchResult]:
     """Perform beam search at a single graph hierarchy layer (HNSW Algorithm 2).
 
@@ -50,6 +64,10 @@ def search_layer(
         Size of the dynamic candidate exploration list (ef >= 1).
     level : int
         Hierarchy layer level to traverse (level >= 0).
+    counter : DistanceCounter | None, optional
+        If provided, ``counter.value`` is incremented by the number of
+        pairwise distance computations actually performed during this call.
+        Existing callers that omit this argument are unaffected.
 
     Returns
     -------
@@ -99,6 +117,8 @@ def search_layer(
 
         ep_vec = store.vector(ep)
         d = float(np.sum((ep_vec - q) ** 2))
+        if counter is not None:
+            counter.value += 1
 
         heapq.heappush(candidates, (d, ep))
         heapq.heappush(w_max_heap, (-d, ep))
@@ -129,6 +149,8 @@ def search_layer(
         nbr_vecs = np.stack([store.vector(nbr) for nbr in unvisited])
         diff = nbr_vecs - q
         dists = np.sum(diff * diff, axis=-1)
+        if counter is not None:
+            counter.value += len(unvisited)
 
         for i, nbr in enumerate(unvisited):
             d = float(dists[i])
