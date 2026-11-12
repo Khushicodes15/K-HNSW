@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from khnsw.core.detection.affected_scan import (
     affected_after_move,
@@ -12,6 +14,7 @@ from khnsw.core.detection.certificate_store import (
     CertificateStore,
     EdgeStatus,
 )
+from khnsw.core.detection.certificates import is_violated_static
 from khnsw.core.detection.cost import CostMeter
 from tests.fixtures.reference_graph import ReferenceGraph
 
@@ -248,3 +251,200 @@ def test_determinism_identical_transitions_and_counts() -> None:
 
         assert t1 == t2
         assert m1.count == m2.count
+
+
+# =============================================================================
+# T8: Canonical Witness Smallest ID Selection (Multiple Violating Witnesses)
+# =============================================================================
+
+
+def test_canonical_witness_picks_smallest_id_among_multiple_witnesses() -> None:
+    """T8: Canonical witness picks the smallest node ID when multiple witnesses violate.
+
+    Construct a ReferenceGraph.from_adjacency case where edge (0, 1, 0) has at least two
+    distinct violating witnesses with different IDs (witnesses 2 and 5).
+    Show that regardless of the neighbor list permutation (Variant A: [1, 2, 5] vs.
+    Variant B: [1, 5, 2]), store.witness((0, 1, 0)) deterministically selects the smallest ID (2).
+    """
+    # Vectors in R^2:
+    # u (node 0) at (0.0, 0.0)
+    # v (node 1) at (2.0, 0.0)
+    # witness 2 at (1.0, 0.1)
+    # witness 5 at (1.0, -0.1)
+    #
+    # Distances for edge (0, 1, 0):
+    #   D(u, v) = (2 - 0)^2 + (0 - 0)^2 = 4.0
+    # Candidate witness 2:
+    #   D(u, 2) = (1 - 0)^2 + (0.1 - 0)^2 = 1.0 + 0.01 = 1.01 <= 4.0
+    #   D(v, 2) = (1 - 2)^2 + (0.1 - 0)^2 = 1.0 + 0.01 = 1.01 < 4.0
+    #   -> is_violated_static(4.0, 1.01, 1.01) is True (witness 2 violates)
+    # Candidate witness 5:
+    #   D(u, 5) = (1 - 0)^2 + (-0.1 - 0)^2 = 1.0 + 0.01 = 1.01 <= 4.0
+    #   D(v, 5) = (1 - 2)^2 + (-0.1 - 0)^2 = 1.0 + 0.01 = 1.01 < 4.0
+    #   -> is_violated_static(4.0, 1.01, 1.01) is True (witness 5 violates)
+    vectors = {
+        0: np.array([0.0, 0.0], dtype=np.float32),
+        1: np.array([2.0, 0.0], dtype=np.float32),
+        2: np.array([1.0, 0.1], dtype=np.float32),
+        5: np.array([1.0, -0.1], dtype=np.float32),
+    }
+    levels = {0: 0, 1: 0, 2: 0, 5: 0}
+
+    # Variant A: Neighbor list order [1, 2, 5] (witness 2 appears before witness 5)
+    adj_a = {
+        (0, 0): [1, 2, 5],
+        (1, 0): [0],
+        (2, 0): [0],
+        (5, 0): [0],
+    }
+    g_a = ReferenceGraph.from_adjacency(vectors, adj_a, levels=levels, M=3)
+    meter_a = CostMeter()
+    store_a = CertificateStore()
+    store_a.build(g_a, meter_a)
+
+    assert store_a.status((0, 1, 0)) == EdgeStatus.VIOLATED.value
+    assert store_a.witness((0, 1, 0)) == 2
+
+    # Variant B: Neighbor list order [1, 5, 2] (witness 5 appears before witness 2)
+    # Proves list traversal order does not override canonical smallest-ID selection rule.
+    adj_b = {
+        (0, 0): [1, 5, 2],
+        (1, 0): [0],
+        (2, 0): [0],
+        (5, 0): [0],
+    }
+    g_b = ReferenceGraph.from_adjacency(vectors, adj_b, levels=levels, M=3)
+    meter_b = CostMeter()
+    store_b = CertificateStore()
+    store_b.build(g_b, meter_b)
+
+    assert store_b.status((0, 1, 0)) == EdgeStatus.VIOLATED.value
+    assert store_b.witness((0, 1, 0)) == 2
+
+
+def _independent_eval_edge(
+    graph: ReferenceGraph,
+    u: int,
+    v: int,
+    lvl: int,
+) -> tuple[str, int | None]:
+    """Independent ground-truth certificate evaluator iterating candidates in ascending ID order.
+
+    Iterates over candidates in ascending ID order, evaluates is_violated_static,
+    and picks the first that fires.
+    """
+    vec_u = np.asarray(graph.vector(u), dtype=np.float64)
+    vec_v = np.asarray(graph.vector(v), dtype=np.float64)
+    diff_uv = vec_u - vec_v
+    d_uv = float(np.dot(diff_uv, diff_uv))
+
+    # Iterate candidate witnesses in strictly ascending ID order
+    candidates = sorted(w for w in graph.neighbors(u, lvl) if w != v)
+    for w in candidates:
+        vec_w = np.asarray(graph.vector(w), dtype=np.float64)
+        diff_uw = vec_u - vec_w
+        d_uw = float(np.dot(diff_uw, diff_uw))
+        diff_vw = vec_v - vec_w
+        d_vw = float(np.dot(diff_vw, diff_vw))
+
+        if is_violated_static(d_uv, d_uw, d_vw):
+            return EdgeStatus.VIOLATED.value, w
+
+    return EdgeStatus.VALID.value, None
+
+
+# =============================================================================
+# T9: Independent Witness Property Test (Hypothesis)
+# =============================================================================
+
+
+@settings(max_examples=250, deadline=None)
+@given(
+    d=st.sampled_from([2, 8]),
+    mimic_reverse_append=st.booleans(),
+    seed=st.integers(min_value=0, max_value=1_000_000),
+    n=st.integers(min_value=8, max_value=16),
+    M=st.integers(min_value=3, max_value=5),
+    num_ops=st.integers(min_value=4, max_value=8),
+)
+def test_independent_witness_property_oracle(
+    d: int,
+    mimic_reverse_append: bool,
+    seed: int,
+    n: int,
+    M: int,
+    num_ops: int,
+) -> None:
+    """T9: Compare store status and witness against independent brute-force oracle."""
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((n, d)).astype(np.float32)
+    graph = ReferenceGraph.from_points(X, M=M, seed=seed, mimic_reverse_append=mimic_reverse_append)
+
+    meter = CostMeter()
+    store = CertificateStore()
+    store.build(graph, meter)
+
+    def assert_all_edges_match_independent_oracle() -> None:
+        total_graph_edges = 0
+        for lvl in range(graph.max_level() + 1):
+            for u in graph.ids():
+                if graph.node_level(u) < lvl:
+                    continue
+                for v in graph.neighbors(u, lvl):
+                    total_graph_edges += 1
+                    edge = (u, v, lvl)
+                    expected_status, expected_witness = _independent_eval_edge(graph, u, v, lvl)
+                    assert store.status(edge) == expected_status, (
+                        f"Status mismatch for edge {edge}: "
+                        f"store={store.status(edge)}, oracle={expected_status}"
+                    )
+                    assert store.witness(edge) == expected_witness, (
+                        f"Witness mismatch for edge {edge}: "
+                        f"store={store.witness(edge)}, oracle={expected_witness}"
+                    )
+        assert len(store._edge_status) == total_graph_edges
+
+    # Check 1: After initial build
+    assert_all_edges_match_independent_oracle()
+
+    # Apply random sequence of moves and neighbor mutations
+    for _ in range(num_ops):
+        op = rng.choice(["move", "set_neighbors", "add_edge", "remove_edge"])
+        active = graph.ids()
+
+        if op == "move":
+            u = int(rng.choice(active))
+            new_vec = rng.standard_normal(d).astype(np.float32)
+            graph.move(u, new_vec)
+            store.on_move(graph, u, meter)
+        elif op == "set_neighbors":
+            u = int(rng.choice(active))
+            lvl = int(rng.integers(0, graph.node_level(u) + 1))
+            eligible = [v for v in active if v != u and graph.node_level(v) >= lvl]
+            limit = graph.max_degree(lvl)
+            k = int(rng.integers(0, min(len(eligible), limit) + 1))
+            chosen = list(rng.choice(eligible, size=k, replace=False)) if eligible else []
+            graph.set_neighbors(u, lvl, [int(x) for x in chosen])
+            store.on_neighbor_change(graph, u, lvl, meter)
+        elif op == "add_edge":
+            u = int(rng.choice(active))
+            lvl = int(rng.integers(0, graph.node_level(u) + 1))
+            curr = graph.neighbors(u, lvl)
+            eligible = [
+                v for v in active if v != u and graph.node_level(v) >= lvl and v not in curr
+            ]
+            if eligible and len(curr) < graph.max_degree(lvl):
+                v = int(rng.choice(eligible))
+                graph.add_edge(u, v, lvl)
+                store.on_neighbor_change(graph, u, lvl, meter)
+        elif op == "remove_edge":
+            u = int(rng.choice(active))
+            lvl = int(rng.integers(0, graph.node_level(u) + 1))
+            curr = graph.neighbors(u, lvl)
+            if curr:
+                v = int(rng.choice(curr))
+                graph.remove_edge(u, v, lvl)
+                store.on_neighbor_change(graph, u, lvl, meter)
+
+    # Check 2: After mutations
+    assert_all_edges_match_independent_oracle()
