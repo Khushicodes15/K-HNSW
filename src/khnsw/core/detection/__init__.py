@@ -18,11 +18,13 @@ from khnsw.core.detection.certificates import (
     real_roots,
 )
 from khnsw.core.detection.cost import CostMeter
+from khnsw.core.detection.kinetic import KineticDetector
 
 __all__ = [
     "CertificateStore",
     "CostMeter",
     "EdgeStatus",
+    "KineticDetector",
     "Transition",
     "affected_after_move",
     "affected_after_neighbor_change",
