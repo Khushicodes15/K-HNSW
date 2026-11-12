@@ -4,8 +4,12 @@ Evaluates on HNSWIndex (n=200, M=8, d in {2, 8}) under LinearDrift motion over t
 - Failures confirmed and failure percentage (~10-30% range).
 - False alarms and boundary cases.
 - Pure-math failure-time evaluations (fail_time_evals).
-- Confirmation distance computations recorded by CostMeter.
-- Computational cost of naive baseline recertifying every source at every time step.
+- Reschedules from on_trajectory_change and false alarms.
+- Detection cost reported three ways:
+  1. Confirmation distance computations only (CostMeter).
+  2. + fail_time_evals x 1 (1 distance equivalent per witness evaluation).
+  3. + fail_time_evals x 3 (3 dot products equivalent per quadratic polynomial setup).
+- Cost comparison against naive periodic full recertification baseline.
 """
 
 from __future__ import annotations
@@ -50,11 +54,12 @@ def measure_dimension(d: int, n: int = 200, m: int = 8, seed: int = 42) -> dict[
 
     total_edges = len(store._edge_status)
 
-    # Choose simulation horizon and steps: T=0.30, 10 steps (yielding ~14-26% edge failures)
+    # Simulation setup: T=0.30, 10 steps (~15-27% failures)
     steps = 10
     T = 0.30
     dt = T / steps
     model = LinearDrift(X, seed=seed, speed=1.0)
+    trajs = {i: model.trajectory(i) for i in range(n)}
 
     # 1. Kinetic Detector Run
     heap = KineticEventHeap(version_of=index.version)
@@ -63,7 +68,7 @@ def measure_dimension(d: int, n: int = 200, m: int = 8, seed: int = 42) -> dict[
         index=index,
         store=store,
         heap=heap,
-        trajectory_of=model.trajectory,
+        trajectory_of=lambda nid: trajs[nid],
         meter=detector_meter,
     )
     detector.schedule_all(t0=0.0)
@@ -71,6 +76,16 @@ def measure_dimension(d: int, n: int = 200, m: int = 8, seed: int = 42) -> dict[
     cumulative_confirmed: set[tuple[int, int, int]] = set()
     for step in range(1, steps + 1):
         t = round(step * dt, 5)
+        # Mid-run trajectory change on a connected node
+        if step == 5:
+            moved_node = max(index.ids(), key=lambda i: len(index.neighbors(i, 0)))
+            old_a, old_b = trajs[moved_node]
+            pos_t = old_a + old_b * t
+            new_vel = -old_b * 1.5
+            trajs[moved_node] = (pos_t - new_vel * t, new_vel)
+            index.move(moved_node, pos_t.astype(np.float32))
+            detector.on_trajectory_change(moved_node, t)
+
         new_conf = detector.advance(t)
         for e in new_conf:
             cumulative_confirmed.add(e)
@@ -80,26 +95,33 @@ def measure_dimension(d: int, n: int = 200, m: int = 8, seed: int = 42) -> dict[
     pct_failed = (confirmed_count / total_edges) * 100.0 if total_edges > 0 else 0.0
     false_alarms = stats["false_alarms"]
     fail_time_evals = stats["fail_time_evals"]
+    rescheduled_count = stats["rescheduled"]
     det_dist_comps = detector_meter.count
 
     # 2. Naive Periodic Recertification Baseline
-    # At each time step, baseline updates all node coordinates and recertifies all sources
     baseline_meter = CostMeter()
     baseline_store = CertificateStore()
 
     for step in range(1, steps + 1):
         t = round(step * dt, 5)
-        pos_t = model.positions(t)
-        # Non-versioning vector update to timestamp t
         for nid in range(n):
-            index._store.set_vector(nid, pos_t[nid])
+            a, b = trajs[nid]
+            index._store.set_vector(nid, (a + b * t).astype(np.float32))
         for lvl in range(index.max_level() + 1):
             for u in index.ids():
                 if index.node_level(u) >= lvl:
                     baseline_store.certify_source(index, u, lvl, baseline_meter)
 
     base_dist_comps = baseline_meter.count
-    savings_factor = base_dist_comps / det_dist_comps if det_dist_comps > 0 else float("inf")
+
+    # Three-way cost accounting:
+    cost_conf_only = det_dist_comps
+    cost_evals_x1 = det_dist_comps + fail_time_evals * 1
+    cost_evals_x3 = det_dist_comps + fail_time_evals * 3
+
+    savings_conf = base_dist_comps / cost_conf_only if cost_conf_only > 0 else float("inf")
+    savings_x1 = base_dist_comps / cost_evals_x1 if cost_evals_x1 > 0 else float("inf")
+    savings_x3 = base_dist_comps / cost_evals_x3 if cost_evals_x3 > 0 else float("inf")
 
     # Boundary cases: compare final oracle vs detector
     oracle_store = CertificateStore()
@@ -122,26 +144,31 @@ def measure_dimension(d: int, n: int = 200, m: int = 8, seed: int = 42) -> dict[
         "false_alarms": false_alarms,
         "boundary_cases": boundary_cases,
         "fail_time_evals": fail_time_evals,
-        "det_dist_comps": det_dist_comps,
+        "rescheduled": rescheduled_count,
+        "cost_conf_only": cost_conf_only,
+        "savings_conf": savings_conf,
+        "cost_evals_x1": cost_evals_x1,
+        "savings_x1": savings_x1,
+        "cost_evals_x3": cost_evals_x3,
+        "savings_x3": savings_x3,
         "base_dist_comps": base_dist_comps,
-        "savings_factor": savings_factor,
     }
 
 
 def main() -> None:
     """Run detector measurement across d in {2, 8} and print comparison table."""
-    print("=" * 80)
-    print("  KINETIC DETECTOR MEASUREMENT (n=200, M=8, LinearDrift, 10 steps)")
-    print("=" * 80)
+    print("=" * 86)
+    print("  KINETIC DETECTOR THREE-WAY MEASUREMENT (n=200, M=8, LinearDrift, 10 steps)")
+    print("=" * 86)
 
     results = []
     for d in [2, 8]:
         res = measure_dimension(d=d)
         results.append(res)
 
+    r0, r1 = results[0], results[1]
     print("\n| Metric | d = 2 | d = 8 |")
     print("| :--- | :---: | :---: |")
-    r0, r1 = results[0], results[1]
     print(f"| Total Edges (E) | {r0['total_edges']} | {r1['total_edges']} |")
     print(
         f"| Confirmed Failures | {r0['confirmed']} ({r0['pct_failed']:.1f}%) | "
@@ -149,20 +176,33 @@ def main() -> None:
     )
     print(f"| False Alarms | {r0['false_alarms']} | {r1['false_alarms']} |")
     print(f"| Boundary Cases | {r0['boundary_cases']} | {r1['boundary_cases']} |")
-    print(f"| Pure-Math Evaluations (evals) | {r0['fail_time_evals']} | {r1['fail_time_evals']} |")
     print(
-        f"| Confirmation Distance Comps (Detector) | {r0['det_dist_comps']} | "
-        f"{r1['det_dist_comps']} |"
+        f"| Pure-Math Evaluations (`fail_time_evals`) | {r0['fail_time_evals']} | "
+        f"{r1['fail_time_evals']} |"
     )
     print(
-        f"| Baseline Distance Comps (Periodic Full) | {r0['base_dist_comps']} | "
+        f"| Total Rescheduled (inc. trajectory move) | {r0['rescheduled']} | {r1['rescheduled']} |"
+    )
+    print(
+        f"| Naive Baseline Distance Comps (Full) | {r0['base_dist_comps']} | "
         f"{r1['base_dist_comps']} |"
     )
+    s_conf_0, s_conf_1 = f"{r0['savings_conf']:.1f}x", f"{r1['savings_conf']:.1f}x"
+    s_x1_0, s_x1_1 = f"{r0['savings_x1']:.1f}x", f"{r1['savings_x1']:.1f}x"
+    s_x3_0, s_x3_1 = f"{r0['savings_x3']:.1f}x", f"{r1['savings_x3']:.1f}x"
     print(
-        f"| Distance Cost Reduction (Savings Factor) | {r0['savings_factor']:.1f}x | "
-        f"{r1['savings_factor']:.1f}x |"
+        f"| 1. Confirmation Only Cost | {r0['cost_conf_only']} ({s_conf_0}) | "
+        f"{r1['cost_conf_only']} ({s_conf_1}) |"
     )
-    print("=" * 80)
+    print(
+        f"| 2. Cost (+ fail_time_evals x 1) | {r0['cost_evals_x1']} ({s_x1_0}) | "
+        f"{r1['cost_evals_x1']} ({s_x1_1}) |"
+    )
+    print(
+        f"| 3. Cost (+ fail_time_evals x 3) | {r0['cost_evals_x3']} ({s_x3_0}) | "
+        f"{r1['cost_evals_x3']} ({s_x3_1}) |"
+    )
+    print("=" * 86)
 
 
 if __name__ == "__main__":

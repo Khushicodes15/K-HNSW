@@ -180,8 +180,83 @@ def test_hnsw_detector_no_missed_failures(d: int, model_type: str) -> None:
     assert boundary_discrepancies <= 2, f"Too many boundary discrepancies: {boundary_discrepancies}"
 
 
+@pytest.mark.parametrize("d", [2, 8])
+@pytest.mark.parametrize("model_type", ["linear", "cluster"])
+def test_hnsw_detector_t0_non_zero(d: int, model_type: str) -> None:
+    """Validate that detector scheduled at t0=2.5 matches Oracle exactly for the rest of run."""
+    n = 200
+    m = 8
+    seed = 55 + d
+
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((n, d), dtype=np.float32)
+
+    index = HNSWIndex(dim=d, m=m, seed=seed)
+    index.add(np.arange(n, dtype=np.int64), X)
+
+    meter = CostMeter()
+    store = CertificateStore()
+    store.build(index, meter)
+    _settle_hnsw(index, store, meter)
+
+    t0 = 2.5
+    if model_type == "linear":
+        model: LinearDrift | ClusterDrift = LinearDrift(X, seed=seed, speed=1.0)
+    else:
+        model = ClusterDrift(X, seed=seed, n_clusters=4, speed=1.0, noise=0.1)
+
+    # Sync base index vectors to t0
+    pos_t0 = model.positions(t0)
+    for i in range(n):
+        index._store.set_vector(i, pos_t0[i])
+    store.build(index, meter)
+    _settle_hnsw(index, store, meter)
+
+    heap = KineticEventHeap(version_of=index.version)
+    detector = KineticDetector(
+        index=index,
+        store=store,
+        heap=heap,
+        trajectory_of=model.trajectory,
+        meter=meter,
+    )
+    detector.schedule_all(t0=t0)
+    assert detector.stats()["scheduled"] > 0, "Non-vacuity: certificates scheduled at t0=2.5"
+
+    cumulative_confirmed: set[tuple[int, int, int]] = set()
+    oracle_ever_violated: set[tuple[int, int, int]] = set()
+
+    for step in range(1, 5):
+        t = round(t0 + step * 0.05, 4)
+        new_confirmed = detector.advance(t)
+        cumulative_confirmed.update(new_confirmed)
+
+        pos_t = model.positions(t)
+        oracle_wrapper = OracleIndexWrapper(index, pos_t)
+        oracle_store = CertificateStore()
+        oracle_meter = CostMeter()
+        oracle_store.build(oracle_wrapper, oracle_meter)
+
+        oracle_violated: set[tuple[int, int, int]] = set()
+        for u in index.ids():
+            for lvl in range(index.node_level(u) + 1):
+                for v in index.neighbors(u, lvl):
+                    edge = (u, v, lvl)
+                    if oracle_store.status(edge) == EdgeStatus.VIOLATED.value:
+                        oracle_violated.add(edge)
+                        oracle_ever_violated.add(edge)
+
+        for e in new_confirmed:
+            assert oracle_store.status(e) == EdgeStatus.VIOLATED.value
+        missed = oracle_violated - cumulative_confirmed
+        assert len(missed) <= 2, f"Missed failures at t={t}: {missed}"
+
+    assert len(oracle_ever_violated) > 0, "Non-vacuity: oracle must observe violations"
+    assert len(cumulative_confirmed) > 0, "Non-vacuity: detector must confirm failures"
+
+
 def test_hnsw_detector_trajectory_change() -> None:
-    """Validate that on_trajectory_change correctly reschedules after index.move on HNSWIndex."""
+    """Validate on_trajectory_change on HNSWIndex; oracle check holds for REST of run."""
     n = 200
     m = 8
     d = 4
@@ -214,8 +289,11 @@ def test_hnsw_detector_trajectory_change() -> None:
     )
     detector.schedule_all(t0=0.0)
 
+    cumulative_confirmed: set[tuple[int, int, int]] = set()
+
     # Advance to t=0.05
-    detector.advance(0.05)
+    c0 = detector.advance(0.05)
+    cumulative_confirmed.update(c0)
 
     # Pick a highly connected node
     moved_node = max(index.ids(), key=lambda i: len(index.neighbors(i, 0)))
@@ -239,13 +317,42 @@ def test_hnsw_detector_trajectory_change() -> None:
     resched_after = detector.stats()["rescheduled"]
     assert resched_after > resched_before, "on_trajectory_change must reschedule affected edges"
 
-    # Continue run
-    confirmed_after = detector.advance(0.15)
-    assert detector.stats()["confirmed"] >= len(confirmed_after)
+    # Oracle check must hold for the REST of the run
+    oracle_ever_violated: set[tuple[int, int, int]] = set()
+    for step in range(2, 6):
+        t = round(step * 0.05, 4)
+        new_c = detector.advance(t)
+        cumulative_confirmed.update(new_c)
+
+        oracle_pos = np.zeros((n, d), dtype=np.float32)
+        for nid in range(n):
+            a_i, b_i = trajectories[nid]
+            oracle_pos[nid] = (a_i + b_i * t).astype(np.float32)
+
+        oracle_wrapper = OracleIndexWrapper(index, oracle_pos)
+        oracle_store = CertificateStore()
+        oracle_meter = CostMeter()
+        oracle_store.build(oracle_wrapper, oracle_meter)
+
+        oracle_violated: set[tuple[int, int, int]] = set()
+        for u in index.ids():
+            for lvl in range(index.node_level(u) + 1):
+                for v in index.neighbors(u, lvl):
+                    edge = (u, v, lvl)
+                    if oracle_store.status(edge) == EdgeStatus.VIOLATED.value:
+                        oracle_violated.add(edge)
+                        oracle_ever_violated.add(edge)
+
+        for e in new_c:
+            assert oracle_store.status(e) == EdgeStatus.VIOLATED.value
+        missed = oracle_violated - cumulative_confirmed
+        assert len(missed) <= 2, f"Missed failures after move at t={t}: {missed}"
+
+    assert len(oracle_ever_violated) > 0, "Non-vacuity: oracle must observe violations"
 
 
 def test_hnsw_detector_topology_change() -> None:
-    """Validate on_topology_change after khnsw repair on HNSWIndex."""
+    """Validate on_topology_change after khnsw repair; oracle check holds for REST of run."""
     n = 100
     m = 8
     d = 2
@@ -260,17 +367,7 @@ def test_hnsw_detector_topology_change() -> None:
     meter = CostMeter()
     store = CertificateStore()
     store.build(index, meter)
-
-    # Find violated edges from initial build
-    violated: dict[tuple[int, int], list[int]] = {}
-    for u in index.ids():
-        for lvl in range(index.node_level(u) + 1):
-            for v in index.neighbors(u, lvl):
-                if store.status((u, v, lvl)) == EdgeStatus.VIOLATED.value:
-                    violated.setdefault((u, lvl), []).append(v)
-
-    assert len(violated) > 0, "Non-vacuity guard: HNSWIndex has initial reverse-link violations"
-    target_u, target_lvl = next(iter(violated))
+    _settle_hnsw(index, store, meter)
 
     model = LinearDrift(X, seed=seed, speed=1.0)
     heap = KineticEventHeap(version_of=index.version)
@@ -283,6 +380,14 @@ def test_hnsw_detector_topology_change() -> None:
     )
     detector.schedule_all(t0=0.0)
 
+    # Advance to t=0.05 where violations occur
+    c1 = detector.advance(0.05)
+    cumulative_confirmed = set(c1)
+    assert len(c1) > 0, "Non-vacuity guard: violations occur at t=0.05"
+
+    target_u = c1[0][0]
+    target_lvl = c1[0][2]
+
     # Repair target_u
     plan = khnsw_plan(
         index,
@@ -293,6 +398,35 @@ def test_hnsw_detector_topology_change() -> None:
     store.on_neighbor_change(index, target_u, target_lvl, meter)
 
     resched_before = detector.stats()["rescheduled"]
-    detector.on_topology_change(target_u, target_lvl, t=0.0)
+    detector.on_topology_change(target_u, target_lvl, t=0.05)
     resched_after = detector.stats()["rescheduled"]
     assert resched_after > resched_before, "on_topology_change must reschedule edges"
+
+    # Oracle check must hold for the REST of the run
+    oracle_ever_violated: set[tuple[int, int, int]] = set()
+    for step in range(2, 6):
+        t = round(step * 0.05, 4)
+        new_c = detector.advance(t)
+        cumulative_confirmed.update(new_c)
+
+        pos_t = model.positions(t)
+        oracle_wrapper = OracleIndexWrapper(index, pos_t)
+        oracle_store = CertificateStore()
+        oracle_meter = CostMeter()
+        oracle_store.build(oracle_wrapper, oracle_meter)
+
+        oracle_violated: set[tuple[int, int, int]] = set()
+        for u in index.ids():
+            for lvl in range(index.node_level(u) + 1):
+                for v in index.neighbors(u, lvl):
+                    edge = (u, v, lvl)
+                    if oracle_store.status(edge) == EdgeStatus.VIOLATED.value:
+                        oracle_violated.add(edge)
+                        oracle_ever_violated.add(edge)
+
+        for e in new_c:
+            assert oracle_store.status(e) == EdgeStatus.VIOLATED.value
+        missed = oracle_violated - cumulative_confirmed
+        assert len(missed) <= 2, f"Missed failures after repair at t={t}: {missed}"
+
+    assert len(oracle_ever_violated) > 0, "Non-vacuity: oracle must observe violations"

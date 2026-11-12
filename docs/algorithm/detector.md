@@ -44,8 +44,15 @@ To perform the required `float32` confirmation re-check at simulation timestamp 
 
 ### Window Parameter: `horizon`
 - In `KineticDetector`, `horizon: float` denotes the lookahead duration $\Delta t$ (defaulting to `float('inf')`).
-- When scheduling from timestamp $t_0$, the absolute evaluation window end passed to `edge_failure_time` is $t_{\text{end}} = t_0 + \text{horizon}$.
-- Only finite failure times satisfying $t_0 \le t_{\text{fail}} \le t_0 + \text{horizon}$ are pushed to the heap.
+- When scheduling from timestamp $t_0$, the absolute evaluation window end passed to `edge_failure_time` is $t_{\text{end}} = t_0 + \text{horizon}$ (if finite).
+- **Infinite Horizon Behavior and the $10^6$ Cap**:
+  In `certificates.py`, `first_violation_time` deduplicates root partitions using a purely relative tolerance:
+  $$\text{time\_scale} = \max(|t_0|, |t_{\text{end}}|), \quad \varepsilon = \text{tol} \cdot \text{time\_scale}$$
+  If $t_{\text{end}} = \infty$, $\text{time\_scale} = \infty$, causing $\varepsilon = \infty$. As a consequence, all interior finite roots satisfy $(r - \tau) \le \infty$ and are discarded, leaving partition $[t_0, \infty)$ with midpoint $\infty$ (yielding `NaN`).
+  To prevent this numerical degeneration when an unbounded lookahead is requested (`horizon = float('inf')`), `KineticDetector` safely clamps the evaluation window to a large finite upper bound:
+  $$t_{\text{end}} = t_0 + 10^6$$
+  This preserves the full numerical precision of the Citardauq quadratic solver and relative root partitioning while covering all practically reachable simulation horizons.
+- Only finite failure times satisfying $t_0 \le t_{\text{fail}} \le t_{\text{end}}$ are pushed to the heap.
 - Edges that are currently `VIOLATED` in `CertificateStore` receive **no certificate** (only `VALID` edges are scheduled).
 
 ### Witness Set Alignment
@@ -88,3 +95,4 @@ When an event pops at time $t$ with predicted failure $t_{\text{fail}} \le t$:
   Called after topological repairs (e.g. `apply_plan`).
   - Drops existing heap entries for $(u, level)$ via `heap.invalidate_source(u, level)`.
   - For each new neighbor $v \in N_l(u)$, if $(u, v, level)$ is `VALID`, schedules a fresh certificate.
+
