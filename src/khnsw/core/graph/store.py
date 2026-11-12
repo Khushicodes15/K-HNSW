@@ -247,6 +247,46 @@ class GraphStore:
         fwd_u.remove(v)
         self._reverse[v][level].remove(u)
 
+    def remove_node(self, node_id: int) -> None:
+        """Remove a node and all its incident edges across all levels.
+
+        Symmetrically severs connections from predecessors (forward) and successors
+        (reverse). If node_id was the entry point, reassigns it to an existing node
+        at the new max level, or None if the graph becomes empty.
+        """
+        node_id = int(node_id)
+        if node_id not in self._levels:
+            raise KeyError(f"node_id {node_id} does not exist in graph")
+
+        node_lvl = self._levels[node_id]
+
+        # Symmetrically remove from all incident forward and reverse edge sets
+        for lvl in range(node_lvl + 1):
+            # Predecessors u -> node_id: remove node_id from forward of u
+            for u in list(self._reverse[node_id][lvl]):
+                self._forward[u][lvl].discard(node_id)
+
+            # Successors node_id -> v: remove node_id from reverse of v
+            for v in list(self._forward[node_id][lvl]):
+                self._reverse[v][lvl].discard(node_id)
+
+        # Delete node records
+        del self._vectors[node_id]
+        del self._levels[node_id]
+        del self._forward[node_id]
+        del self._reverse[node_id]
+
+        # Update entry point if deleted node was the entry point
+        if self._entry_point == node_id:
+            if not self._levels:
+                self._entry_point = None
+            else:
+                new_max = max(self._levels.values())
+                for candidate, lvl in self._levels.items():
+                    if lvl == new_max:
+                        self._entry_point = candidate
+                        break
+
     def set_neighbors(self, node_id: int, level: int, neighbors: Sequence[int] | set[int]) -> None:
         """Replace all outgoing neighbors of node_id at given level.
 

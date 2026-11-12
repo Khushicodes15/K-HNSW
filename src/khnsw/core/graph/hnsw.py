@@ -57,6 +57,7 @@ class HNSWIndex:
         self._dist_counter = DistanceCounter(0)
         self._versions: dict[int, int] = {}
         self._keep_pruned_connections = bool(keep_pruned_connections)
+        self._seed = seed
 
     # ------------------------------------------------------------------
     # ANNIndex.dim (property)
@@ -65,6 +66,11 @@ class HNSWIndex:
     def dim(self) -> int:
         """Vector dimensionality of the index."""
         return self._store.dim
+
+    @property
+    def seed(self) -> int | None:
+        """Random generator seed configured on the index."""
+        return self._seed
 
     @property
     def keep_pruned_connections(self) -> bool:
@@ -320,9 +326,17 @@ class HNSWIndex:
         """Check whether a node_id is currently present in the index."""
         return int(node_id) in self._store
 
+    def delete(self, node_id: int) -> None:
+        """Remove a node from the index and drop its version counter."""
+        node_id = int(node_id)
+        if node_id not in self._store:
+            raise KeyError(f"node_id {node_id} does not exist in the index")
+        self._store.remove_node(node_id)
+        self._versions.pop(node_id, None)
+
     def remove(self, node_id: int) -> None:
-        """Remove a node from the index (not yet implemented)."""
-        raise NotImplementedError("remove is not yet implemented")
+        """Remove a node from the index per ANNIndex protocol."""
+        self.delete(node_id)
 
     # ------------------------------------------------------------------
     # GraphIndex read-only topology methods

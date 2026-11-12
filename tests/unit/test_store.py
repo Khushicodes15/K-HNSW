@@ -368,3 +368,79 @@ def test_store_ids_sorted() -> None:
         store.add_node(i, dummy_vec, level=0)
 
     assert store.ids() == [0, 7, 15, 42, 99]
+
+
+def test_store_remove_node_leaf_middle_and_entry_point() -> None:
+    """Test remove_node on leaf, intermediate, and entry-point nodes."""
+    store = GraphStore(dim=2, m=4, m0=8)
+    dummy = np.zeros(2, dtype=np.float32)
+
+    # Build 3-layer topology:
+    # Node 0: level 0 (leaf / base-only)
+    # Node 1: level 1 (middle)
+    # Node 2: level 2 (entry point)
+    # Node 3: level 2 (co-top node)
+    store.add_node(0, dummy, level=0)
+    store.add_node(1, dummy, level=1)
+    store.add_node(2, dummy, level=2)
+    store.add_node(3, dummy, level=2)
+
+    # Wire edges at level 0: 0 <-> 1 <-> 2 <-> 3
+    store.add_edge(0, 1, level=0)
+    store.add_edge(1, 0, level=0)
+    store.add_edge(1, 2, level=0)
+    store.add_edge(2, 1, level=0)
+    store.add_edge(2, 3, level=0)
+    store.add_edge(3, 2, level=0)
+
+    # Wire edges at level 1: 1 <-> 2 <-> 3
+    store.add_edge(1, 2, level=1)
+    store.add_edge(2, 1, level=1)
+    store.add_edge(2, 3, level=1)
+    store.add_edge(3, 2, level=1)
+
+    # Wire edges at level 2: 2 <-> 3
+    store.add_edge(2, 3, level=2)
+    store.add_edge(3, 2, level=2)
+
+    assert store.entry_point() == 3 or store.entry_point() == 2
+    store.set_entry_point(2)
+    assert store.entry_point() == 2
+    assert store.max_level() == 2
+
+    # 1. Remove leaf node (node 0)
+    store.remove_node(0)
+    assert 0 not in store
+    assert store.ids() == [1, 2, 3]
+    # Check node 0 is gone from forward and reverse of node 1
+    assert 0 not in store.neighbors(1, level=0)
+    assert 0 not in store.in_neighbors(1, level=0)
+
+    # 2. Remove middle node (node 1)
+    store.remove_node(1)
+    assert 1 not in store
+    assert store.ids() == [2, 3]
+    assert 1 not in store.neighbors(2, level=0)
+    assert 1 not in store.in_neighbors(2, level=0)
+    assert 1 not in store.neighbors(2, level=1)
+    assert 1 not in store.in_neighbors(2, level=1)
+
+    # 3. Remove entry point (node 2)
+    store.remove_node(2)
+    assert 2 not in store
+    assert store.ids() == [3]
+    # Entry point must be reassigned to remaining node at max level (node 3)
+    assert store.entry_point() == 3
+    assert store.max_level() == 2
+    assert store.neighbors(3, level=0) == []
+    assert store.in_neighbors(3, level=0) == []
+
+    # 4. Remove final node (node 3)
+    store.remove_node(3)
+    assert len(store) == 0
+    assert store.entry_point() is None
+    assert store.max_level() == -1
+
+    # 5. Non-existent node raises KeyError
+    with pytest.raises(KeyError, match="does not exist"):
+        store.remove_node(999)
