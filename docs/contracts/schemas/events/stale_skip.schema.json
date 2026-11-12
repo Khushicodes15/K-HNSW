@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Khushicodes15/K-HNSW/docs/contracts/schemas/events/stale_skip.schema.json",
+  "title": "stale_skip Event Schema",
+  "type": "object",
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "run_id": { "type": "string" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "t": { "type": "number", "minimum": 0.0 },
+    "type": { "type": "string", "const": "stale_skip" },
+    "node": { "type": "integer" },
+    "level": { "type": "integer", "minimum": 0 },
+    "version": { "type": "integer", "minimum": 0 },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "current_version": { "type": "integer", "minimum": 0 },
+        "reason": { "type": "string" },
+        "example": { "type": "boolean" }
+      },
+      "required": ["current_version", "reason"]
+    }
+  },
+  "required": ["schema_version", "run_id", "seq", "t", "type", "node", "level", "version", "payload"]
+}

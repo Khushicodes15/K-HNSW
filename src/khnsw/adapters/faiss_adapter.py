@@ -46,3 +46,15 @@ class FaissAdapter:
     def move(self, node_id: int, new_vector: NDArray[np.float32]) -> None:
         """Update node coordinates in faiss."""
         raise NotImplementedError("FaissAdapter.move is a stub; algorithm not yet implemented.")
+
+    def size(self) -> int:
+        """Return count of vectors in the index."""
+        raise NotImplementedError("FaissAdapter.size is a stub; algorithm not yet implemented.")
+
+    def contains(self, node_id: int) -> bool:
+        """Check if node_id exists in the index."""
+        raise NotImplementedError("FaissAdapter.contains is a stub; algorithm not yet implemented.")
+
+    def remove(self, node_id: int) -> None:
+        """Remove a node from the index."""
+        raise NotImplementedError("FaissAdapter.remove is a stub; algorithm not yet implemented.")

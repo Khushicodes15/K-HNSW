@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Khushicodes15/K-HNSW/docs/contracts/schemas/events/move.schema.json",
+  "title": "move Event Schema",
+  "type": "object",
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "run_id": { "type": "string" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "t": { "type": "number", "minimum": 0.0 },
+    "type": { "type": "string", "const": "move" },
+    "node": { "type": "integer" },
+    "level": { "type": ["integer", "null"] },
+    "version": { "type": "integer", "minimum": 0 },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "delta_norm": { "type": "number", "minimum": 0.0 },
+        "new_vector": { "type": "array", "items": { "type": "number" } },
+        "example": { "type": "boolean" }
+      },
+      "required": ["delta_norm"]
+    }
+  },
+  "required": ["schema_version", "run_id", "seq", "t", "type", "node", "level", "version", "payload"]
+}
