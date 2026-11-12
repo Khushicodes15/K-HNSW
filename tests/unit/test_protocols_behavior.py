@@ -204,9 +204,9 @@ class FakeMovementModel:
 class FakeLinearTrajectory:
     """In-memory concrete implementation exercising LinearTrajectory protocol."""
 
-    def trajectory(self, node_id: int) -> tuple[NDArray[np.float32], NDArray[np.float32]]:
-        a = np.array([float(node_id), 0.0], dtype=np.float32)
-        b = np.array([0.1, 0.2], dtype=np.float32)
+    def trajectory(self, node_id: int) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        a = np.array([float(node_id), 0.0], dtype=np.float64)
+        b = np.array([0.1, 0.2], dtype=np.float64)
         return a, b
 
 
