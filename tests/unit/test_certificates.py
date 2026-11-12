@@ -58,7 +58,7 @@ def test_quad_sub() -> None:
 
 
 # =============================================================================
-# 2. real_roots: known polynomials, near-zero alpha, large magnitudes
+# 2. real_roots: known polynomials, near-zero alpha, large magnitudes, scale invariance
 # =============================================================================
 
 
@@ -113,13 +113,29 @@ def test_real_roots_large_magnitudes() -> None:
     assert math.isclose(roots[1], 2.0, abs_tol=1e-8)
 
 
+def test_real_roots_scale_invariance() -> None:
+    """Test (c): Multiplying coefficients by 1e-20 and 1e20 yields identical roots."""
+    base_roots = real_roots(1.0, -7.0, 10.0)
+    assert len(base_roots) == 2
+
+    # Scale down by 1e-20
+    small_roots = real_roots(1e-20, -7e-20, 10e-20)
+    assert len(small_roots) == 2
+    np.testing.assert_allclose(small_roots, base_roots, rtol=1e-12)
+
+    # Scale up by 1e20
+    large_roots = real_roots(1e20, -7e20, 10e20)
+    assert len(large_roots) == 2
+    np.testing.assert_allclose(large_roots, base_roots, rtol=1e-12)
+
+
 # =============================================================================
-# 3. is_violated_static truth table including ties and ordering condition
+# 3. is_violated_static truth table including ties and near-tie asymmetry
 # =============================================================================
 
 
 def test_is_violated_static_truth_table() -> None:
-    """Verify is_violated_static truth table including ties and D(u,w) <= D(u,v)."""
+    """Verify is_violated_static truth table including deliberate near-tie asymmetry."""
     # 1. Base violation: D(u,w) < D(u,v) and D(v,w) < D(u,v) -> True
     assert is_violated_static(d_uv=10.0, d_uw=5.0, d_vw=4.0) is True
 
@@ -138,23 +154,29 @@ def test_is_violated_static_truth_table() -> None:
     # 6. Complete equality / tie: D(u,v) == D(u,w) == D(v,w) -> False
     assert is_violated_static(d_uv=10.0, d_uw=10.0, d_vw=10.0) is False
 
-    # 7. Zero distances (colocated nodes)
+    # 7. Zero distances (all-zero case) -> False
     assert is_violated_static(d_uv=0.0, d_uw=0.0, d_vw=0.0) is False
+
+    # 8. Deliberate near-tie asymmetry checks:
+    # Near-tie on D(v,w) >= D(u,v) - abs_tol -> does NOT count as violation (False)
+    assert is_violated_static(d_uv=1.0, d_uw=0.5, d_vw=1.0 - 1e-14, tol=1e-12) is False
+    # Near-tie on D(u,w) <= D(u,v) + abs_tol -> DOES count as ordering-relevant (True)
+    assert is_violated_static(d_uv=1.0, d_uw=1.0 + 1e-14, d_vw=0.5, tol=1e-12) is True
 
 
 # =============================================================================
-# 4. Explicit Degenerate Cases for first_violation_time
+# 4. Explicit Degenerate Cases & Invariance Tests for first_violation_time
 # =============================================================================
 
 
 def test_first_violation_time_explicit_degeneracies() -> None:
     """Test first_violation_time on explicit degenerate configurations."""
     t0 = 0.0
-    horizon = 10.0
+    t_end = 10.0
 
     # A. Identical points: u = v = w
     zero = np.zeros(2, dtype=np.float32)
-    assert first_violation_time((zero, zero), (zero, zero), (zero, zero), t0, horizon) is None
+    assert first_violation_time((zero, zero), (zero, zero), (zero, zero), t0, t_end) is None
 
     # B. Zero velocities: static points
     # Case B1: static points violate condition at t0 -> returns t0
@@ -164,65 +186,105 @@ def test_first_violation_time_explicit_degeneracies() -> None:
     w_pos = np.array([0.0, 3.0], dtype=np.float32)
     vel_zero = np.zeros(2, dtype=np.float32)
 
-    res = first_violation_time((u_pos, vel_zero), (v_pos, vel_zero), (w_pos, vel_zero), t0, horizon)
+    res = first_violation_time((u_pos, vel_zero), (v_pos, vel_zero), (w_pos, vel_zero), t0, t_end)
     assert res == t0
 
     # Case B2: static points do NOT violate condition -> returns None
     w_far = np.array([0.0, 20.0], dtype=np.float32)
     res_none = first_violation_time(
-        (u_pos, vel_zero), (v_pos, vel_zero), (w_far, vel_zero), t0, horizon
+        (u_pos, vel_zero), (v_pos, vel_zero), (w_far, vel_zero), t0, t_end
     )
     assert res_none is None
 
     # C. Parallel velocities (same relative velocity, distances constant)
     vel_parallel = np.array([1.5, -2.0], dtype=np.float32)
     res_par = first_violation_time(
-        (u_pos, vel_parallel), (v_pos, vel_parallel), (w_pos, vel_parallel), t0, horizon
+        (u_pos, vel_parallel), (v_pos, vel_parallel), (w_pos, vel_parallel), t0, t_end
     )
     assert res_par == t0
 
     # D. Violation already true at t0
     t_start = 2.0
     res_tstart = first_violation_time(
-        (u_pos, vel_zero), (v_pos, vel_zero), (w_pos, vel_zero), t_start, horizon
+        (u_pos, vel_zero), (v_pos, vel_zero), (w_pos, vel_zero), t_start, t_end
     )
     assert res_tstart == t_start
 
-    # E. Violation occurs only AFTER horizon
-    # u at (0,0) stationary
-    # v at (10, 0) stationary => D(uv) = 100
-    # w starts at (50, 0), moving towards u and v with velocity (-1, 0)
-    # w reaches (0, 0) at t=50. At horizon=10, w is at (40, 0), D(uw)=1600 > 100.
+    # E. Violation occurs only AFTER t_end
     w_delayed = np.array([50.0, 0.0], dtype=np.float32)
     w_vel = np.array([-1.0, 0.0], dtype=np.float32)
     res_delayed = first_violation_time(
-        (u_pos, vel_zero), (v_pos, vel_zero), (w_delayed, w_vel), t0=0.0, horizon=10.0
+        (u_pos, vel_zero), (v_pos, vel_zero), (w_delayed, w_vel), t0=0.0, t_end=10.0
     )
     assert res_delayed is None
 
-    # Horizon < t0 returns None
+    # t_end < t0 returns None
     assert (
         first_violation_time((u_pos, vel_zero), (v_pos, vel_zero), (w_pos, vel_zero), 5.0, 2.0)
         is None
     )
 
 
-def test_first_violation_time_tangent_root() -> None:
-    """Test tangent root where a difference polynomial touches zero."""
-    # Construct 1D positions where D(u, w)(t) touches D(u, v)(t) from above at t = 2.0
-    # u at 0, stationary. D(u, v) = 4 (v at 2).
-    # w(t) position = 2 + (t - 2)^2 ... but w has linear motion:
-    # In 2D: u=(0,0), v=(2,0) => D(uv)=4.
-    # w(t) = (0, t - 2): D(uw)(t) = (t - 2)^2.
-    # At t=2, D(uw)(2) = 0 <= 4.
-    # For all t, D(uw)(t) >= 0.
-    # D(vw)(t) = 4 + (t - 2)^2. At t=2, D(vw)=4 == D(uv)=4 (tie on D(vw) < D(uv) is not violated!).
-    # So at t=2, D(vw) = D(uv), which is a tie, not a violation.
+def test_first_violation_time_g1_tangent_touch_from_above() -> None:
+    """Test (a): g1 touches 0 from above at one instant with g2 < 0 -> returns None.
+
+    At t = 1.0, g1 touches 0 from above while g2 < 0. For all t != 1.0, g1(t) > 0.
+    Since the violation does not hold on an open interval of positive length,
+    the solver must return None.
+    """
+    # u = (0, 0) stationary, v = (2, 0) stationary => D(u, v) = 4
+    # w(t) = (2, t - 1) => D(u, w)(t) = 4 + (t - 1)^2, D(v, w)(t) = (t - 1)^2
+    # g1(t) = (t - 1)^2 >= 0 (touches 0 at t=1, positive everywhere else)
+    # g2(t) = (t - 1)^2 - 4 (at t=1, g2(1) = -4 < 0)
     u = (np.array([0.0, 0.0], dtype=np.float32), np.zeros(2, dtype=np.float32))
     v = (np.array([2.0, 0.0], dtype=np.float32), np.zeros(2, dtype=np.float32))
-    w = (np.array([0.0, -2.0], dtype=np.float32), np.array([0.0, 1.0], dtype=np.float32))
-    res = first_violation_time(u, v, w, t0=0.0, horizon=5.0)
-    assert res is None
+    w = (np.array([2.0, -1.0], dtype=np.float32), np.array([0.0, 1.0], dtype=np.float32))
+
+    res = first_violation_time(u, v, w, t0=0.0, t_end=2.0)
+    assert res is None, f"Expected None for isolated measure-zero touch, got {res}"
+
+
+def test_first_violation_time_g2_concave_touch_from_below() -> None:
+    """Test (b): g2 concave touching 0 from below -> still violated on both sides.
+
+    g2(t) = -0.75 * (t - 1)^2 touches 0 from below at t = 1, with g2(t) < 0 for all t != 1.
+    g1(t) = -0.75 * (t - 1)^2 <= 0 for all t.
+    Testing window [t0, t_end] = [1.0, 2.0]: predicate holds on open interval (1.0, 2.0),
+    so infimum violation time returns 1.0.
+    """
+    # u(t) = 0, v(t) = t - 1, w(t) = 0.5 * t - 0.5 (collinear motion)
+    # D(u, v)(t) = (t - 1)^2, D(u, w)(t) = 0.25*(t - 1)^2, D(v, w)(t) = 0.25*(t - 1)^2
+    # g1(t) = -0.75 * (t - 1)^2 <= 0 for all t
+    # g2(t) = -0.75 * (t - 1)^2 <= 0 with maximum at t = 1.0
+    u = (np.zeros(1, dtype=np.float32), np.zeros(1, dtype=np.float32))
+    v = (np.array([-1.0], dtype=np.float32), np.array([1.0], dtype=np.float32))
+    w = (np.array([-0.5], dtype=np.float32), np.array([0.5], dtype=np.float32))
+
+    res = first_violation_time(u, v, w, t0=1.0, t_end=2.0)
+    assert res is not None
+    assert math.isclose(res, 1.0, abs_tol=1e-7)
+
+
+def test_first_violation_time_scaling_invariance() -> None:
+    """Test (d): Scaling time by factor s scales returned event time T by 1/s."""
+    # Construct base trajectories that trigger violation at t_fail in (0, 5)
+    u = (np.array([0.0, 0.0], dtype=np.float32), np.zeros(2, dtype=np.float32))
+    v = (np.array([10.0, 0.0], dtype=np.float32), np.zeros(2, dtype=np.float32))
+    # w starts at (20, 0) and moves left with speed 3.0: enters violation region around t=2.0
+    w = (np.array([20.0, 0.0], dtype=np.float32), np.array([-3.0, 0.0], dtype=np.float32))
+
+    t_base = first_violation_time(u, v, w, t0=0.0, t_end=5.0)
+    assert t_base is not None
+    assert t_base > 0.0
+
+    # Scale time by factor s = 2.5 (velocities multiplied by s)
+    s = 2.5
+    w_scaled = (w[0], w[1] * s)
+    t_scaled = first_violation_time(u, v, w_scaled, t0=0.0, t_end=5.0 / s)
+    assert t_scaled is not None
+
+    expected_scaled = t_base / s
+    np.testing.assert_allclose(t_scaled, expected_scaled, rtol=1e-7, atol=1e-9)
 
 
 # =============================================================================
@@ -233,7 +295,7 @@ def test_first_violation_time_tangent_root() -> None:
 def test_edge_failure_time_min_witness() -> None:
     """Verify edge_failure_time returns minimum failure time and correct index."""
     t0 = 0.0
-    horizon = 10.0
+    t_end = 10.0
 
     # Source u at (0, 0), v at (10, 0) => D(u, v) = 100
     u_traj = (np.array([0.0, 0.0], dtype=np.float32), np.zeros(2, dtype=np.float32))
@@ -247,7 +309,7 @@ def test_edge_failure_time_min_witness() -> None:
     w2_traj = (np.array([100.0, 100.0], dtype=np.float32), np.zeros(2, dtype=np.float32))
 
     witnesses = [w0_traj, w1_traj, w2_traj]
-    result = edge_failure_time(u_traj, v_traj, witnesses, t0=t0, horizon=horizon)
+    result = edge_failure_time(u_traj, v_traj, witnesses, t0=t0, t_end=t_end)
 
     assert result is not None
     t_fail, w_idx = result
@@ -255,21 +317,21 @@ def test_edge_failure_time_min_witness() -> None:
     # Witness 1 must be the earliest
     assert w_idx == 1
 
-    t1 = first_violation_time(u_traj, v_traj, w1_traj, t0, horizon)
+    t1 = first_violation_time(u_traj, v_traj, w1_traj, t0, t_end)
     assert t1 is not None
     assert math.isclose(t_fail, t1, abs_tol=1e-9)
 
     # When all witnesses never violate: returns None
-    result_none = edge_failure_time(u_traj, v_traj, [w2_traj], t0=t0, horizon=horizon)
+    result_none = edge_failure_time(u_traj, v_traj, [w2_traj], t0=t0, t_end=t_end)
     assert result_none is None
 
 
 # =============================================================================
-# 6. Property-based test with Hypothesis: Brute-Force Grid Comparison (>=20,000 pts)
+# 6. Property-based tests with Hypothesis (raised to max_examples=300)
 # =============================================================================
 
 
-@settings(max_examples=40, deadline=1500)
+@settings(max_examples=300, deadline=None)
 @given(
     coords=st.lists(
         st.floats(min_value=-5.0, max_value=5.0, allow_nan=False, allow_infinity=False),
@@ -277,17 +339,11 @@ def test_edge_failure_time_min_witness() -> None:
         max_size=12,
     )
 )
-def test_first_violation_time_agrees_with_dense_grid_scan(coords: list[float]) -> None:
-    """Property test: first_violation_time agrees with dense-grid brute-force scan.
-
-    Tests that:
-    1. If a violation is sampled by the dense grid at t_sample, then T <= t_sample + eps.
-    2. If T is returned, a violation exists within a small tolerance after T.
-    3. If T is None, the grid scan finds no violation.
-    """
+def test_first_violation_time_agrees_with_dense_grid_scan_d2(coords: list[float]) -> None:
+    """Property test (d=2): first_violation_time agrees with dense-grid brute-force scan."""
     t0 = 0.0
-    horizon = 4.0
-    n_points = 25000  # >= 20,000 points required
+    t_end = 4.0
+    n_points = 25000  # >= 20,000 points
 
     au = np.array(coords[0:2], dtype=np.float32)
     bu = np.array(coords[2:4], dtype=np.float32)
@@ -306,7 +362,7 @@ def test_first_violation_time_agrees_with_dense_grid_scan(coords: list[float]) -
     w_traj = (aw, bw)
 
     # Dense grid brute-force evaluation
-    t_grid = np.linspace(t0, horizon, n_points, dtype=np.float64)
+    t_grid = np.linspace(t0, t_end, n_points, dtype=np.float64)
     dt = float(t_grid[1] - t_grid[0])
 
     pu = au.astype(np.float64) + bu.astype(np.float64) * t_grid[:, None]
@@ -317,7 +373,6 @@ def test_first_violation_time_agrees_with_dense_grid_scan(coords: list[float]) -
     d_uw = np.sum((pw - pu) ** 2, axis=1)
     d_vw = np.sum((pw - pv) ** 2, axis=1)
 
-    # Vectorized violation check using strict condition with numerical tolerance
     tol = 1e-10
     violated_grid = (d_uw <= d_uv + tol) & (d_vw < d_uv - tol)
 
@@ -326,7 +381,7 @@ def test_first_violation_time_agrees_with_dense_grid_scan(coords: list[float]) -
         first_grid_idx = int(np.argmax(violated_grid))
 
     # Analytic certificate solver
-    t_analytic = first_violation_time(u_traj, v_traj, w_traj, t0=t0, horizon=horizon, tol=tol)
+    t_analytic = first_violation_time(u_traj, v_traj, w_traj, t0=t0, t_end=t_end, tol=tol)
 
     if first_grid_idx is not None:
         t_sample = float(t_grid[first_grid_idx])
@@ -345,12 +400,8 @@ def test_first_violation_time_agrees_with_dense_grid_scan(coords: list[float]) -
             f"{t_sample - t_analytic}"
         )
     else:
-        # If the grid found no violation, then either analytic solver returned None,
-        # or the violation interval was narrower than grid step dt (measure-zero boundary spike).
         if t_analytic is not None:
-            # Check if there is indeed a valid violation very close to T
-            # Evaluate at T + 0.5*dt
-            t_probe = min(horizon, t_analytic + 0.5 * dt)
+            t_probe = min(t_end, t_analytic + 0.5 * dt)
             p_u = au.astype(np.float64) + bu.astype(np.float64) * t_probe
             p_v = av.astype(np.float64) + bv.astype(np.float64) * t_probe
             p_w = aw.astype(np.float64) + bw.astype(np.float64) * t_probe
@@ -360,3 +411,182 @@ def test_first_violation_time_agrees_with_dense_grid_scan(coords: list[float]) -
             assert is_violated_static(d1, d2, d3, tol=tol), (
                 f"Analytic solver returned T={t_analytic} but probe at {t_probe} was not violated"
             )
+
+
+@settings(max_examples=300, deadline=None)
+@given(
+    coords=st.lists(
+        st.floats(min_value=-5.0, max_value=5.0, allow_nan=False, allow_infinity=False),
+        min_size=48,
+        max_size=48,
+    )
+)
+def test_first_violation_time_agrees_with_dense_grid_scan_d8(coords: list[float]) -> None:
+    """Test (e): d=8 variant of the grid property test comparing solver with brute force."""
+    t0 = 0.0
+    t_end = 3.0
+    n_points = 25000
+
+    au = np.array(coords[0:8], dtype=np.float32)
+    bu = np.array(coords[8:16], dtype=np.float32)
+    av = np.array(coords[16:24], dtype=np.float32)
+    bv = np.array(coords[24:32], dtype=np.float32)
+    aw = np.array(coords[32:40], dtype=np.float32)
+    bw = np.array(coords[40:48], dtype=np.float32)
+
+    assume(float(np.linalg.norm(au - av)) > 0.05)
+    assume(float(np.linalg.norm(au - aw)) > 0.05)
+    assume(float(np.linalg.norm(av - aw)) > 0.05)
+
+    u_traj = (au, bu)
+    v_traj = (av, bv)
+    w_traj = (aw, bw)
+
+    t_grid = np.linspace(t0, t_end, n_points, dtype=np.float64)
+    dt = float(t_grid[1] - t_grid[0])
+
+    pu = au.astype(np.float64) + bu.astype(np.float64) * t_grid[:, None]
+    pv = av.astype(np.float64) + bv.astype(np.float64) * t_grid[:, None]
+    pw = aw.astype(np.float64) + bw.astype(np.float64) * t_grid[:, None]
+
+    d_uv = np.sum((pv - pu) ** 2, axis=1)
+    d_uw = np.sum((pw - pu) ** 2, axis=1)
+    d_vw = np.sum((pw - pv) ** 2, axis=1)
+
+    tol = 1e-10
+    violated_grid = (d_uw <= d_uv + tol) & (d_vw < d_uv - tol)
+
+    first_grid_idx = None
+    if np.any(violated_grid):
+        first_grid_idx = int(np.argmax(violated_grid))
+
+    t_analytic = first_violation_time(u_traj, v_traj, w_traj, t0=t0, t_end=t_end, tol=tol)
+
+    if first_grid_idx is not None:
+        t_sample = float(t_grid[first_grid_idx])
+        assert t_analytic is not None
+        assert t_analytic <= t_sample + 1e-9
+        assert t_sample - t_analytic <= 2.0 * dt + 1e-8
+    else:
+        if t_analytic is not None:
+            t_probe = min(t_end, t_analytic + 0.5 * dt)
+            p_u = au.astype(np.float64) + bu.astype(np.float64) * t_probe
+            p_v = av.astype(np.float64) + bv.astype(np.float64) * t_probe
+            p_w = aw.astype(np.float64) + bw.astype(np.float64) * t_probe
+            d1 = float(np.dot(p_v - p_u, p_v - p_u))
+            d2 = float(np.dot(p_w - p_u, p_w - p_u))
+            d3 = float(np.dot(p_w - p_v, p_w - p_v))
+            assert is_violated_static(d1, d2, d3, tol=tol)
+
+
+# =============================================================================
+# 7. Test (f): Collinear points and parallel velocities generator
+# =============================================================================
+
+
+@st.composite
+def collinear_and_parallel_trajectories(
+    draw: st.DrawFn,
+) -> tuple[
+    tuple[np.ndarray, np.ndarray],
+    tuple[np.ndarray, np.ndarray],
+    tuple[np.ndarray, np.ndarray],
+]:
+    """Strategy generating collinear initial positions and parallel velocities."""
+    dim = draw(st.integers(min_value=2, max_value=8))
+
+    # Shared origin and direction vector for line
+    origin = draw(st.lists(st.floats(min_value=-2.0, max_value=2.0), min_size=dim, max_size=dim))
+    direction = draw(st.lists(st.floats(min_value=-1.0, max_value=1.0), min_size=dim, max_size=dim))
+
+    p0 = np.array(origin, dtype=np.float32)
+    dir_vec = np.array(direction, dtype=np.float32)
+    norm = float(np.linalg.norm(dir_vec))
+    if norm == 0.0:
+        dir_vec[0] = 1.0
+    else:
+        dir_vec /= norm
+
+    # Collinear positions: distinct scalar multiples
+    alpha_u = draw(st.floats(min_value=-5.0, max_value=5.0))
+    alpha_v = draw(st.floats(min_value=-5.0, max_value=5.0))
+    alpha_w = draw(st.floats(min_value=-5.0, max_value=5.0))
+
+    assume(abs(alpha_u - alpha_v) > 0.05)
+    assume(abs(alpha_u - alpha_w) > 0.05)
+    assume(abs(alpha_v - alpha_w) > 0.05)
+
+    au = p0 + alpha_u * dir_vec
+    av = p0 + alpha_v * dir_vec
+    aw = p0 + alpha_w * dir_vec
+
+    # Parallel velocities along velocity direction vector
+    v_dir = draw(st.lists(st.floats(min_value=-1.0, max_value=1.0), min_size=dim, max_size=dim))
+    v_vec = np.array(v_dir, dtype=np.float32)
+    v_norm = float(np.linalg.norm(v_vec))
+    if v_norm == 0.0:
+        v_vec[0] = 1.0
+    else:
+        v_vec /= v_norm
+
+    k_u = draw(st.floats(min_value=-3.0, max_value=3.0))
+    k_v = draw(st.floats(min_value=-3.0, max_value=3.0))
+    k_w = draw(st.floats(min_value=-3.0, max_value=3.0))
+
+    bu = k_u * v_vec
+    bv = k_v * v_vec
+    bw = k_w * v_vec
+
+    return (au, bu), (av, bv), (aw, bw)
+
+
+@settings(max_examples=300, deadline=None)
+@given(trajs=collinear_and_parallel_trajectories())
+def test_first_violation_time_collinear_parallel(
+    trajs: tuple[
+        tuple[np.ndarray, np.ndarray],
+        tuple[np.ndarray, np.ndarray],
+        tuple[np.ndarray, np.ndarray],
+    ],
+) -> None:
+    """Test (f): first_violation_time on collinear points with parallel velocities."""
+    u_traj, v_traj, w_traj = trajs
+    t0 = 0.0
+    t_end = 4.0
+    n_points = 25000
+
+    t_grid = np.linspace(t0, t_end, n_points, dtype=np.float64)
+    dt = float(t_grid[1] - t_grid[0])
+
+    pu = u_traj[0].astype(np.float64) + u_traj[1].astype(np.float64) * t_grid[:, None]
+    pv = v_traj[0].astype(np.float64) + v_traj[1].astype(np.float64) * t_grid[:, None]
+    pw = w_traj[0].astype(np.float64) + w_traj[1].astype(np.float64) * t_grid[:, None]
+
+    d_uv = np.sum((pv - pu) ** 2, axis=1)
+    d_uw = np.sum((pw - pu) ** 2, axis=1)
+    d_vw = np.sum((pw - pv) ** 2, axis=1)
+
+    tol = 1e-10
+    violated_grid = (d_uw <= d_uv + tol) & (d_vw < d_uv - tol)
+
+    first_grid_idx = None
+    if np.any(violated_grid):
+        first_grid_idx = int(np.argmax(violated_grid))
+
+    t_analytic = first_violation_time(u_traj, v_traj, w_traj, t0=t0, t_end=t_end, tol=tol)
+
+    if first_grid_idx is not None:
+        t_sample = float(t_grid[first_grid_idx])
+        assert t_analytic is not None
+        assert t_analytic <= t_sample + 1e-9
+        assert t_sample - t_analytic <= 2.0 * dt + 1e-8
+    else:
+        if t_analytic is not None:
+            t_probe = min(t_end, t_analytic + 0.5 * dt)
+            p_u = u_traj[0].astype(np.float64) + u_traj[1].astype(np.float64) * t_probe
+            p_v = v_traj[0].astype(np.float64) + v_traj[1].astype(np.float64) * t_probe
+            p_w = w_traj[0].astype(np.float64) + w_traj[1].astype(np.float64) * t_probe
+            d1 = float(np.dot(p_v - p_u, p_v - p_u))
+            d2 = float(np.dot(p_w - p_u, p_w - p_u))
+            d3 = float(np.dot(p_w - p_v, p_w - p_v))
+            assert is_violated_static(d1, d2, d3, tol=tol)
