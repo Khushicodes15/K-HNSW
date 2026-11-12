@@ -23,9 +23,12 @@ class SearchResult(NamedTuple):
     distance: float
     node_id: int
 
+
 class DistanceCounter:
     __slots__ = ("value",)
+
     def __init__(self, value: int = 0) -> None: ...
+
 
 def search_layer(
     store: GraphStore,

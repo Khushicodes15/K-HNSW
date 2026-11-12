@@ -41,7 +41,9 @@ class GraphStore:
     def add_edge(self, u: int, v: int, level: int) -> None: ...
     def remove_edge(self, u: int, v: int, level: int) -> None: ...
     def remove_node(self, node_id: int) -> None: ...
-    def set_neighbors(self, node_id: int, level: int, neighbors: Sequence[int] | set[int]) -> None: ...
+    def set_neighbors(
+        self, node_id: int, level: int, neighbors: Sequence[int] | set[int]
+    ) -> None: ...
     def snapshot(self) -> dict[str, Any]: ...
 ```
 
@@ -65,6 +67,7 @@ Hierarchical layer assignment using an exponential decay distribution.
 ```python
 def compute_default_ml(m: int) -> float: ...
 def assign_level(u: float, m_l: float) -> int: ...
+
 
 class LevelGenerator:
     def __init__(
@@ -162,6 +165,7 @@ def degree_stats(
     ids: Iterable[int] | None = None,
 ) -> dict[int, dict[str, float | int]]: ...
 
+
 def check_degree_bounds(
     index: Any,
     ids: Iterable[int] | None = None,
@@ -169,11 +173,13 @@ def check_degree_bounds(
     m0: int | None = None,
 ) -> list[str]: ...
 
+
 def zero_in_degree_count(
     index: Any,
     ids: Iterable[int] | None = None,
     level: int = 0,
 ) -> int: ...
+
 
 def reachable_from_entry(
     index: Any,
@@ -181,11 +187,13 @@ def reachable_from_entry(
     level: int = 0,
 ) -> set[int]: ...
 
+
 def connected_components(
     index: Any,
     ids: Iterable[int] | None = None,
     level: int = 0,
 ) -> list[set[int]]: ...
+
 
 def validate_invariants(
     index: Any,
@@ -239,6 +247,7 @@ def delete_and_reinsert(
     new_vector: NDArray[np.float32],
 ) -> None: ...
 
+
 def rebuild(
     index: HNSWIndex,
     vectors_by_id: Mapping[int, NDArray[np.float32]] | None = None,
@@ -266,12 +275,15 @@ dim, m, ef_construction = 4, 16, 50
 index = HNSWIndex(dim=dim, m=m, ef_construction=ef_construction, seed=42)
 
 # 2. Add vectors
-vectors = np.array([
-    [1.0, 0.0, 0.0, 0.0],
-    [0.0, 1.0, 0.0, 0.0],
-    [0.0, 0.0, 1.0, 0.0],
-    [0.0, 0.0, 0.0, 1.0],
-], dtype=np.float32)
+vectors = np.array(
+    [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ],
+    dtype=np.float32,
+)
 ids = np.array([10, 20, 30, 40], dtype=np.int64)
 index.add(ids, vectors)
 
