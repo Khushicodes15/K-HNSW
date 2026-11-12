@@ -24,7 +24,7 @@ class HNSWIndex:
     """Hierarchical Navigable Small World graph index.
 
     Wraps a :class:`GraphStore` with HNSW construction (Algorithm 1) and
-    k-NN search (Algorithm 5).  Conforms to the :class:`GraphIndex` protocol
+    k-NN search (Algorithm 5).  Conforms to the :class:`MutableGraphIndex` protocol
     defined in ``khnsw.core.interfaces``.
     """
 
@@ -394,3 +394,33 @@ class HNSWIndex:
     def snapshot(self) -> dict[str, Any]:
         """Export a serializable snapshot of graph topology and metadata."""
         return self._store.snapshot()
+
+    # ------------------------------------------------------------------
+    # MutableGraphIndex topology mutations
+    # ------------------------------------------------------------------
+    def set_neighbors(self, node_id: int, level: int, neighbors: list[int]) -> None:
+        """Replace the outgoing neighbor list of a node at a given level.
+
+        Delegates directly to ``GraphStore.set_neighbors`` which validates
+        node existence, level bounds, degree bounds, self-loops, and updates
+        forward and reverse adjacency atomically.
+        """
+        self._store.set_neighbors(node_id, level, neighbors)
+
+    def add_edge(self, u: int, v: int, level: int) -> None:
+        """Add a directed edge from u to v at the specified level.
+
+        Delegates directly to ``GraphStore.add_edge`` which validates node
+        existence, level bounds, degree bounds, self-loops, and updates
+        forward and reverse adjacency atomically.
+        """
+        self._store.add_edge(u, v, level)
+
+    def remove_edge(self, u: int, v: int, level: int) -> None:
+        """Remove the directed edge from u to v at the specified level.
+
+        Delegates directly to ``GraphStore.remove_edge`` which validates node
+        existence, level bounds, presence of edge, and updates forward and
+        reverse adjacency atomically.
+        """
+        self._store.remove_edge(u, v, level)
