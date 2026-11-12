@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from khnsw.core.detection.certificate_store import CertificateStore
+from khnsw.core.detection.certificate_store import CertificateStore, EdgeStatus
 from khnsw.core.detection.cost import CostMeter
 from khnsw.core.events.schema import EventEmitter, EventType, ListSink
 from khnsw.core.repair.apply import apply_plan
@@ -38,7 +40,7 @@ def test_khnsw_apply_end_to_end_property(
     mimic: bool,
     seed: int,
 ) -> None:
-    """T6: khnsw end-to-end property test.
+    """T6: khnsw end-to-end property test with strict non-vacuity guards.
 
     Verifies:
     (a) Every rewritten (u, level) has zero VIOLATED edges in the store.
@@ -56,29 +58,29 @@ def test_khnsw_apply_end_to_end_property(
     store = CertificateStore()
     store.build(g, meter)
 
-    # Move a randomly selected node
-    moved = int(rng.integers(0, n))
-    new_vec = (g.vector(moved) + rng.standard_normal(d) * 0.5).astype(np.float32)
+    # Pick a connected node and displace it towards/past a neighbor to guarantee violations
+    moved = max(g.ids(), key=lambda i: len(g.neighbors(i, 0)))
+    nbr = g.neighbors(moved, 0)[0]
+    new_vec = (g.vector(nbr) + (g.vector(nbr) - g.vector(moved)) * 0.5).astype(np.float32)
     g.move(moved, new_vec)
 
     # Detect violations after move using store on_move
     store.on_move(g, moved, meter)
 
-    # Collect violated edges
+    # Collect violated edges using real EdgeStatus enum
     violated: dict[tuple[int, int], list[int]] = {}
     for u in g.ids():
         for lvl in range(g.node_level(u) + 1):
             for v in g.neighbors(u, lvl):
-                if store.status((u, v, lvl)) == "violated":
+                if store.status((u, v, lvl)) == EdgeStatus.VIOLATED:
                     violated.setdefault((u, lvl), []).append(v)
 
-    if not violated:
-        return
+    # Non-vacuity guard: must have at least one violated edge before repair
+    assert len(violated) > 0, "Non-vacuity guard: expected at least one violated edge before repair"
 
     # Plan K-HNSW repair
     plan = khnsw_plan(g, violated=violated, meter=meter)
-    if not plan.rewrites:
-        return
+    assert len(plan.rewrites) > 0, "Non-vacuity guard: expected at least one planned rewrite"
 
     # Track graph distance computations prior to apply
     initial_graph_dist = g.distance_computations
@@ -94,7 +96,7 @@ def test_khnsw_apply_end_to_end_property(
         u = rewrite.node
         lvl = rewrite.level
         for v in g.neighbors(u, lvl):
-            assert store.status((u, v, lvl)) == "valid"
+            assert store.status((u, v, lvl)) == EdgeStatus.VALID
 
     # (b) Store equals a fresh from-scratch build
     fresh_meter = CostMeter()
@@ -126,11 +128,110 @@ def test_khnsw_apply_end_to_end_property(
     for u in g.ids():
         for lvl in range(g.node_level(u) + 1):
             for v in g.neighbors(u, lvl):
-                if store.status((u, v, lvl)) == "violated":
+                if store.status((u, v, lvl)) == EdgeStatus.VIOLATED:
                     violated_after.setdefault((u, lvl), []).append(v)
+
+    # Non-vacuity guard: post-repair violations must be strictly smaller than initial
+    assert len(violated_after) < len(violated)
 
     re_plan = khnsw_plan(g, violated=violated_after, meter=meter)
     assert len(re_plan.rewrites) == 0
+
+
+# ---------------------------------------------------------------------------
+# Targeted checks killing M10 and M11
+# ---------------------------------------------------------------------------
+
+
+def test_apply_plan_synchronizes_store_per_rewrite_spy() -> None:
+    """Spy test verifying store.on_neighbor_change is called once per rewrite (kills M11)."""
+    vectors = {
+        0: np.array([0.0, 0.0], dtype=np.float32),
+        1: np.array([1.0, 0.0], dtype=np.float32),
+        2: np.array([0.0, 1.0], dtype=np.float32),
+        3: np.array([2.0, 2.0], dtype=np.float32),
+    }
+    levels = {0: 0, 1: 0, 2: 0, 3: 0}
+    adj = {
+        (0, 0): [1, 2],
+        (1, 0): [0],
+        (2, 0): [0],
+        (3, 0): [],
+    }
+    g = ReferenceGraph.from_adjacency(vectors, adj, levels=levels, M=3)
+
+    plan = RepairPlan(
+        rule="test_rule",
+        moved=None,
+        rewrites=(
+            Rewrite(node=0, level=0, old=(1, 2), new=(1, 3)),
+            Rewrite(node=2, level=0, old=(0,), new=(1,)),
+        ),
+        distance_computations=0,
+    )
+
+    meter = CostMeter()
+    store = CertificateStore()
+    store.build(g, meter)
+
+    # Track on_neighbor_change invocations
+    calls: list[tuple[int, int]] = []
+    real_on_change = store.on_neighbor_change
+
+    def spy_on_change(idx: Any, u: int, lvl: int, m: CostMeter) -> Any:
+        calls.append((u, lvl))
+        return real_on_change(idx, u, lvl, m)
+
+    store.on_neighbor_change = spy_on_change  # type: ignore[method-assign]
+
+    apply_plan(g, plan, store=store, meter=meter)
+
+    # store.on_neighbor_change must be called exactly once per rewrite with (u, lvl)
+    expected_calls = [(r.node, r.level) for r in plan.rewrites]
+    assert len(calls) == 2
+    assert calls == expected_calls
+
+
+def test_khnsw_plan_prunes_violations_even_when_below_cap() -> None:
+    """K-HNSW must actively prune violating edges even when len(ranked) < cap (kills M10).
+
+    Setup:
+    Node 0 at (0.0, 0.0), node 1 at (2.0, 0.0), node 2 at (1.0, 0.0).
+    Edge (0, 1) is violated because node 2 is directly between 0 and 1.
+    Cap at level 0 for M=5 is 10.
+    Ranked candidates: [(1.0, 2), (4.0, 1)]. len(ranked) = 2 < 10.
+
+    - Under skip_if_below_cap=False (K-HNSW):
+      Candidate 1 is evaluated against 2: D(2, 1) = 1.0 < 4.0 -> candidate 1 is PRUNED.
+      New neighbors for node 0 is (2,).
+      Rewrite: old=(1, 2), new=(2,). plan.rewrites has 1 rewrite.
+    - Under skip_if_below_cap=True (M10):
+      Returns candidates unchanged without pruning -> new=(2, 1) -> set(new) == set(old).
+      plan.rewrites is EMPTY ()!
+    """
+    vectors = {
+        0: np.array([0.0, 0.0], dtype=np.float32),
+        1: np.array([2.0, 0.0], dtype=np.float32),
+        2: np.array([1.0, 0.0], dtype=np.float32),
+    }
+    levels = {0: 0, 1: 0, 2: 0}
+    adj = {
+        (0, 0): [1, 2],
+        (1, 0): [0],
+        (2, 0): [0],
+    }
+    g = ReferenceGraph.from_adjacency(vectors, adj, levels=levels, M=5)
+
+    violated = {(0, 0): [1]}
+    plan = khnsw_plan(g, violated=violated)
+
+    # Must contain exactly 1 rewrite pruning violating node 1
+    assert len(plan.rewrites) == 1
+    r = plan.rewrites[0]
+    assert r.node == 0
+    assert r.level == 0
+    assert r.new == (2,)
+    assert 1 not in r.new
 
 
 # ---------------------------------------------------------------------------

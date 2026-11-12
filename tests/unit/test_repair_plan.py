@@ -107,6 +107,126 @@ def test_repair_plan_node_class_coverage_golden() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Targeted golden tests killing M6, M7, M8
+# ---------------------------------------------------------------------------
+
+
+def test_mnru_plan_skips_non_mutual_out_neighbor() -> None:
+    """MN-RU must strictly skip non-mutual out-neighbors (kills M6).
+
+    Setup:
+    Moved node 0 has out-neighbors L1 = [1, 2].
+    - Node 1 is mutual: 1 -> 0.
+    - Node 2 is non-mutual: 0 -> 2, but 2 -> 5 (node 2 does not have 0).
+    Node 5 is placed far away at (0, 10). If node 2 were repaired, it would drop 5
+    and add 0, creating a Rewrite for node 2.
+    With the mutual filter, node 2 is skipped and never repaired.
+    """
+    vectors = {
+        0: np.array([0.0, 0.0], dtype=np.float32),
+        1: np.array([1.0, 0.0], dtype=np.float32),
+        2: np.array([0.0, 1.0], dtype=np.float32),
+        5: np.array([0.0, 10.0], dtype=np.float32),
+    }
+    levels = {i: 0 for i in vectors}
+    adj = {
+        (0, 0): [1, 2],
+        (1, 0): [0],
+        (2, 0): [5],  # 2 does not have 0
+        (5, 0): [],
+    }
+    g = ReferenceGraph.from_adjacency(vectors, adj, levels=levels, M=3)
+
+    plan = mnru_plan(g, moved=0, alpha=1.0, scope="one_hop")
+    repaired_nodes = {r.node for r in plan.rewrites}
+
+    # Node 1 is repaired; non-mutual out-neighbor 2 MUST NOT be repaired
+    assert 2 not in repaired_nodes
+    assert repaired_nodes == {1}
+
+
+def test_native_plan_candidate_pool_includes_two_hop_neighbors() -> None:
+    """native_plan must include two-hop neighbors in candidate pool (kills M7).
+
+    Setup:
+    Moved node 0 has L1 = [1, 2].
+    Node 1 has [0].
+    Node 2 has [0, 4] (node 4 is a two-hop neighbor of 0 reachable only via 2).
+    Node 4 at (9.9, 0) is extremely close to node 1 at (10, 0) (dist = 0.01).
+    Node 0 at (0, 0) is at dist = 100. Node 2 at (0, 10) is at dist = 200.
+    Cap = 2.
+
+    - With two-hop expansion:
+      Node 4 enters node 1's candidate pool and is ranked #1.
+      Node 1's new neighbor list is (4, 0).
+    - Without two-hop expansion (M7):
+      Node 4 is omitted from candidate pool; node 1 gets (0, 2).
+    """
+    vectors = {
+        0: np.array([0.0, 0.0], dtype=np.float32),
+        1: np.array([10.0, 0.0], dtype=np.float32),
+        2: np.array([0.0, 10.0], dtype=np.float32),
+        4: np.array([9.9, 0.0], dtype=np.float32),
+    }
+    levels = {i: 0 for i in vectors}
+    adj = {
+        (0, 0): [1, 2],
+        (1, 0): [0],
+        (2, 0): [0, 4],
+        (4, 0): [2],
+    }
+    g = ReferenceGraph.from_adjacency(vectors, adj, levels=levels, M=2)
+
+    plan = native_plan(g, moved=0)
+    r1 = next(r for r in plan.rewrites if r.node == 1)
+
+    assert 4 in r1.new
+    assert r1.new == (4, 0, 2)
+
+
+def test_mnru_plan_candidate_pool_includes_existing_neighbors() -> None:
+    """mnru_plan candidate pool must include existing neighbors N(v) (kills M8).
+
+    Setup:
+    Moved node 0 has N(0) = [1, 2]. Node 2 is at (0.9, 0) -> D(1, 2) = 0.01.
+    Node 1 is mutual (1 -> 0), and has existing neighbors [0, 3, 4].
+    Node 3 in N(1) is at (1.05, 0) -> D(1, 3) = 0.0025 (closer than 2!).
+    Node 4 in N(1) is at (5.0, 0).
+    Cap = 2.
+
+    - With N(1) in candidate pool:
+      Candidates for node 1 are {0, 2, 3, 4}.
+      Top 2 ranked candidates are 3 and 2.
+      Node 1's new neighbor list is (3, 2).
+    - Without N(1) in candidate pool (M8):
+      Candidate pool only has {0, 2}.
+      Node 3 is missing; node 1's new neighbor list becomes (2, 0).
+    """
+    vectors = {
+        0: np.array([0.0, 0.0], dtype=np.float32),
+        1: np.array([1.0, 0.0], dtype=np.float32),
+        2: np.array([0.9, 0.0], dtype=np.float32),
+        3: np.array([1.05, 0.0], dtype=np.float32),
+        4: np.array([5.0, 0.0], dtype=np.float32),
+    }
+    levels = {i: 0 for i in vectors}
+    adj = {
+        (0, 0): [1, 2],
+        (1, 0): [0, 3, 4],
+        (2, 0): [0],
+        (3, 0): [1],
+        (4, 0): [1],
+    }
+    g = ReferenceGraph.from_adjacency(vectors, adj, levels=levels, M=2)
+
+    plan = mnru_plan(g, moved=0, alpha=1.0, scope="one_hop")
+    r1 = next(r for r in plan.rewrites if r.node == 1)
+
+    assert 3 in r1.new
+    assert r1.new == (3, 2)
+
+
+# ---------------------------------------------------------------------------
 # T4: Planning is strictly read-only
 # ---------------------------------------------------------------------------
 
