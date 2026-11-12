@@ -428,10 +428,12 @@ class MutableGraphIndex(GraphIndex, Protocol):
 class LinearTrajectory(Protocol):
     """Optional protocol for linear kinematic trajectories where p(t) = a + b * t."""
 
-    def trajectory(self, node_id: int) -> tuple[NDArray[np.float32], NDArray[np.float32]]:
+    def trajectory(self, node_id: int) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """Return the linear trajectory coefficients (a, b) for a given node.
 
         Position at simulation time t is parameterized as p(t) = a + b * t.
+        Note: returns float64 arrays because certificate evaluation and quadratic root
+        finding require double-precision arithmetic to avoid numerical cancellation.
 
         Parameters
         ----------
@@ -440,7 +442,7 @@ class LinearTrajectory(Protocol):
 
         Returns
         -------
-        tuple[NDArray[np.float32], NDArray[np.float32]]
+        tuple[NDArray[np.float64], NDArray[np.float64]]
             Tuple of (initial_offset_a, velocity_vector_b), each of shape (dim,).
         """
         ...
