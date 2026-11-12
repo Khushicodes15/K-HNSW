@@ -105,9 +105,10 @@ def real_roots(
 ) -> list[float]:
     """Compute the sorted real roots of alpha * t^2 + beta * t + gamma = 0.
 
-    Handles degenerate and singular regimes:
-    - Constant degenerate cases (alpha ~ 0, beta ~ 0): returns []
-    - Linear degenerate cases (alpha ~ 0, |beta| > tol): returns [-gamma / beta]
+    Uses purely relative scaling with no absolute floors. Handles degenerate regimes:
+    - All-zero case (alpha == 0, beta == 0, gamma == 0): returns [] (no isolated roots)
+    - Constant non-zero degenerate case (alpha ~ 0, beta ~ 0): returns []
+    - Linear degenerate case (alpha ~ 0, |beta| > tol * scale): returns [-gamma / beta]
     - Negative discriminant (Delta < -tol_discr): returns []
     - Tangent double roots (|Delta| <= tol_discr): returns [-beta / (2*alpha)]
     - Distinct real roots (Delta > tol_discr): returns sorted [t1, t2] computed
@@ -122,7 +123,7 @@ def real_roots(
     gamma : float
         Constant coefficient.
     tol : float, default=1e-12
-        Tolerance for near-zero thresholding.
+        Relative tolerance for near-zero thresholding.
 
     Returns
     -------
@@ -133,19 +134,24 @@ def real_roots(
     b = float(beta)
     c = float(gamma)
 
-    scale = max(abs(a), abs(b), abs(c), 1.0)
+    scale = max(abs(a), abs(b), abs(c))
+    if scale == 0.0:
+        # All coefficients zero: identically zero polynomial; no isolated discrete roots
+        return []
+
     abs_tol = tol * scale
 
-    # Check if quadratic term is negligible (linear or constant equation)
+    # Check if quadratic term is negligible relative to scale (linear or constant equation)
     if abs(a) <= abs_tol:
         if abs(b) <= abs_tol:
-            # Constant polynomial: no isolated discrete roots
+            # Constant non-zero polynomial: no roots
             return []
         return [float(-c / b)]
 
     # Compute discriminant
     discr = b * b - 4.0 * a * c
-    discr_tol = tol * (b * b + 4.0 * abs(a * c) + 1.0)
+    discr_scale = b * b + 4.0 * abs(a * c)
+    discr_tol = tol * discr_scale
 
     if discr < -discr_tol:
         return []
@@ -163,7 +169,11 @@ def real_roots(
     t2 = c / q if abs(q) > 0.0 else -b / a
 
     roots = sorted([float(t1), float(t2)])
-    if len(roots) == 2 and abs(roots[1] - roots[0]) <= tol * max(abs(roots[0]), 1.0):
+    root_scale = max(abs(roots[0]), abs(roots[1]))
+    if len(roots) == 2 and (
+        (root_scale > 0.0 and abs(roots[1] - roots[0]) <= tol * root_scale)
+        or (root_scale == 0.0 and roots[0] == roots[1])
+    ):
         return [roots[0]]
     return roots
 
@@ -183,6 +193,18 @@ def is_violated_static(
         - Strict inequality D(v, w) < D(u, v) means ties on (v, w) are valid.
         - Ordering condition requires D(u, w) <= D(u, v).
 
+    Near-tie asymmetry (deliberate):
+        - For the strict inequality D(v, w) < D(u, v), near-ties within relative tolerance
+          (D(v, w) >= D(u, v) - abs_tol) are NOT counted as violations, strictly
+          preserving hnswlib's heuristic tie acceptance.
+        - For the non-strict ordering condition D(u, w) <= D(u, v), near-ties
+          (D(u, w) <= D(u, v) + abs_tol) DO count as ordering-relevant, ensuring
+          robustness against floating-point roundoff when witness w and target v
+          are equidistant from source u.
+
+    All-zero case:
+        If all distances are zero (scale == 0), the edge is not violated (returns False).
+
     Parameters
     ----------
     d_uv : float
@@ -192,7 +214,7 @@ def is_violated_static(
     d_vw : float
         Squared distance D(v, w).
     tol : float, default=1e-12
-        Tolerance for floating-point comparisons.
+        Relative tolerance for floating-point comparisons.
 
     Returns
     -------
@@ -203,14 +225,17 @@ def is_violated_static(
     uw = float(d_uw)
     vw = float(d_vw)
 
-    scale = max(abs(uv), abs(uw), abs(vw), 1.0)
+    scale = max(abs(uv), abs(uw), abs(vw))
+    if scale == 0.0:
+        return False
+
     abs_tol = tol * scale
 
-    # D(v, w) < D(u, v) strictly
+    # D(v, w) < D(u, v) strictly: near-ties do NOT count as violating
     if vw >= uv - abs_tol:
         return False
 
-    # D(u, w) <= D(u, v)
+    # D(u, w) <= D(u, v): near-ties DO count as ordering-relevant
     if uw > uv + abs_tol:
         return False
 
@@ -222,17 +247,23 @@ def first_violation_time(
     traj_v: tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]]],
     traj_w: tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]]],
     t0: float,
-    horizon: float,
+    t_end: float,
     tol: float = 1e-12,
 ) -> float | None:
-    """Compute the earliest time t in [t0, horizon] when witness w violates edge u -> v.
+    """Compute the earliest time t in [t0, t_end] when witness w violates edge u -> v.
+
+    Violation policy:
+    A violation counts only if the predicate holds on an open interval of positive length,
+    or holds at initial timestamp t0. Isolated one-instant touches (such as g1 touching 0
+    from above at a single instant while g2 < 0) are NOT violations.
+    Returns the infimum start of the first violating open interval, or t0 if violated at t0.
 
     Formulates polynomials:
         g1(t) = D(u, w)(t) - D(u, v)(t)  (relevant iff <= 0)
         g2(t) = D(v, w)(t) - D(u, v)(t)  (violating iff < 0)
 
-    Solves for roots of g1 and g2, tests the violation predicate at boundary roots
-    and interval midpoints, and returns the infimum time where violation begins.
+    Solves for roots of g1 and g2, tests the violation predicate at interval midpoints,
+    and returns the infimum time where the violation begins.
 
     Parameters
     ----------
@@ -244,17 +275,17 @@ def first_violation_time(
         Trajectory (a_w, b_w) for node w.
     t0 : float
         Start timestamp (t0 >= 0.0).
-    horizon : float
-        Evaluation horizon (horizon >= t0).
+    t_end : float
+        Absolute end timestamp of evaluation window (t_end >= t0).
     tol : float, default=1e-12
         Numerical tolerance.
 
     Returns
     -------
     float | None
-        Earliest violation timestamp t in [t0, horizon], or None if no violation occurs.
+        Earliest violation timestamp t in [t0, t_end], or None if no violation occurs.
     """
-    if horizon < t0:
+    if t_end < t0:
         return None
 
     au, bu = traj_u
@@ -284,34 +315,32 @@ def first_violation_time(
     roots_g1 = real_roots(g1[0], g1[1], g1[2], tol=tol)
     roots_g2 = real_roots(g2[0], g2[1], g2[2], tol=tol)
 
-    # Filter roots strictly inside (t0, horizon]
-    interior_roots = sorted(set(r for r in (roots_g1 + roots_g2) if t0 < r <= horizon))
+    # Filter roots strictly inside (t0, t_end]
+    interior_roots = sorted(set(r for r in (roots_g1 + roots_g2) if t0 < r <= t_end))
 
-    # Construct boundary partition: [t0, r_1, r_2, ..., horizon]
+    # Construct boundary partition: [t0, r_1, r_2, ..., t_end]
     raw_points = [float(t0)] + interior_roots
-    if not interior_roots or interior_roots[-1] < horizon:
-        raw_points.append(float(horizon))
+    if not interior_roots or interior_roots[-1] < t_end:
+        raw_points.append(float(t_end))
 
-    # Deduplicate adjacent points closer than eps
-    eps = tol * max(abs(horizon), 1.0)
+    # Deduplicate adjacent points closer than relative eps
+    time_scale = max(abs(float(t0)), abs(float(t_end)))
+    eps = tol * time_scale if time_scale > 0.0 else tol
     partition: list[float] = [raw_points[0]]
     for pt in raw_points[1:]:
         if pt - partition[-1] > eps:
             partition.append(pt)
 
-    # 3. Test open intervals and endpoints in chronological order
+    # 3. Test open intervals in chronological order
+    # Midpoint test determines if predicate holds on the open interval of positive length.
+    # Isolated boundary touches without open-interval support are intentionally not violations.
     for i in range(len(partition) - 1):
         left = partition[i]
         right = partition[i + 1]
         mid = (left + right) * 0.5
 
-        # If the open interval is violated, violation begins at 'left'
         if eval_at(mid):
             return float(left)
-
-        # Check right boundary endpoint
-        if eval_at(right):
-            return float(right)
 
     return None
 
@@ -321,10 +350,10 @@ def edge_failure_time(
     v_traj: tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]]],
     witness_trajs: Sequence[tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]]]],
     t0: float,
-    horizon: float,
+    t_end: float,
     tol: float = 1e-12,
 ) -> tuple[float, int] | None:
-    """Compute the earliest failure time and witness index for edge u -> v.
+    """Compute the earliest failure time and witness index for edge u -> v in [t0, t_end].
 
     Evaluates first_violation_time across all witness trajectories and returns
     the minimum failure time and the index of the responsible witness.
@@ -339,8 +368,8 @@ def edge_failure_time(
         Collection of witness candidate trajectories (a_w, b_w).
     t0 : float
         Start timestamp (t0 >= 0.0).
-    horizon : float
-        Horizon timestamp (horizon >= t0).
+    t_end : float
+        Absolute end timestamp of evaluation window (t_end >= t0).
     tol : float, default=1e-12
         Tolerance for numerical checks.
 
@@ -348,13 +377,13 @@ def edge_failure_time(
     -------
     tuple[float, int] | None
         Tuple of (earliest_failure_time, witness_index), or None if no witness
-        violates the edge in [t0, horizon].
+        violates the edge in [t0, t_end].
     """
     earliest_time: float | None = None
     best_witness: int | None = None
 
     for idx, w_traj in enumerate(witness_trajs):
-        t_fail = first_violation_time(u_traj, v_traj, w_traj, t0=t0, horizon=horizon, tol=tol)
+        t_fail = first_violation_time(u_traj, v_traj, w_traj, t0=t0, t_end=t_end, tol=tol)
         if t_fail is not None:
             if earliest_time is None or t_fail < earliest_time:
                 earliest_time = t_fail
