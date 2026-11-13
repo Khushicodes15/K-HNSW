@@ -147,7 +147,13 @@ def run_discrete_benchmark(
             "Precondition failed: pre-move index must have 0 violations"
         )
 
-        cat_dist: dict[str, int] = {"search": 0, "planning": 0, "store": 0, "detector": 0}
+        cat_dist: dict[str, int] = {
+            "search": 0,
+            "planning": 0,
+            "store": 0,
+            "detector": 0,
+            "reverse_link": 0,
+        }
         repaired_nodes_set: set[int] = set()
 
         if method == "no-repair control":
@@ -165,10 +171,11 @@ def run_discrete_benchmark(
 
             for node_id in moved_nodes:
                 res = repair_loop(idx, store, moved_node=node_id, budget=None)
-                cat_dist["search"] += res.budget_used["search"]
-                cat_dist["planning"] += res.budget_used["planning"]
-                cat_dist["store"] += res.budget_used["store"]
-                cat_dist["detector"] += res.budget_used["detector"]
+                cat_dist["search"] += res.budget_used.get("search", 0)
+                cat_dist["planning"] += res.budget_used.get("planning", 0)
+                cat_dist["store"] += res.budget_used.get("store", 0)
+                cat_dist["detector"] += res.budget_used.get("detector", 0)
+                cat_dist["reverse_link"] += res.budget_used.get("reverse_link", 0)
                 if res.edges_repaired > 0:
                     repaired_nodes_set.add(node_id)
         elif method == "our emulation of hnswlib-update-style":
@@ -294,6 +301,7 @@ def run_linear_drift_benchmark(
             "planning": 0,
             "store": 0,
             "detector": 0,
+            "reverse_link": 0,
         }
         repaired_nodes_set: set[int] = set()
 
@@ -322,6 +330,7 @@ def run_linear_drift_benchmark(
             cat_dist["planning"] += res.budget_used["planning"]
             cat_dist["store"] += res.budget_used["store"]
             cat_dist["detector"] += res.budget_used["detector"]
+            cat_dist["reverse_link"] += res.budget_used.get("reverse_link", 0)
             repaired_nodes_set.update({u for (u, _, _) in confirmed_failures})
 
             # Sync all remaining nodes to t_step for ground truth evaluation
@@ -436,8 +445,213 @@ def print_table(title: str, rows: list[dict[str, Any]]) -> None:
         )
 
 
+def run_reverse_link_diagnostic_sweep(
+    n: int = 500,
+    d: int = 8,
+    m: int = 8,
+    scales: tuple[float, ...] = (0.2, 1.0, 3.0, 12.0, 30.0),
+    seeds: tuple[int, ...] = (42, 43, 44),
+    num_queries: int = 100,
+) -> list[dict[str, Any]]:
+    """Run diagnostic sweep for moved node isolation and reverse-link repair.
+
+    Evaluates:
+    - Control (no repair)
+    - Ours (before: reverse-links disabled)
+    - Ours (after: reverse-links active)
+    - Hnswlib-style baseline
+    - MN-RU-style baseline
+    - Delete+Reinsert upper bound
+    """
+    all_results: list[dict[str, Any]] = []
+    num_moves = max(5, int(0.05 * n))
+
+    variants = [
+        "control",
+        "ours_before",
+        "ours_after",
+        "hnswlib",
+        "mnru",
+        "reinsert",
+    ]
+
+    for scale in scales:
+        for seed in seeds:
+            rng = np.random.default_rng(seed)
+            X = rng.standard_normal((n, d)).astype(np.float32)
+            scale_nn = mean_nn_distance(X)
+            disp = float(scale * scale_nn)
+
+            moved_nodes = rng.choice(n, size=num_moves, replace=False)
+
+            perturbations: dict[int, np.ndarray] = {}
+            for node in moved_nodes:
+                direction = rng.standard_normal(d).astype(np.float32)
+                norm = float(np.linalg.norm(direction))
+                if norm > 1e-9:
+                    direction /= norm
+                perturbations[int(node)] = (X[node] + direction * disp).astype(np.float32)
+
+            global_queries = rng.standard_normal((num_queries, d)).astype(np.float32)
+
+            for var in variants:
+                idx = HNSWIndex(dim=d, m=m, seed=seed)
+                idx.add(np.arange(n, dtype=np.int64), X)
+                store = CertificateStore()
+                m_settle = CostMeter()
+                store.build(idx, m_settle)
+                _settle_hnsw(idx, store, m_settle)
+
+                cat_dist: dict[str, int] = {
+                    "search": 0,
+                    "planning": 0,
+                    "store": 0,
+                    "detector": 0,
+                    "reverse_link": 0,
+                }
+
+                if var == "control":
+                    for u in moved_nodes:
+                        idx.move(u, perturbations[u])
+                elif var == "ours_before":
+                    m_store = CostMeter()
+                    for u in moved_nodes:
+                        idx.move(u, perturbations[u])
+                        m_b = m_store.count
+                        store.on_move(idx, u, m_store)
+                        cat_dist["store"] += m_store.count - m_b
+                    for u in moved_nodes:
+                        res = repair_loop(idx, store, moved_node=u, reverse_links=False)
+                        for k in ["search", "planning", "store", "detector", "reverse_link"]:
+                            cat_dist[k] += res.budget_used.get(k, 0)
+                elif var == "ours_after":
+                    m_store = CostMeter()
+                    for u in moved_nodes:
+                        idx.move(u, perturbations[u])
+                        m_b = m_store.count
+                        store.on_move(idx, u, m_store)
+                        cat_dist["store"] += m_store.count - m_b
+                    for u in moved_nodes:
+                        res = repair_loop(idx, store, moved_node=u, reverse_links=True)
+                        for k in ["search", "planning", "store", "detector", "reverse_link"]:
+                            cat_dist[k] += res.budget_used.get(k, 0)
+                elif var == "hnswlib":
+                    for u in moved_nodes:
+                        idx.move(u, perturbations[u])
+                    m_plan = CostMeter()
+                    for u in moved_nodes:
+                        plan = native_plan(idx, moved=u, meter=m_plan)
+                        cat_dist["planning"] += plan.distance_computations
+                        apply_plan(idx, plan)
+                elif var == "mnru":
+                    for u in moved_nodes:
+                        idx.move(u, perturbations[u])
+                    m_plan = CostMeter()
+                    for u in moved_nodes:
+                        plan = mnru_plan(idx, moved=u, alpha=1.0, scope="one_hop", meter=m_plan)
+                        cat_dist["planning"] += plan.distance_computations
+                        apply_plan(idx, plan)
+                elif var == "reinsert":
+                    c_before = idx.distance_computations
+                    for u in moved_nodes:
+                        idx.delete(u)
+                        idx.add(
+                            np.array([u], dtype=np.int64),
+                            np.array([perturbations[u]], dtype=np.float32),
+                        )
+                    cat_dist["planning"] = idx.distance_computations - c_before
+
+                X_final = np.array([idx.vector(i) for i in range(n)], dtype=np.float32)
+
+                in_degs = [len(idx.in_neighbors(u, 0)) for u in moved_nodes]
+                mean_in_deg = float(np.mean(in_degs))
+
+                self_finds = []
+                for u in moved_nodes:
+                    ids, _ = idx.search(idx.vector(u), k=1, ef=64)
+                    self_finds.append(1.0 if len(ids) > 0 and ids[0] == u else 0.0)
+                self_find = float(np.mean(self_finds))
+
+                has_in_from_10nn = []
+                for u in moved_nodes:
+                    diffs = X_final - idx.vector(u)
+                    sq_dists = np.sum(diffs**2, axis=1)
+                    sq_dists[u] = np.inf
+                    true_10 = np.argpartition(sq_dists, 10)[:10]
+                    has_edge = any(u in idx.neighbors(int(v), 0) for v in true_10)
+                    has_in_from_10nn.append(1.0 if has_edge else 0.0)
+                frac_10nn = float(np.mean(has_in_from_10nn))
+
+                moved_queries = np.array([idx.vector(u) for u in moved_nodes], dtype=np.float32)
+                exact_moved = brute_force_knn(X_final, moved_queries, k=10)
+                rec_moved = evaluate_recall(idx, moved_queries, exact_moved, k=10)
+
+                exact_global = brute_force_knn(X_final, global_queries, k=10)
+                rec_global = evaluate_recall(idx, global_queries, exact_global, k=10)
+
+                total_cost = sum(cat_dist.values())
+
+                row = {
+                    "scale": scale,
+                    "seed": seed,
+                    "var": var,
+                    "disp": disp,
+                    "in_deg": mean_in_deg,
+                    "self_find": self_find,
+                    "frac_10nn": frac_10nn,
+                    "rec_moved": rec_moved,
+                    "rec_global": rec_global,
+                    "search_cost": cat_dist["search"],
+                    "plan_cost": cat_dist["planning"],
+                    "store_cost": cat_dist["store"],
+                    "det_cost": cat_dist["detector"],
+                    "rev_cost": cat_dist["reverse_link"],
+                    "total_cost": total_cost,
+                }
+                all_results.append(row)
+
+    print("\n" + "=" * 115)
+    print("REVERSE-LINK REPAIR DIAGNOSTIC SWEEP (n=500, M=8, d=8, 25 nodes moved)")
+    print("=" * 115)
+    print(
+        f"{'Scale':<7} | {'Variant':<14} | {'In-Deg':<6} | {'Self-Find':<9} | {'10-NN In':<8} | "
+        f"{'Rec (Moved)':<11} | {'Rec (Glob)':<10} | {'Search':<7} | {'Plan':<7} | "
+        f"{'Store':<7} | {'Rev':<5} | {'Total':<7}"
+    )
+    print("-" * 115)
+
+    for scale in scales:
+        for var in variants:
+            rows = [r for r in all_results if r["scale"] == scale and r["var"] == var]
+            in_d = float(np.mean([r["in_deg"] for r in rows]))
+            sf = float(np.mean([r["self_find"] for r in rows]))
+            nn10 = float(np.mean([r["frac_10nn"] for r in rows]))
+            rm = float(np.mean([r["rec_moved"] for r in rows]))
+            rg = float(np.mean([r["rec_global"] for r in rows]))
+            sc = float(np.mean([r["search_cost"] for r in rows]))
+            pc = float(np.mean([r["plan_cost"] for r in rows]))
+            stc = float(np.mean([r["store_cost"] for r in rows]))
+            rc = float(np.mean([r["rev_cost"] for r in rows]))
+            tc = float(np.mean([r["total_cost"] for r in rows]))
+
+            print(
+                f"{scale:<7.1f} | {var:<14} | {in_d:<6.2f} | {sf:<9.3f} | {nn10:<8.3f} | "
+                f"{rm:<11.3f} | {rg:<10.3f} | {sc:<7.0f} | {pc:<7.0f} | "
+                f"{stc:<7.0f} | {rc:<5.0f} | {tc:<7.0f}"
+            )
+        print("-" * 115)
+
+    return all_results
+
+
 def main() -> None:
     """Run full measurement suite across configs and scenarios."""
+    import sys
+
+    if "--reverse-link-sweep" in sys.argv:
+        run_reverse_link_diagnostic_sweep()
+        return
+
     print("=" * 100)
     print("K-HNSW REPAIR LOOP BENCHMARK AND EMPIRICAL EVALUATION")
     print("=" * 100)

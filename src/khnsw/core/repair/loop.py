@@ -38,7 +38,7 @@ class RepairResult:
         Set of directed edges (u, v, level) that remain violated at termination.
     budget_used : dict[str, int]
         Distance computations partitioned by category:
-        {"search": int, "planning": int, "store": int, "detector": int}.
+        {"search": int, "planning": int, "store": int, "detector": int, "reverse_link": int}.
     stopped_reason : str
         Reason for termination: "converged", "budget", or "max_rounds".
     """
@@ -102,6 +102,9 @@ def _rebuild_moved_out_links(
     meter_search: CostMeter,
     meter_planning: CostMeter,
     ef: int | None,
+    meter_reverse_link: CostMeter | None = None,
+    detector: KineticDetector | None = None,
+    t: float = 0.0,
 ) -> list[Rewrite]:
     """Rebuild the out-links of the moved node across its hierarchy levels."""
     moved_id = int(moved)
@@ -224,6 +227,51 @@ def _rebuild_moved_out_links(
         if set(new_nbrs) != set(old_nbrs):
             rewrites.append(Rewrite(node=moved_id, level=lc, old=old_nbrs, new=new_nbrs))
 
+        # Reverse link additions: for each new out-neighbour w at level lc, attempt w -> moved
+        if meter_reverse_link is not None:
+            rev_candidates = [
+                w for w in new_nbrs if w != moved_id and moved_id not in index.neighbors(w, lc)
+            ]
+            if rev_candidates:
+                if detector is not None:
+                    rev_sync_nodes: set[int] = set(rev_candidates)
+                    for w in rev_candidates:
+                        rev_sync_nodes.update(index.neighbors(w, lc))
+                    rev_sync_nodes.add(moved_id)
+                    detector.sync_nodes(rev_sync_nodes, t)
+
+                for w in new_nbrs:
+                    if w == moved_id:
+                        continue
+                    old_w_nbrs = tuple(index.neighbors(w, lc))
+                    if moved_id in old_w_nbrs:
+                        continue
+                    cap_w = index.max_degree(lc)
+                    if len(old_w_nbrs) < cap_w:
+                        new_w_nbrs = tuple(list(old_w_nbrs) + [moved_id])
+                    else:
+                        cand_pool = set(old_w_nbrs) | {moved_id}
+                        ranked_w = rank_pool(
+                            base=w,
+                            pool=cand_pool,
+                            ef=ef,
+                            meter=meter_reverse_link,
+                            vector_of=index.vector,
+                        )
+                        selected_w = prune(
+                            ranked=ranked_w,
+                            base=w,
+                            cap=cap_w,
+                            alpha=1.0,
+                            skip_if_below_cap=False,
+                            meter=meter_reverse_link,
+                            vector_of=index.vector,
+                        )
+                        new_w_nbrs = tuple(c for _, c in selected_w)
+
+                    if set(new_w_nbrs) != set(old_w_nbrs):
+                        rewrites.append(Rewrite(node=w, level=lc, old=old_w_nbrs, new=new_w_nbrs))
+
     return rewrites
 
 
@@ -241,6 +289,7 @@ def repair_loop(
     max_rounds: int = 10,
     ef: int | None = None,
     emitter: EventEmitter | None = None,
+    reverse_links: bool = True,
 ) -> RepairResult:
     r"""Execute the iterative K-HNSW certificate-driven repair loop.
 
@@ -310,9 +359,16 @@ def repair_loop(
     meter_planning = CostMeter()
     meter_store = CostMeter()
     meter_detector = CostMeter()
+    meter_reverse_link = CostMeter() if reverse_links else None
 
     def total_cost() -> int:
-        return meter_search.count + meter_planning.count + meter_store.count + meter_detector.count
+        return (
+            meter_search.count
+            + meter_planning.count
+            + meter_store.count
+            + meter_detector.count
+            + (meter_reverse_link.count if meter_reverse_link is not None else 0)
+        )
 
     # 1. Harvest initial failure edges
     initial_failures: list[tuple[int, int, int]] = []
@@ -402,7 +458,7 @@ def repair_loop(
         # 4. Planning: plan with khnsw_plan, rebuilding moved node out-links in same pass
         rewrites: list[Rewrite] = []
 
-        # Rebuild moved node out-links exactly once
+        # Only rebuild moved node out-links and reverse-links once in the first round
         if not moved_rebuilt and moved_id is not None and index.contains(moved_id):
             moved_rewrites = _rebuild_moved_out_links(
                 index=index,
@@ -412,14 +468,18 @@ def repair_loop(
                 meter_search=meter_search,
                 meter_planning=meter_planning,
                 ef=ef,
+                meter_reverse_link=meter_reverse_link,
+                detector=detector,
+                t=t,
             )
             rewrites.extend(moved_rewrites)
             moved_rebuilt = True
 
-        # Plan rewrites for remaining violated sources
+        # Plan rewrites for remaining violated sources (excluding nodes already rewritten)
+        rewritten_nodes_levels = {(r.node, r.level) for r in rewrites}
         violated_for_khnsw: dict[tuple[int, int], list[int]] = {}
         for (u, lvl), targets in current_violated.items():
-            if u == moved_id and moved_rebuilt:
+            if (u, lvl) in rewritten_nodes_levels:
                 continue
             violated_for_khnsw[(u, lvl)] = targets
 
@@ -448,7 +508,8 @@ def repair_loop(
             rule="khnsw",
             moved=moved_id,
             rewrites=tuple(sorted(rewrites, key=lambda r: (r.node, r.level))),
-            distance_computations=meter_planning.count,
+            distance_computations=meter_planning.count
+            + (meter_reverse_link.count if meter_reverse_link is not None else 0),
         )
 
         apply_plan(
@@ -503,6 +564,7 @@ def repair_loop(
             "planning": meter_planning.count,
             "store": meter_store.count,
             "detector": meter_detector.count,
+            "reverse_link": meter_reverse_link.count if meter_reverse_link is not None else 0,
         },
         stopped_reason=stopped_reason,
     )

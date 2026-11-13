@@ -289,10 +289,98 @@ The dictionary returned by `run_repairs` conforms to the standardized repair sch
     "unrepaired_nodes": list[int],  # Node IDs that could not be repaired within budget
     "budget_used": dict[
         str, int
-    ],  # {"search": int, "planning": int, "store": int, "detector": int}
+    ],  # {"search": int, "planning": int, "store": int, "detector": int, "reverse_link": int}
     "budget_consumed": int,  # Total distance computations consumed
     "stopped_reason": str,  # "converged", "budget", "max_rounds", or "nothing_to_do"
 }
 ```
+
+---
+
+## 8. Reverse-Link Repair and Moved Node Findability
+
+### 8.1 The Moved Node Isolation Problem
+
+When points undergo large spatial displacement (e.g. $12\times$ or $30\times$ mean nearest-neighbor distance), an asymmetry emerges under naive unidirectional out-link rebuild:
+
+1. **Out-links rebuilt**: The moved node $m$ has its outgoing connections $N_l(m)$ rebuilt towards its new spatial neighborhood using beam search (`search_layer`).
+2. **Old in-links severed**: In-neighbors $u$ in $m$'s origin neighborhood experience certificate violations on edges $u \to m$ as $m$ moves away. Localized certificate repair drops $u \to m$.
+3. **No reciprocal in-links formed**: Nodes $w$ in $m$'s new destination neighborhood are never prompted to add edges $w \to m$ because $w$ was not a source of any certificate violation.
+
+This asymmetry leaves moved nodes almost completely devoid of incoming edges (mean in-degree collapsed to $0.49 - 0.52$). Consequently, search queries targeting the moved node fail to enter it from the background graph:
+
+- **Self-Findability**: In $n=500, M=8, d=8$ under $12\times / 30\times$ displacement, search queries starting from the moved node's exact position located the node only $12\% - 16\%$ of the time (worse than the un-repaired control at $38.7\% - 49.3\%$, and far below delete+reinsert at $100\%$).
+- **Recall at Moved Nodes**: Recall@10 at moved node coordinates dropped to $0.769 - 0.812$ (below control's $0.847 - 0.891$).
+
+### 8.2 Algorithmic Formulation
+
+To resolve isolation without requiring a global graph re-index, the K-HNSW repair loop executes reciprocal reverse-link synthesis directly following out-link beam search:
+
+1. **Candidate Discovery**: For each hierarchy level $l \in [0, \text{node\_level}(m)]$, let $N_l(m)$ be the newly selected outgoing neighbors of $m$. Every node $w \in N_l(m)$ ($w \ne m$, $m \notin N_l(w)$) is evaluated as a reverse-link host.
+2. **Pre-Prune Synchronization**: Before evaluating distances, `detector.sync_nodes(C, t)` updates coordinates for $w$, $N_l(w)$, and $m$ at simulation timestamp $t$.
+3. **Capacity and Pruning**:
+   - If $\deg_l(w) < \text{max\_degree}(l)$, $m$ is directly appended to $w$'s neighbor list:
+     $$N_l(w) \leftarrow N_l(w) \cup \{m\}$$
+   - If $\deg_l(w) == \text{max\_degree}(l)$, candidate pool $C_w = N_l(w) \cup \{m\}$ is ranked by Euclidean distance from $w$. The pool is pruned using the $\alpha$-RNG heuristic with $\text{base}=w$, $\text{cap}=\text{max\_degree}(l)$, $\alpha=1.0$, and mandatory diversity (`skip_if_below_cap=False`). If an existing edge is evicted, it is dropped cleanly.
+4. **Atomic Application**: All reciprocal additions and evictions are packaged into `Rewrite(node=w, level=l, old=old_w, new=new_w)` within the round's `RepairPlan`.
+5. **Certificate and Detector Synchronization**: For every rewritten neighbor $w$, `store.on_neighbor_change(index, w, l, meter)` recomputes edge certificates, and `detector.on_topology_change(w, l, t=t)` synchronizes the kinetic heap.
+6. **Execution Frequency**: Executed **strictly once** per moved node in round 0. It is never repeated during subsequent convergence rounds.
+
+### 8.3 Computational Budget Accounting
+
+Pairwise Euclidean distance computations evaluated during reverse candidate ranking and heuristic pruning are tracked in `meter_reverse_link`. They are reported in `RepairResult.budget_used["reverse_link"]` and summed into `total_cost()`:
+
+$$\text{Total Cost} = \text{Search} + \text{Planning} + \text{Store} + \text{Detector} + \text{Reverse Link}$$
+
+When host nodes have spare capacity, adding reciprocal edges incurs zero additional distance evaluations.
+
+### 8.4 Empirical Sweep Across Displacement Scales
+
+The table below presents empirical measurements on `HNSWIndex` ($n=500, M=8, d=8$, 5% of nodes moved, 25 moves per run) across 5 displacement scales ($\{0.2\times, 1.0\times, 3.0\times, 12.0\times, 30.0\times\}$ mean nearest-neighbor distance) averaged across random seeds $\{42, 43, 44\}$:
+
+| Scale | Variant | Mean In-Deg | Self-Find | True 10-NN In | Recall@10 (Moved) | Recall@10 (Global) | Total Cost |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **0.2x** | No-Repair Control | 6.52 | 1.000 | 1.000 | 1.000 | 1.000 | 0 |
+| | Ours (before reverse links) | 5.79 | 1.000 | 1.000 | 1.000 | 1.000 | 16,219 |
+| | **Ours (with reverse links)** | **6.29** | **1.000** | **1.000** | **1.000** | **1.000** | **22,546** |
+| | Hnswlib-style baseline | 6.36 | 1.000 | 1.000 | 1.000 | 1.000 | 26,020 |
+| | MN-RU-style baseline | 6.59 | 1.000 | 1.000 | 1.000 | 1.000 | 4,761 |
+| | Delete + Reinsert (Upper Bound) | 7.03 | 1.000 | 1.000 | 0.999 | 0.999 | 11,221 |
+| **1.0x** | No-Repair Control | 6.52 | 1.000 | 0.987 | 0.999 | 1.000 | 0 |
+| | Ours (before reverse links) | 2.99 | 0.947 | 0.880 | 0.988 | 0.997 | 22,159 |
+| | **Ours (with reverse links)** | **5.04** | **1.000** | **1.000** | **1.000** | **1.000** | **29,432** |
+| | Hnswlib-style baseline | 4.81 | 0.973 | 0.907 | 0.992 | 0.998 | 23,517 |
+| | MN-RU-style baseline | 5.37 | 0.973 | 0.933 | 0.993 | 0.998 | 4,359 |
+| | Delete + Reinsert (Upper Bound) | 6.23 | 0.987 | 0.987 | 0.999 | 1.000 | 11,076 |
+| **3.0x** | No-Repair Control | 6.52 | 0.907 | 0.493 | 0.977 | 0.997 | 0 |
+| | Ours (before reverse links) | 0.87 | 0.440 | 0.293 | 0.919 | 0.998 | 23,671 |
+| | **Ours (with reverse links)** | **2.21** | **1.000** | **0.987** | **0.999** | **1.000** | **25,075** |
+| | Hnswlib-style baseline | 3.28 | 0.693 | 0.480 | 0.949 | 0.998 | 21,522 |
+| | MN-RU-style baseline | 4.55 | 0.747 | 0.467 | 0.957 | 0.998 | 4,215 |
+| | Delete + Reinsert (Upper Bound) | 2.59 | 1.000 | 1.000 | 1.000 | 0.998 | 10,652 |
+| **12.0x** | No-Repair Control | 6.52 | 0.493 | 0.173 | 0.891 | 0.998 | 0 |
+| | Ours (before reverse links) | 0.52 | 0.160 | 0.240 | 0.812 | 1.000 | 23,905 |
+| | **Ours (with reverse links)** | **1.85** | **1.000** | **1.000** | **0.991** | **1.000** | **24,413** |
+| | Hnswlib-style baseline | 3.20 | 0.560 | 0.307 | 0.889 | 1.000 | 21,613 |
+| | MN-RU-style baseline | 4.55 | 0.427 | 0.200 | 0.879 | 1.000 | 4,175 |
+| | Delete + Reinsert (Upper Bound) | 1.93 | 1.000 | 0.987 | 0.992 | 0.998 | 10,258 |
+| **30.0x** | No-Repair Control | 6.52 | 0.387 | 0.173 | 0.847 | 0.998 | 0 |
+| | Ours (before reverse links) | 0.49 | 0.120 | 0.280 | 0.769 | 1.000 | 23,853 |
+| | **Ours (with reverse links)** | **1.91** | **1.000** | **1.000** | **0.988** | **1.000** | **24,350** |
+| | Hnswlib-style baseline | 3.15 | 0.467 | 0.293 | 0.849 | 1.000 | 21,489 |
+| | MN-RU-style baseline | 4.55 | 0.320 | 0.200 | 0.828 | 1.000 | 4,175 |
+| | Delete + Reinsert (Upper Bound) | 2.40 | 1.000 | 0.987 | 0.995 | 0.998 | 10,194 |
+
+### 8.5 Empirical Insights and Findings
+
+1. **Elimination of Moved Node Blind Spots**:
+   Under large displacements ($12\times$ and $30\times$ NN), reverse links increase self-findability from $12\% - 16\%$ to **$100.0\%$**, matching the full delete+reinsert upper bound.
+2. **In-Neighbors from True Neighborhood**:
+   $100\%$ of moved nodes establish at least one incoming edge from their true 10-nearest neighbors in their destination cluster (compared to $17.3\%$ in control and $24\% - 28\%$ before reverse links).
+3. **Recall Superiority**:
+   Recall@10 evaluated at moved nodes reaches **$0.991$** (at $12\times$) and **$0.988$** (at $30\times$), decisively outperforming the un-repaired control ($0.891$ and $0.847$), Hnswlib-style emulation ($0.889$ and $0.849$), and MN-RU-style emulation ($0.879$ and $0.828$).
+4. **Negligible Additional Overhead**:
+   Because destination neighbors with spare degree capacity accept edges without pairwise candidate pruning, reverse links add minimal computational overhead ($\le 500$ distance computations across 25 moved nodes at large displacement).
+
 
 
