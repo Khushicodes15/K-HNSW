@@ -1230,7 +1230,14 @@ def merge_seed_results(file_paths: list[str]) -> dict[str, Any]:
 
     for d in loaded:
         combined["sweep_10pct"].extend(d.get("sweep_10pct", []))
-        combined["miss_classification"].update(d.get("miss_classification", {}))
+        for spd_k, cnts in d.get("miss_classification", {}).items():
+            if spd_k not in combined["miss_classification"]:
+                combined["miss_classification"][spd_k] = dict(cnts)
+            else:
+                for cat_k, val in cnts.items():
+                    combined["miss_classification"][spd_k][cat_k] = (
+                        combined["miss_classification"][spd_k].get(cat_k, 0) + val
+                    )
         if not combined["miss_examples_d"]:
             combined["miss_examples_d"] = d.get("miss_examples_d", [])
         combined["all_drift_30x"].extend(d.get("all_drift_30x", []))
