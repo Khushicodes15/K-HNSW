@@ -119,3 +119,4 @@ The trace event stream emitted by K-HNSW (`events.jsonl`) provides high-resoluti
    - *Impact*: Node position shifts are invisible in the event stream unless the outer driver explicitly emits `EventType.move`.
 4. **Hierarchical Level Adjustments & Entry Points**:
    - The event stream lacks events denoting entry point reassignment (`set_entry_point`) or node promotion to higher layers.
+
