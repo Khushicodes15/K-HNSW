@@ -66,3 +66,56 @@ Planning functions (`native_plan`, `mnru_plan`, `khnsw_plan`) are strictly read-
 
 ### 4.2 Deferred Out-Link Rebuild
 In `hnswlib`, rebuilding the out-going connections $N_l(\text{moved})$ of the moved node itself is carried out by `repairConnectionsForUpdate` using hierarchical beam search from the top layer. Because hierarchical beam search is part of routing and entry-point traversal, rebuilding $N_l(\text{moved})$ is deliberately deferred to the subsequent routing/search phase.
+
+
+---
+
+## 5. The K-HNSW Iterative Repair Loop
+
+The repair loop (`repair_loop`) integrates kinetic detection, certificate maintenance, and localized rewiring into a robust convergence cycle.
+
+### 5.1 Algorithmic Stages per Round
+
+1. **Failure Ingestion**: Gathers confirmed certificate failure events from `detector.advance(t)`, pre-filtered `Transition` events (where `kind == "failure"`), or static `CertificateStore` violation status.
+2. **Reverse-Index Scope Resolution**: Formulates the initial repair scope comprising all violating edge sources and their reverse in-neighbors (`index.in_neighbors(u, level)`). When a node `m` moves, `m` and all `index.in_neighbors(m, level)` are included in scope.
+3. **Pre-Planning Coordinate Synchronization**: Calls `detector.sync_nodes(scope | candidate_pools, t)` before candidate ranking or distance computation, guaranteeing that candidate pools evaluate Euclidean metrics using up-to-date coordinates at simulation timestamp `t`.
+4. **Single-Pass Unified Planning**:
+   - Rebuilds the moved node's out-links across all levels using beam search (`search_layer`) starting from the entry point. This rebuild occurs **exactly once** per move in the initial pass.
+   - Formulates localized rewires for other violating sources using `khnsw_plan`.
+   - Combines rewrites into a single atomic `RepairPlan`.
+5. **Atomic Application**: Executes `apply_plan` to rewire adjacency lists and emit deterministic trace events (`edge_remove` and `edge_add`).
+6. **Certificate Store Synchronization**: Calls `store.on_neighbor_change(index, u, lvl, meter)` for every modified source, updating status and canonical witnesses.
+7. **Kinetic Rescheduling**: Notifies `detector.on_topology_change(u, lvl, t=t)` with an explicit timestamp `t` to drop invalidated certificates and schedule new ones.
+8. **Convergence and Halting**: Repeats until no VIOLATED edges remain in scope, the computational budget is exhausted, or `max_rounds` (default 10) is reached.
+
+### 5.2 Mandatory Diversity Pruning (No Early-Return)
+
+In baselines (`native_plan`, `mnru_plan`), when the ranked candidate pool is smaller than capacity (`len(ranked) < cap`), candidates are accepted immediately (`skip_if_below_cap = True`).
+
+> [!IMPORTANT]
+> K-HNSW strictly sets `skip_if_below_cap = False`.
+> Even when the candidate pool contains fewer nodes than capacity, the $\alpha$-RNG diversity test is actively evaluated:
+> $$\alpha \cdot D(r, e) < D(u, e)$$
+> Any candidate occluded by an already-accepted neighbor is rejected.
+> This ensures that all statically violated certificates are actively resolved and eliminated, differing from the baselines on purpose.
+
+### 5.3 Computational Budget Accounting and Safe Halting
+
+Repair budgets are denominated strictly in **pairwise distance computations** counted via `CostMeter`, partitioned across four distinct categories:
+- `search`: Distance computations during `search_layer` beam search traversals for moved node out-links.
+- `planning`: Distance computations during candidate pool ranking (`rank_pool`) and diversity pruning (`prune`).
+- `store`: Distance computations during incremental certificate store updates (`store.on_neighbor_change` and `store.on_move`).
+- `detector`: Distance computations during kinetic confirmation checks (`detector.advance`).
+
+> [!NOTE]
+> If the cumulative distance computations exceed the specified `budget`, the loop halts at a **safe round boundary** (never mid-`apply_plan`).
+> Unrepaired edges remain `VIOLATED` and are returned in `RepairResult.still_violated`. They are **never dropped silently**.
+
+### 5.4 Return Schema (`RepairResult`)
+
+The repair loop returns a frozen dataclass `RepairResult`:
+- `rounds`: Total integer rounds executed ($0 \le \text{rounds} \le \text{max\_rounds}$).
+- `edges_repaired`: Count of unique violated edges successfully repaired.
+- `still_violated`: Set of remaining violated edge keys `(u, v, level)`.
+- `budget_used`: Dictionary `{"search": int, "planning": int, "store": int, "detector": int}`.
+- `stopped_reason`: String flag indicating termination reason: `"converged"`, `"budget"`, or `"max_rounds"`.
