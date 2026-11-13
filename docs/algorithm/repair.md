@@ -138,23 +138,26 @@ The iterative repair loop and baseline emulations were evaluated using `scripts/
 
 ### 6.2 Empirical Measurements
 
+> [!NOTE]
+> The Discrete Moves benchmarks below have been regenerated with reciprocal reverse-link synthesis enabled (PR #17). Adding incoming links from destination neighbors rewrites those neighbors and re-evaluates their certificates, updating "Repaired" unique nodes from 0-1 to 5-8 (at $n=200$) and 27-46 (at $n=1000$) while maintaining 0 violations and 1.0000 recall. Continuous LinearDrift (Section 6.3) is identical to prior benchmarks because smooth drift routes failures purely through kinetic certificates without passing `moved_node`.
+
 #### Discrete Moves ($n=200, M=8, d=2, \text{seed}=44$)
 
 | Method | Recall@10 | Search | Planning | Store | Detector | Total Dist | Violations | Repaired |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Scale 0.01 (disp=0.0016)** | | | | | | | | |
 | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
-| ours | 1.0000 | 362 | 411 | 292 | 0 | 1065 | 0 | 1 |
+| ours | 1.0000 | 362 | 502 | 388 | 0 | 1252 | 0 | 5 |
 | our emulation of hnswlib-update-style | 1.0000 | 0 | 303 | 0 | 0 | 303 | 217 | 30 |
 | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 129 | 0 | 0 | 129 | 56 | 24 |
 | **Scale 0.05 (disp=0.0081)** | | | | | | | | |
 | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
-| ours | 1.0000 | 362 | 414 | 292 | 0 | 1068 | 0 | 1 |
+| ours | 1.0000 | 362 | 505 | 388 | 0 | 1255 | 0 | 5 |
 | our emulation of hnswlib-update-style | 1.0000 | 0 | 303 | 0 | 0 | 303 | 217 | 30 |
 | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 129 | 0 | 0 | 129 | 56 | 24 |
 | **Scale 0.20 (disp=0.0325)** | | | | | | | | |
 | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 6 | 0 |
-| ours | 1.0000 | 367 | 485 | 344 | 0 | 1196 | 0 | 1 |
+| ours | 1.0000 | 367 | 631 | 503 | 0 | 1501 | 0 | 7 |
 | our emulation of hnswlib-update-style | 1.0000 | 0 | 303 | 0 | 0 | 303 | 221 | 30 |
 | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 129 | 0 | 0 | 129 | 60 | 24 |
 
@@ -164,17 +167,17 @@ The iterative repair loop and baseline emulations were evaluated using `scripts/
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Scale 0.01 (disp=0.0167)** | | | | | | | | |
 | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| ours | 1.0000 | 885 | 603 | 2396 | 0 | 3884 | 0 | 0 |
+| ours | 1.0000 | 886 | 1895 | 3780 | 0 | 6561 | 0 | 8 |
 | our emulation of hnswlib-update-style | 1.0000 | 0 | 10259 | 0 | 0 | 10259 | 7 | 19 |
 | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 1431 | 0 | 0 | 1431 | 154 | 29 |
 | **Scale 0.05 (disp=0.0837)** | | | | | | | | |
 | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 9 | 0 |
-| ours | 1.0000 | 884 | 1049 | 2726 | 0 | 4659 | 0 | 1 |
+| ours | 1.0000 | 885 | 2092 | 3982 | 0 | 6959 | 0 | 8 |
 | our emulation of hnswlib-update-style | 1.0000 | 0 | 10328 | 0 | 0 | 10328 | 13 | 23 |
 | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 1434 | 0 | 0 | 1434 | 161 | 29 |
 | **Scale 0.20 (disp=0.3348)** | | | | | | | | |
 | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 33 | 0 |
-| ours | 1.0000 | 881 | 1780 | 3128 | 0 | 5789 | 0 | 1 |
+| ours | 1.0000 | 881 | 2874 | 4510 | 0 | 8265 | 0 | 8 |
 | our emulation of hnswlib-update-style | 1.0000 | 0 | 10374 | 0 | 0 | 10374 | 27 | 30 |
 | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 1386 | 0 | 0 | 1386 | 171 | 33 |
 
@@ -184,17 +187,17 @@ The iterative repair loop and baseline emulations were evaluated using `scripts/
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Scale 0.01 (disp=0.0008)** | | | | | | | | |
 | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
-| ours | 1.0000 | 2228 | 2007 | 1551 | 0 | 5786 | 0 | 1 |
+| ours | 1.0000 | 2228 | 2616 | 2135 | 0 | 6979 | 0 | 28 |
 | our emulation of hnswlib-update-style | 1.0000 | 0 | 5887 | 0 | 0 | 5887 | 911 | 137 |
 | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 860 | 0 | 0 | 860 | 381 | 128 |
 | **Scale 0.05 (disp=0.0038)** | | | | | | | | |
 | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 15 | 0 |
-| ours | 1.0000 | 2223 | 2189 | 1659 | 0 | 6071 | 0 | 1 |
+| ours | 1.0000 | 2224 | 2760 | 2211 | 0 | 7195 | 0 | 27 |
 | our emulation of hnswlib-update-style | 1.0000 | 0 | 5885 | 0 | 0 | 5885 | 917 | 142 |
 | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 860 | 0 | 0 | 860 | 390 | 128 |
 | **Scale 0.20 (disp=0.0150)** | | | | | | | | |
 | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 42 | 0 |
-| ours | 1.0000 | 2231 | 2580 | 1896 | 0 | 6707 | 0 | 1 |
+| ours | 1.0000 | 2233 | 3343 | 2682 | 0 | 8258 | 0 | 34 |
 | our emulation of hnswlib-update-style | 1.0000 | 0 | 5914 | 0 | 0 | 5914 | 929 | 152 |
 | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 860 | 0 | 0 | 860 | 407 | 128 |
 
@@ -204,17 +207,17 @@ The iterative repair loop and baseline emulations were evaluated using `scripts/
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Scale 0.01 (disp=0.0139)** | | | | | | | | |
 | no-repair control | 0.9990 | 0 | 0 | 0 | 0 | 0 | 7 | 0 |
-| ours | 0.9990 | 6322 | 3940 | 19687 | 0 | 29949 | 0 | 1 |
+| ours | 0.9990 | 6323 | 12037 | 28510 | 0 | 46908 | 0 | 45 |
 | our emulation of hnswlib-update-style | 0.9990 | 0 | 83527 | 0 | 0 | 83527 | 25 | 115 |
 | our emulation of MN-RU-style (beta) | 0.9990 | 0 | 15467 | 0 | 0 | 15467 | 677 | 126 |
 | **Scale 0.05 (disp=0.0696)** | | | | | | | | |
 | no-repair control | 0.9990 | 0 | 0 | 0 | 0 | 0 | 40 | 0 |
-| ours | 0.9990 | 6277 | 5995 | 20988 | 0 | 33260 | 0 | 1 |
+| ours | 0.9990 | 6279 | 13681 | 29393 | 0 | 49391 | 0 | 46 |
 | our emulation of hnswlib-update-style | 0.9990 | 0 | 83069 | 0 | 0 | 83069 | 35 | 131 |
 | our emulation of MN-RU-style (beta) | 0.9990 | 0 | 15265 | 0 | 0 | 15265 | 693 | 138 |
 | **Scale 0.20 (disp=0.2784)** | | | | | | | | |
 | no-repair control | 0.9990 | 0 | 0 | 0 | 0 | 0 | 164 | 0 |
-| ours | 0.9990 | 6314 | 11702 | 23988 | 0 | 42004 | 0 | 1 |
+| ours | 0.9990 | 6314 | 19678 | 33236 | 0 | 59228 | 0 | 46 |
 | our emulation of hnswlib-update-style | 0.9990 | 0 | 81218 | 0 | 0 | 81218 | 96 | 180 |
 | our emulation of MN-RU-style (beta) | 0.9990 | 0 | 14893 | 0 | 0 | 14893 | 765 | 177 |
 
@@ -379,8 +382,8 @@ The table below presents empirical measurements on `HNSWIndex` ($n=500, M=8, d=8
    $100\%$ of moved nodes establish at least one incoming edge from their true 10-nearest neighbors in their destination cluster (compared to $17.3\%$ in control and $24\% - 28\%$ before reverse links).
 3. **Recall Superiority**:
    Recall@10 evaluated at moved nodes reaches **$0.991$** (at $12\times$) and **$0.988$** (at $30\times$), decisively outperforming the un-repaired control ($0.891$ and $0.847$), Hnswlib-style emulation ($0.889$ and $0.849$), and MN-RU-style emulation ($0.879$ and $0.828$).
-4. **Negligible Additional Overhead**:
-   Because destination neighbors with spare degree capacity accept edges without pairwise candidate pruning, reverse links add minimal computational overhead ($\le 500$ distance computations across 25 moved nodes at large displacement).
+5. **Delete + Reinsert Distance Accounting Note**:
+   In the table above, the "Delete + Reinsert" upper bound cost reflects `index.add` distance computations tracked via `idx.distance_computations` (which meters `search_layer` evaluations during entry-point navigation). `index.delete` is purely topological (0 distance computations). When internal heuristic candidate evaluations inside `select_neighbors_heuristic` during `index.add` are also metered, total delete+reinsert work is ~2.0x–2.3x higher: 25,825 (0.2x), 24,768 (1.0x), 21,564 (3.0x), 21,675 (12.0x), and 22,013 (30.0x). Under either accounting, K-HNSW achieves comparable self-findability (100%) and recall without incurring full reinsertion churn.
 
 
 
