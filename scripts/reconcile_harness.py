@@ -93,7 +93,7 @@ def trace_search_path(index: HNSWIndex, query: np.ndarray, ef: int = 16) -> set[
 
     # 1. Greedy descent from top level to 1
     for lc in range(top_lvl, 0, -1):
-        res = search_layer(index, query, [curr_ep], 1, lc)
+        res = search_layer(index._store, query, [curr_ep], 1, lc)
         if res:
             first = res[0]
             nid = int(first.node_id if hasattr(first, "node_id") else first)
@@ -101,7 +101,7 @@ def trace_search_path(index: HNSWIndex, query: np.ndarray, ef: int = 16) -> set[
             visited.add(nid)
 
     # 2. Level 0 beam search
-    res0 = search_layer(index, query, [curr_ep], ef, 0)
+    res0 = search_layer(index._store, query, [curr_ep], ef, 0)
     for r in res0:
         nid = int(r.node_id if hasattr(r, "node_id") else r)
         visited.add(nid)
@@ -337,7 +337,7 @@ def run_seed(seed: int) -> dict[str, Any]:
                         meter_planning: CostMeter,
                         ef: int | None,
                         meter_reverse_link: CostMeter | None = None,
-                        det: KineticDetector | None = None,
+                        detector: KineticDetector | None = None,
                         t: float = 0.0,
                     ) -> list[Rewrite]:
                         if arm_name == "arm3_rebuild_ef64":
@@ -350,7 +350,7 @@ def run_seed(seed: int) -> dict[str, Any]:
                                 meter_planning,
                                 64,
                                 meter_reverse_link,
-                                det,
+                                detector,
                                 t,
                             )
                         elif arm_name == "arm4_exact_top_m":
@@ -408,7 +408,7 @@ def run_seed(seed: int) -> dict[str, Any]:
                                 meter_planning,
                                 ef,
                                 meter_reverse_link,
-                                det,
+                                detector,
                                 t,
                             )
 
