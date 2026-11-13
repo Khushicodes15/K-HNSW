@@ -239,3 +239,60 @@ The iterative repair loop and baseline emulations were evaluated using `scripts/
 | | our emulation of hnswlib-update-style | 1.0000 | 0 | 388788 | 0 | 0 | 388788 | 29 | 445 |
 | | our emulation of MN-RU-style (beta) | 0.9990 | 0 | 65803 | 0 | 0 | 65803 | 1436 | 356 |
 
+---
+
+## 7. Topology Repair Engines (`Repairer` Protocol Implementation)
+
+To decouple graph repair policies from simulation drivers and execution environments, maintenance algorithms are encapsulated within concrete implementations of the `Repairer` protocol (`src/khnsw/core/repair/engine.py`).
+
+### 7.1 Engine Architecture
+
+Three distinct repair engines implement the `Repairer` interface:
+1. **`KHNSWRepairEngine`**:
+   - Encapsulates the full K-HNSW iterative certificate-driven repair loop (`repair_loop`).
+   - Supports optional injection of `CertificateStore`, `KineticDetector`, beam search `search_layer`, exploration factor `ef`, and a dynamic `time_source`.
+   - Re-evaluates edge validity via relative neighborhood empty-ellipse tests with mandatory diversity pruning (`skip_if_below_cap = False`).
+2. **`HnswlibStyleEngine`**:
+   - Emulates `hnswlib`'s `updatePoint` repair policy.
+   - Plans localized out-link replacement for all outgoing neighbors of moved nodes using `native_plan` with $\alpha = 1.0$ and early return (`skip_if_below_cap = True`).
+   - Strictly isolated from `CertificateStore` (never touches certificates or detector).
+3. **`MNRUStyleEngine`**:
+   - Emulates Mutual Neighbors Repair Update (MN-RU) policies.
+   - Restricts candidate scopes to mutual neighbors ($\text{moved} \leftrightarrow v$) via `mnru_plan`.
+   - Configurable via `alpha` (e.g. 1.0 for MN-RU $\beta$ or 1.1 for MN-RU $\gamma$) and `scope` (`"one_hop"` or `"two_hop"`).
+   - Strictly isolated from `CertificateStore`.
+
+### 7.2 Movement Accumulation and Execution Cycle
+
+- **`notify_moved(node: int, t: float = 0.0)`**:
+  Records moved nodes into an internal worklist without immediate topological modification. Multiple moves between repair passes accumulate deterministically.
+- **`on_move(index, node_id, old_vector, new_vector, sink)`**:
+  Fulfills the strict call order of the `Repairer` contract (`read old vector -> index.move -> repairer.on_move`). Internally registers the node via `notify_moved` and synchronizes certificate status.
+- **`run_repairs(index, budget, sink) -> dict[str, Any]`**:
+  Executes repair passes for all accumulated moved nodes and/or confirmed detector failures. Upon completion, the worklist of pending moves is cleared. If called when no work is pending, immediately returns zero metrics with `stopped_reason = "nothing_to_do"`.
+
+### 7.3 Budget Accounting and Safe Halting
+
+- **Budget Units**: Denominated strictly in floored pairwise distance computations (`int(math.floor(budget))`).
+- **Safe Halting Guarantee**: Halting occurs cleanly at safe round/node boundaries and never mid-`apply_plan`. If budget is exhausted, any remaining unrepaired moved nodes and violated edges are retained and reported in `unrepaired_nodes` and `still_violated`, never silently discarded.
+
+### 7.4 Return Payload Schema
+
+The dictionary returned by `run_repairs` conforms to the standardized repair schema:
+```python
+{
+    "engine": str,  # Engine class name
+    "rounds": int,  # Total repair rounds executed
+    "edges_repaired": int,  # Count of edges or rewrites repaired
+    "still_violated": list[tuple],  # List of (u, v, level) edges still violated
+    "still_violated_count": int,  # Length of still_violated
+    "unrepaired_nodes": list[int],  # Node IDs that could not be repaired within budget
+    "budget_used": dict[
+        str, int
+    ],  # {"search": int, "planning": int, "store": int, "detector": int}
+    "budget_consumed": int,  # Total distance computations consumed
+    "stopped_reason": str,  # "converged", "budget", "max_rounds", or "nothing_to_do"
+}
+```
+
+
