@@ -392,26 +392,27 @@ The table below presents empirical measurements on `HNSWIndex` ($n=500, M=8, d=8
 
 Under continuous kinetic drift without explicit movement notifications, moving nodes cause certificate failures on incident edges. By identifying moving nodes via non-zero velocity filtering on confirmed failure candidates (`_trajectory_of(nid)`), `KHNSWRepairEngine` routes drifting nodes through out-link rebuild and reverse-link synthesis.
 
-Evaluation on `HNSWIndex` ($n=500, M=8, d=8$, $T=0.30$ in 10 steps, 10% drifting nodes, seeds $\{42, 43, 44\}$):
+Evaluation on `HNSWIndex` ($n=500, M=8, d=8$, $T=0.30$ in 10 steps, 10% drifting nodes, seeds $\{42, 43, 44\}$; benchmark script `scripts/measure_drift.py` and output `docs/data/drift_benchmark.json`):
 
 | Speed | Variant | Drift Recall@10 ($ef=16$) | Drift Recall@10 ($ef=32$) | Global Recall@10 ($ef=16$) | Global Recall@10 ($ef=32$) | Self-Find ($ef=64$) | Mean In-Deg | Violations | Total Cost |
 | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **10x** | No-Repair Control | 0.9487 | 0.9867 | 0.9613 | 0.9933 | 1.000 | 6.66 | 419.3 | 0 |
-| | Ours (before drift-moved fix) | 0.8880 | 0.9653 | 0.9667 | 0.9960 | 0.993 | 4.03 | **0.0** | 37,585 |
-| | **Ours (after drift-moved fix)** | **0.9013** | **0.9827** | **0.9633** | **0.9950** | **1.000** | **6.37** | **0.0** | 201,997 |
-| **30x** | No-Repair Control | 0.9060 | 0.9713 | 0.9613 | 0.9933 | 1.000 | 6.66 | 460.3 | 0 |
-| | Ours (before drift-moved fix) | 0.8313 | 0.9253 | 0.9683 | 0.9963 | 0.960 | 3.23 | **0.0** | 34,048 |
-| | **Ours (after drift-moved fix)** | **0.8840** | **0.9693** | **0.9667** | **0.9963** | **1.000** | **5.31** | **0.0** | 127,038 |
-| **100x**| No-Repair Control | 0.8627 | 0.9520 | 0.9613 | 0.9933 | 1.000 | 6.66 | 477.3 | 0 |
-| | Ours (before drift-moved fix) | 0.7733 | 0.8780 | 0.9703 | 0.9963 | 0.960 | 3.18 | **0.0** | 31,050 |
-| | **Ours (after drift-moved fix)** | **0.8813** | **0.9627** | **0.9703** | **0.9963** | **1.000** | **4.89** | **0.0** | 85,713 |
+| **10x** | No-Repair Control | 0.9487 | 0.9867 | 0.9613 | 0.9933 | 1.000 | 6.88 | 419.3 | 0 |
+| | Ours (before drift-moved fix) | 0.8880 | 0.9653 | 0.9667 | 0.9960 | 0.993 | 6.24 | **0.0** | 37,585 |
+| | **Ours (after drift-moved fix)** | **0.9013** | **0.9827** | **0.9633** | **0.9950** | **1.000** | **6.42** | **0.0** | 201,997 |
+| **30x** | No-Repair Control | 0.9060 | 0.9713 | 0.9613 | 0.9933 | 1.000 | 6.88 | 460.3 | 0 |
+| | Ours (before drift-moved fix) | 0.8313 | 0.9253 | 0.9683 | 0.9963 | 0.960 | 6.19 | **0.0** | 34,048 |
+| | **Ours (after drift-moved fix)** | **0.8840** | **0.9693** | **0.9667** | **0.9963** | **1.000** | **6.39** | **0.0** | 127,038 |
+| **100x**| No-Repair Control | 0.8627 | 0.9520 | 0.9613 | 0.9933 | 1.000 | 6.88 | 477.3 | 0 |
+| | Ours (before drift-moved fix) | 0.7733 | 0.8780 | 0.9703 | 0.9963 | 0.960 | 6.23 | **0.0** | 31,050 |
+| | **Ours (after drift-moved fix)** | **0.8813** | **0.9627** | **0.9703** | **0.9963** | **1.000** | **6.39** | **0.0** | 85,713 |
 
 Under 100% drifting nodes at $30\times$ speed:
-- **No-Repair Control**: Drift Recall@10 $ef=16$: 0.9687 ($ef=32$: 0.9967), Violations: 712.3, In-Degree: 7.68.
-- **Ours (after drift-moved fix)**: Drift Recall@10 $ef=16$: **0.9927** ($ef=32$: **0.9993**), Violations: **0.0**, Self-Find: **1.000**, In-Degree: 7.71.
+- **No-Repair Control**: Drift Recall@10 $ef=16$: 0.9750 ($ef=32$: 0.9957), Global Recall $\mathcal{N}(0, I)$ $ef=16$: 0.9813 ($ef=32$: 0.9983), Violations: 712.3, In-Degree: 7.74.
+- **Ours (after drift-moved fix)**: Drift Recall@10 $ef=16$: **0.9950** ($ef=32$: **1.0000**), Global Recall $\mathcal{N}(0, I)$ $ef=16$: 0.8447 ($ef=32$: 0.9517), Violations: **0.0**, Self-Find: **1.000**, In-Degree: 7.72.
 
 > [!NOTE]
-> Zero violations is an empty-ellipse topological invariant rather than a recall booster. While no-repair retains obsolete shortcut edges that yield high recall on static query sets, K-HNSW eliminates invalid certificates (achieving exactly 0 violations) while drift-moved rebuild restores self-findability to 1.000 and recovers in-degrees without leaving isolated nodes.
+> Zero violations is an empty-ellipse topological invariant rather than a recall booster. While no-repair retains obsolete shortcut edges across void regions that yield high recall on static query sets, K-HNSW eliminates invalid certificates (achieving exactly 0 violations) while drift-moved rebuild restores self-findability to 1.000 and recovers in-degrees without leaving isolated nodes.
+
 
 
 
