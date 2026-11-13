@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Iterable
 
 import numpy as np
 import pytest
@@ -535,3 +535,136 @@ def test_budget_exhaustion_leaves_nothing_half_applied_and_reports_unrepaired() 
         "Invariants must be preserved even under budget exhaustion"
     )
     assert check_degree_bounds(rg) == [], "Degree bounds must be preserved under budget exhaustion"
+
+
+def test_drift_path_rebuild_requires_detector_sync_nodes() -> None:
+    """Test (mutation d): Drift path rebuild requires pre-planning detector.sync_nodes."""
+    rng = np.random.default_rng(99)
+    n = 20
+    d = 2
+    X = rng.standard_normal((n, d)).astype(np.float32)
+    levels = {i: 0 for i in range(n)}
+    rg = ReferenceGraph.from_points(X, M=4, seed=99, levels=levels)
+
+    store = CertificateStore()
+    meter = CostMeter()
+    store.build(rg, meter)
+    _settle_rg(rg, store)
+
+    drift_node = 0
+    velocities = np.zeros((n, d), dtype=np.float64)
+    velocities[drift_node] = np.array([45.0, 45.0], dtype=np.float64)
+
+    def traj_of(node_id: int) -> tuple[np.ndarray, np.ndarray]:
+        return X[node_id].astype(np.float64), velocities[node_id]
+
+    sink = ListSink()
+    heap = KineticEventHeap(version_of=rg.version)
+    detector = KineticDetector(
+        index=rg,
+        store=store,
+        heap=heap,
+        trajectory_of=traj_of,
+        meter=CostMeter(),
+        horizon=1.0,
+        sync_vector=make_rg_sync(rg),
+    )
+    detector.schedule_all(t0=0.0)
+
+    t_step = 0.12
+    sync_called_before_search = False
+    sync_calls: list[tuple[set[int], float]] = []
+    orig_sync = detector.sync_nodes
+
+    def tracking_sync(nodes: Iterable[int], t: float) -> None:
+        sync_calls.append((set(nodes), float(t)))
+        orig_sync(nodes, t)
+
+    detector.sync_nodes = tracking_sync  # type: ignore[method-assign]
+
+    def checking_search_layer(index: Any, q: Any, *args: Any, **kwargs: Any) -> Any:
+        nonlocal sync_called_before_search
+        if len(sync_calls) > 0 and any(
+            drift_node in nodes and abs(call_t - t_step) < 1e-6 for nodes, call_t in sync_calls
+        ):
+            sync_called_before_search = True
+        return search_layer(index, q, *args, **kwargs)
+
+    engine = KHNSWRepairEngine(
+        store=store,
+        detector=detector,
+        time_source=t_step,
+        search_layer=checking_search_layer,
+    )
+
+    res = engine.run_repairs(rg, budget=10000.0, sink=sink)
+    assert res["moved_in_drift"] >= 1, "Precondition: drifting node must be recognized in drift"
+    assert sync_called_before_search, (
+        "detector.sync_nodes was not called before search_layer: "
+        "drift node rebuild ran with stale vector"
+    )
+
+
+def test_drift_path_rebuild_requires_on_topology_change() -> None:
+    """Test (mutation f): Drift path rebuild must notify detector.on_topology_change with t."""
+    rng = np.random.default_rng(101)
+    n = 20
+    d = 2
+    X = rng.standard_normal((n, d)).astype(np.float32)
+    levels = {i: 0 for i in range(n)}
+    rg = ReferenceGraph.from_points(X, M=4, seed=101, levels=levels)
+
+    store = CertificateStore()
+    meter = CostMeter()
+    store.build(rg, meter)
+    _settle_rg(rg, store)
+
+    drift_node = 0
+    velocities = np.zeros((n, d), dtype=np.float64)
+    velocities[drift_node] = np.array([55.0, -55.0], dtype=np.float64)
+
+    def traj_of(node_id: int) -> tuple[np.ndarray, np.ndarray]:
+        return X[node_id].astype(np.float64), velocities[node_id]
+
+    sink = ListSink()
+    heap = KineticEventHeap(version_of=rg.version)
+    detector = KineticDetector(
+        index=rg,
+        store=store,
+        heap=heap,
+        trajectory_of=traj_of,
+        meter=CostMeter(),
+        horizon=1.0,
+        sync_vector=make_rg_sync(rg),
+    )
+    detector.schedule_all(t0=0.0)
+
+    t_step = 0.15
+    for i in range(n):
+        rg._vectors[i] = (X[i] + velocities[i] * t_step).astype(np.float32)
+
+    topo_calls: list[tuple[int, int, float]] = []
+    orig_topo = detector.on_topology_change
+
+    def tracking_topo(node_id: int, lvl: int, t: float = 0.0) -> None:
+        topo_calls.append((int(node_id), int(lvl), float(t)))
+        orig_topo(node_id, lvl, t=t)
+
+    detector.on_topology_change = tracking_topo  # type: ignore[method-assign]
+
+    engine = KHNSWRepairEngine(
+        store=store,
+        detector=detector,
+        time_source=t_step,
+        search_layer=search_layer,
+    )
+
+    res = engine.run_repairs(rg, budget=10000.0, sink=sink)
+    assert res["moved_in_drift"] >= 1, "Precondition: drifting node must be recognized in drift"
+    assert len(topo_calls) >= 1, (
+        "detector.on_topology_change was never called after drift rebuild (mutation f violation)"
+    )
+    assert any(
+        call_node == drift_node and abs(call_t - t_step) < 1e-6
+        for call_node, _, call_t in topo_calls
+    ), f"detector.on_topology_change not called for drift_node with t={t_step}: got {topo_calls}"
