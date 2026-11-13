@@ -1,0 +1,612 @@
+{
+  "runs": [
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "no_repair",
+      "drift_rec16": 0.9460000000000001,
+      "drift_rec32": 0.9840000000000001,
+      "static_rec16": 0.9830000000000001,
+      "static_rec32": 0.997,
+      "violated": 400,
+      "cost": 0,
+      "cost_with_brute_force": 0
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "ours_after",
+      "drift_rec16": 0.89,
+      "drift_rec32": 0.976,
+      "static_rec16": 0.9830000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 98100,
+      "cost_with_brute_force": 98100
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm3_rebuild_ef64",
+      "drift_rec16": 0.9,
+      "drift_rec32": 0.9780000000000001,
+      "static_rec16": 0.9830000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 187006,
+      "cost_with_brute_force": 187006
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "fresh_insert_reference",
+      "drift_rec16": 0.95,
+      "drift_rec32": 0.986,
+      "static_rec16": 0.9969999999999999,
+      "static_rec32": 1.0,
+      "violated": 2109,
+      "cost": 21635,
+      "cost_with_brute_force": 21635
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm4_exact_top_m",
+      "drift_rec16": 0.8860000000000001,
+      "drift_rec32": 0.9720000000000002,
+      "static_rec16": 0.985,
+      "static_rec32": 0.9980000000000001,
+      "violated": 0,
+      "cost": 45361,
+      "cost_with_brute_force": 295361
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm5_oracle_failures",
+      "drift_rec16": 0.8899999999999999,
+      "drift_rec32": 0.972,
+      "static_rec16": 0.9830000000000001,
+      "static_rec32": 0.997,
+      "violated": 18,
+      "cost": 127644,
+      "cost_with_brute_force": 127644
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "oracle_control_rebuilt",
+      "drift_rec16": 0.8999999999999999,
+      "drift_rec32": 0.9760000000000001,
+      "static_rec16": 0.9830000000000001,
+      "static_rec32": 0.997,
+      "violated": 35,
+      "cost": 126359,
+      "cost_with_brute_force": 126359
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "oracle_control_all_drift",
+      "drift_rec16": 0.8899999999999999,
+      "drift_rec32": 0.972,
+      "static_rec16": 0.9830000000000001,
+      "static_rec32": 0.997,
+      "violated": 20,
+      "cost": 218883,
+      "cost_with_brute_force": 218883
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "no_repair",
+      "drift_rec16": 0.9039999999999999,
+      "drift_rec32": 0.968,
+      "static_rec16": 0.9830000000000001,
+      "static_rec32": 0.997,
+      "violated": 440,
+      "cost": 0,
+      "cost_with_brute_force": 0
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "ours_after",
+      "drift_rec16": 0.87,
+      "drift_rec32": 0.9620000000000001,
+      "static_rec16": 0.9860000000000001,
+      "static_rec32": 0.9980000000000001,
+      "violated": 0,
+      "cost": 69039,
+      "cost_with_brute_force": 69039
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm3_rebuild_ef64",
+      "drift_rec16": 0.89,
+      "drift_rec32": 0.968,
+      "static_rec16": 0.9860000000000001,
+      "static_rec32": 0.9980000000000001,
+      "violated": 0,
+      "cost": 113872,
+      "cost_with_brute_force": 113872
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "fresh_insert_reference",
+      "drift_rec16": 0.9179999999999999,
+      "drift_rec32": 0.9880000000000001,
+      "static_rec16": 0.998,
+      "static_rec32": 1.0,
+      "violated": 2096,
+      "cost": 21521,
+      "cost_with_brute_force": 21521
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm4_exact_top_m",
+      "drift_rec16": 0.87,
+      "drift_rec32": 0.9420000000000001,
+      "static_rec16": 0.9860000000000001,
+      "static_rec32": 0.9980000000000001,
+      "violated": 0,
+      "cost": 36935,
+      "cost_with_brute_force": 286935
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm5_oracle_failures",
+      "drift_rec16": 0.8540000000000001,
+      "drift_rec32": 0.9640000000000001,
+      "static_rec16": 0.9830000000000001,
+      "static_rec32": 0.997,
+      "violated": 13,
+      "cost": 68862,
+      "cost_with_brute_force": 68862
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "oracle_control_rebuilt",
+      "drift_rec16": 0.866,
+      "drift_rec32": 0.96,
+      "static_rec16": 0.9830000000000001,
+      "static_rec32": 0.997,
+      "violated": 9,
+      "cost": 83391,
+      "cost_with_brute_force": 83391
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "oracle_control_all_drift",
+      "drift_rec16": 0.856,
+      "drift_rec32": 0.97,
+      "static_rec16": 0.9830000000000001,
+      "static_rec32": 0.997,
+      "violated": 13,
+      "cost": 211356,
+      "cost_with_brute_force": 211356
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "no_repair",
+      "drift_rec16": 0.954,
+      "drift_rec32": 0.992,
+      "static_rec16": 0.9700000000000002,
+      "static_rec32": 0.992,
+      "violated": 423,
+      "cost": 0,
+      "cost_with_brute_force": 0
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "ours_after",
+      "drift_rec16": 0.89,
+      "drift_rec32": 0.9880000000000001,
+      "static_rec16": 0.9740000000000001,
+      "static_rec32": 0.9940000000000001,
+      "violated": 0,
+      "cost": 105149,
+      "cost_with_brute_force": 105149
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm3_rebuild_ef64",
+      "drift_rec16": 0.9,
+      "drift_rec32": 0.99,
+      "static_rec16": 0.9730000000000001,
+      "static_rec32": 0.9940000000000001,
+      "violated": 0,
+      "cost": 199411,
+      "cost_with_brute_force": 199411
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "fresh_insert_reference",
+      "drift_rec16": 0.972,
+      "drift_rec32": 0.996,
+      "static_rec16": 0.995,
+      "static_rec32": 1.0,
+      "violated": 2114,
+      "cost": 21388,
+      "cost_with_brute_force": 21388
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm4_exact_top_m",
+      "drift_rec16": 0.89,
+      "drift_rec32": 0.9680000000000001,
+      "static_rec16": 0.9730000000000001,
+      "static_rec32": 0.9940000000000001,
+      "violated": 0,
+      "cost": 47318,
+      "cost_with_brute_force": 297318
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm5_oracle_failures",
+      "drift_rec16": 0.8619999999999999,
+      "drift_rec32": 0.97,
+      "static_rec16": 0.9700000000000002,
+      "static_rec32": 0.992,
+      "violated": 27,
+      "cost": 134583,
+      "cost_with_brute_force": 134583
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "oracle_control_rebuilt",
+      "drift_rec16": 0.8739999999999999,
+      "drift_rec32": 0.97,
+      "static_rec16": 0.9700000000000002,
+      "static_rec32": 0.992,
+      "violated": 37,
+      "cost": 137445,
+      "cost_with_brute_force": 137445
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "oracle_control_all_drift",
+      "drift_rec16": 0.85,
+      "drift_rec32": 0.9540000000000001,
+      "static_rec16": 0.9700000000000002,
+      "static_rec32": 0.992,
+      "violated": 29,
+      "cost": 217031,
+      "cost_with_brute_force": 217031
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "no_repair",
+      "drift_rec16": 0.924,
+      "drift_rec32": 0.986,
+      "static_rec16": 0.9700000000000002,
+      "static_rec32": 0.992,
+      "violated": 465,
+      "cost": 0,
+      "cost_with_brute_force": 0
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "ours_after",
+      "drift_rec16": 0.8759999999999999,
+      "drift_rec32": 0.9619999999999999,
+      "static_rec16": 0.9770000000000002,
+      "static_rec32": 0.995,
+      "violated": 0,
+      "cost": 76913,
+      "cost_with_brute_force": 76913
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm3_rebuild_ef64",
+      "drift_rec16": 0.8819999999999999,
+      "drift_rec32": 0.97,
+      "static_rec16": 0.9770000000000002,
+      "static_rec32": 0.995,
+      "violated": 0,
+      "cost": 126146,
+      "cost_with_brute_force": 126146
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "fresh_insert_reference",
+      "drift_rec16": 0.948,
+      "drift_rec32": 0.992,
+      "static_rec16": 0.995,
+      "static_rec32": 1.0,
+      "violated": 2111,
+      "cost": 21225,
+      "cost_with_brute_force": 21225
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm4_exact_top_m",
+      "drift_rec16": 0.868,
+      "drift_rec32": 0.9420000000000001,
+      "static_rec16": 0.9770000000000002,
+      "static_rec32": 0.995,
+      "violated": 0,
+      "cost": 39106,
+      "cost_with_brute_force": 289106
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm5_oracle_failures",
+      "drift_rec16": 0.8540000000000001,
+      "drift_rec32": 0.9460000000000001,
+      "static_rec16": 0.9700000000000002,
+      "static_rec32": 0.992,
+      "violated": 12,
+      "cost": 70077,
+      "cost_with_brute_force": 70077
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "oracle_control_rebuilt",
+      "drift_rec16": 0.8540000000000001,
+      "drift_rec32": 0.946,
+      "static_rec16": 0.9700000000000002,
+      "static_rec32": 0.992,
+      "violated": 8,
+      "cost": 91848,
+      "cost_with_brute_force": 91848
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "oracle_control_all_drift",
+      "drift_rec16": 0.852,
+      "drift_rec32": 0.948,
+      "static_rec16": 0.9700000000000002,
+      "static_rec32": 0.992,
+      "violated": 12,
+      "cost": 209324,
+      "cost_with_brute_force": 209324
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "no_repair",
+      "drift_rec16": 0.946,
+      "drift_rec32": 0.9840000000000001,
+      "static_rec16": 0.9650000000000002,
+      "static_rec32": 0.9990000000000001,
+      "violated": 435,
+      "cost": 0,
+      "cost_with_brute_force": 0
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "ours_after",
+      "drift_rec16": 0.898,
+      "drift_rec32": 0.98,
+      "static_rec16": 0.9720000000000002,
+      "static_rec32": 0.9990000000000001,
+      "violated": 0,
+      "cost": 103496,
+      "cost_with_brute_force": 103496
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm3_rebuild_ef64",
+      "drift_rec16": 0.9019999999999999,
+      "drift_rec32": 0.978,
+      "static_rec16": 0.9730000000000001,
+      "static_rec32": 0.9990000000000001,
+      "violated": 0,
+      "cost": 200045,
+      "cost_with_brute_force": 200045
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "fresh_insert_reference",
+      "drift_rec16": 0.9640000000000001,
+      "drift_rec32": 0.99,
+      "static_rec16": 0.996,
+      "static_rec32": 1.0,
+      "violated": 1906,
+      "cost": 21573,
+      "cost_with_brute_force": 21573
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm4_exact_top_m",
+      "drift_rec16": 0.9019999999999999,
+      "drift_rec32": 0.972,
+      "static_rec16": 0.9720000000000002,
+      "static_rec32": 0.9990000000000001,
+      "violated": 0,
+      "cost": 47630,
+      "cost_with_brute_force": 297630
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm5_oracle_failures",
+      "drift_rec16": 0.88,
+      "drift_rec32": 0.966,
+      "static_rec16": 0.9650000000000002,
+      "static_rec32": 0.9990000000000001,
+      "violated": 32,
+      "cost": 135694,
+      "cost_with_brute_force": 135694
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "oracle_control_rebuilt",
+      "drift_rec16": 0.8880000000000001,
+      "drift_rec32": 0.964,
+      "static_rec16": 0.9650000000000002,
+      "static_rec32": 0.9990000000000001,
+      "violated": 46,
+      "cost": 133804,
+      "cost_with_brute_force": 133804
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "oracle_control_all_drift",
+      "drift_rec16": 0.88,
+      "drift_rec32": 0.966,
+      "static_rec16": 0.9650000000000002,
+      "static_rec32": 0.9990000000000001,
+      "violated": 15,
+      "cost": 217052,
+      "cost_with_brute_force": 217052
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "no_repair",
+      "drift_rec16": 0.89,
+      "drift_rec32": 0.96,
+      "static_rec16": 0.9650000000000002,
+      "static_rec32": 0.9990000000000001,
+      "violated": 476,
+      "cost": 0,
+      "cost_with_brute_force": 0
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "ours_after",
+      "drift_rec16": 0.86,
+      "drift_rec32": 0.9660000000000001,
+      "static_rec16": 0.9750000000000003,
+      "static_rec32": 0.9990000000000001,
+      "violated": 0,
+      "cost": 72721,
+      "cost_with_brute_force": 72721
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm3_rebuild_ef64",
+      "drift_rec16": 0.878,
+      "drift_rec32": 0.966,
+      "static_rec16": 0.9750000000000003,
+      "static_rec32": 0.9990000000000001,
+      "violated": 0,
+      "cost": 123181,
+      "cost_with_brute_force": 123181
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "fresh_insert_reference",
+      "drift_rec16": 0.934,
+      "drift_rec32": 0.9860000000000001,
+      "static_rec16": 0.996,
+      "static_rec32": 1.0,
+      "violated": 1914,
+      "cost": 21462,
+      "cost_with_brute_force": 21462
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm4_exact_top_m",
+      "drift_rec16": 0.8700000000000001,
+      "drift_rec32": 0.94,
+      "static_rec16": 0.9750000000000003,
+      "static_rec32": 0.9990000000000001,
+      "violated": 0,
+      "cost": 37871,
+      "cost_with_brute_force": 287871
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm5_oracle_failures",
+      "drift_rec16": 0.848,
+      "drift_rec32": 0.95,
+      "static_rec16": 0.9650000000000002,
+      "static_rec32": 0.9990000000000001,
+      "violated": 14,
+      "cost": 66428,
+      "cost_with_brute_force": 66428
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "oracle_control_rebuilt",
+      "drift_rec16": 0.8619999999999999,
+      "drift_rec32": 0.9620000000000001,
+      "static_rec16": 0.9650000000000002,
+      "static_rec32": 0.9990000000000001,
+      "violated": 12,
+      "cost": 90200,
+      "cost_with_brute_force": 90200
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "oracle_control_all_drift",
+      "drift_rec16": 0.868,
+      "drift_rec32": 0.96,
+      "static_rec16": 0.9650000000000002,
+      "static_rec32": 0.9990000000000001,
+      "violated": 8,
+      "cost": 209303,
+      "cost_with_brute_force": 209303
+    }
+  ],
+  "static_tracing": {
+    "10x": {
+      "frac_paths_visiting_drifting_mean": 1.0,
+      "mean_drifting_nodes_visited_mean": 9.353333333333333
+    },
+    "30x": {
+      "frac_paths_visiting_drifting_mean": 1.0,
+      "mean_drifting_nodes_visited_mean": 9.353333333333333
+    }
+  },
+  "in_degree": {
+    "10x": {
+      "no_repair": {
+        "mean_in_deg": 6.66,
+        "mean_in_deg_from_true10": 3.4
+      },
+      "ours_after": {
+        "mean_in_deg": 5.506666666666667,
+        "mean_in_deg_from_true10": 4.06
+      }
+    },
+    "30x": {
+      "no_repair": {
+        "mean_in_deg": 6.66,
+        "mean_in_deg_from_true10": 2.786666666666667
+      },
+      "ours_after": {
+        "mean_in_deg": 4.713333333333334,
+        "mean_in_deg_from_true10": 3.6733333333333333
+      }
+    }
+  }
+}
