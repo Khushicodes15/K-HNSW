@@ -119,3 +119,123 @@ The repair loop returns a frozen dataclass `RepairResult`:
 - `still_violated`: Set of remaining violated edge keys `(u, v, level)`.
 - `budget_used`: Dictionary `{"search": int, "planning": int, "store": int, "detector": int}`.
 - `stopped_reason`: String flag indicating termination reason: `"converged"`, `"budget"`, or `"max_rounds"`.
+
+---
+
+## 6. Empirical Evaluation and Benchmark Results
+
+The iterative repair loop and baseline emulations were evaluated using `scripts/measure_repair.py` on `HNSWIndex` across discrete movement perturbations and continuous linear trajectories.
+
+### 6.1 Benchmark Definitions and Accounting Rules
+
+- **Total Dist (Algorithm Cost)**: The sum of distance computations incurred by the algorithm during repair:
+  $$\text{Total Dist} = \text{Search} + \text{Planning} + \text{Store} + \text{Detector}$$
+  Baselines (`hnswlib-update` and `MN-RU`) do not maintain a `CertificateStore` or `KineticDetector`, paying only `Planning` cost (`Store = 0`, `Detector = 0`).
+  Measurement overhead (from-scratch store validation and recall evaluation) is strictly excluded from `Total Dist`.
+- **Violations**: The global count of directed edges $(u, v, l)$ failing the Delaunay/witness certificate condition in a fresh `CertificateStore` built from scratch across the entire graph at measurement time. The pre-move baseline is 0 across all configurations (settle pass settled).
+- **No-Repair Control**: Evaluates the index after spatial displacement with zero repair applied.
+- **Note on Recall**: For small displacements in dense graphs, the no-repair control achieves recall $\approx 1.0000$ because minor coordinate perturbations do not immediately disrupt global routing connectivity. The primary purpose of repair is actively preserving the empty-ellipse Delaunay/certificate invariant to prevent structural degradation over extended trajectories.
+
+### 6.2 Empirical Measurements
+
+#### Discrete Moves ($n=200, M=8, d=2, \text{seed}=44$)
+
+| Method | Recall@10 | Search | Planning | Store | Detector | Total Dist | Violations | Repaired |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Scale 0.01 (disp=0.0016)** | | | | | | | | |
+| no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
+| ours | 1.0000 | 362 | 411 | 292 | 0 | 1065 | 0 | 1 |
+| our emulation of hnswlib-update-style | 1.0000 | 0 | 303 | 0 | 0 | 303 | 217 | 30 |
+| our emulation of MN-RU-style (beta) | 1.0000 | 0 | 129 | 0 | 0 | 129 | 56 | 24 |
+| **Scale 0.05 (disp=0.0081)** | | | | | | | | |
+| no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
+| ours | 1.0000 | 362 | 414 | 292 | 0 | 1068 | 0 | 1 |
+| our emulation of hnswlib-update-style | 1.0000 | 0 | 303 | 0 | 0 | 303 | 217 | 30 |
+| our emulation of MN-RU-style (beta) | 1.0000 | 0 | 129 | 0 | 0 | 129 | 56 | 24 |
+| **Scale 0.20 (disp=0.0325)** | | | | | | | | |
+| no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 6 | 0 |
+| ours | 1.0000 | 367 | 485 | 344 | 0 | 1196 | 0 | 1 |
+| our emulation of hnswlib-update-style | 1.0000 | 0 | 303 | 0 | 0 | 303 | 221 | 30 |
+| our emulation of MN-RU-style (beta) | 1.0000 | 0 | 129 | 0 | 0 | 129 | 60 | 24 |
+
+#### Discrete Moves ($n=200, M=8, d=8, \text{seed}=50$)
+
+| Method | Recall@10 | Search | Planning | Store | Detector | Total Dist | Violations | Repaired |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Scale 0.01 (disp=0.0167)** | | | | | | | | |
+| no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| ours | 1.0000 | 885 | 603 | 2396 | 0 | 3884 | 0 | 0 |
+| our emulation of hnswlib-update-style | 1.0000 | 0 | 10259 | 0 | 0 | 10259 | 7 | 19 |
+| our emulation of MN-RU-style (beta) | 1.0000 | 0 | 1431 | 0 | 0 | 1431 | 154 | 29 |
+| **Scale 0.05 (disp=0.0837)** | | | | | | | | |
+| no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 9 | 0 |
+| ours | 1.0000 | 884 | 1049 | 2726 | 0 | 4659 | 0 | 1 |
+| our emulation of hnswlib-update-style | 1.0000 | 0 | 10328 | 0 | 0 | 10328 | 13 | 23 |
+| our emulation of MN-RU-style (beta) | 1.0000 | 0 | 1434 | 0 | 0 | 1434 | 161 | 29 |
+| **Scale 0.20 (disp=0.3348)** | | | | | | | | |
+| no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 33 | 0 |
+| ours | 1.0000 | 881 | 1780 | 3128 | 0 | 5789 | 0 | 1 |
+| our emulation of hnswlib-update-style | 1.0000 | 0 | 10374 | 0 | 0 | 10374 | 27 | 30 |
+| our emulation of MN-RU-style (beta) | 1.0000 | 0 | 1386 | 0 | 0 | 1386 | 171 | 33 |
+
+#### Discrete Moves ($n=1000, M=8, d=2, \text{seed}=44$)
+
+| Method | Recall@10 | Search | Planning | Store | Detector | Total Dist | Violations | Repaired |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Scale 0.01 (disp=0.0008)** | | | | | | | | |
+| no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
+| ours | 1.0000 | 2228 | 2007 | 1551 | 0 | 5786 | 0 | 1 |
+| our emulation of hnswlib-update-style | 1.0000 | 0 | 5887 | 0 | 0 | 5887 | 911 | 137 |
+| our emulation of MN-RU-style (beta) | 1.0000 | 0 | 860 | 0 | 0 | 860 | 381 | 128 |
+| **Scale 0.05 (disp=0.0038)** | | | | | | | | |
+| no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 15 | 0 |
+| ours | 1.0000 | 2223 | 2189 | 1659 | 0 | 6071 | 0 | 1 |
+| our emulation of hnswlib-update-style | 1.0000 | 0 | 5885 | 0 | 0 | 5885 | 917 | 142 |
+| our emulation of MN-RU-style (beta) | 1.0000 | 0 | 860 | 0 | 0 | 860 | 390 | 128 |
+| **Scale 0.20 (disp=0.0150)** | | | | | | | | |
+| no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 42 | 0 |
+| ours | 1.0000 | 2231 | 2580 | 1896 | 0 | 6707 | 0 | 1 |
+| our emulation of hnswlib-update-style | 1.0000 | 0 | 5914 | 0 | 0 | 5914 | 929 | 152 |
+| our emulation of MN-RU-style (beta) | 1.0000 | 0 | 860 | 0 | 0 | 860 | 407 | 128 |
+
+#### Discrete Moves ($n=1000, M=8, d=8, \text{seed}=50$)
+
+| Method | Recall@10 | Search | Planning | Store | Detector | Total Dist | Violations | Repaired |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Scale 0.01 (disp=0.0139)** | | | | | | | | |
+| no-repair control | 0.9990 | 0 | 0 | 0 | 0 | 0 | 7 | 0 |
+| ours | 0.9990 | 6322 | 3940 | 19687 | 0 | 29949 | 0 | 1 |
+| our emulation of hnswlib-update-style | 0.9990 | 0 | 83527 | 0 | 0 | 83527 | 25 | 115 |
+| our emulation of MN-RU-style (beta) | 0.9990 | 0 | 15467 | 0 | 0 | 15467 | 677 | 126 |
+| **Scale 0.05 (disp=0.0696)** | | | | | | | | |
+| no-repair control | 0.9990 | 0 | 0 | 0 | 0 | 0 | 40 | 0 |
+| ours | 0.9990 | 6277 | 5995 | 20988 | 0 | 33260 | 0 | 1 |
+| our emulation of hnswlib-update-style | 0.9990 | 0 | 83069 | 0 | 0 | 83069 | 35 | 131 |
+| our emulation of MN-RU-style (beta) | 0.9990 | 0 | 15265 | 0 | 0 | 15265 | 693 | 138 |
+| **Scale 0.20 (disp=0.2784)** | | | | | | | | |
+| no-repair control | 0.9990 | 0 | 0 | 0 | 0 | 0 | 164 | 0 |
+| ours | 0.9990 | 6314 | 11702 | 23988 | 0 | 42004 | 0 | 1 |
+| our emulation of hnswlib-update-style | 0.9990 | 0 | 81218 | 0 | 0 | 81218 | 96 | 180 |
+| our emulation of MN-RU-style (beta) | 0.9990 | 0 | 14893 | 0 | 0 | 14893 | 765 | 177 |
+
+#### Continuous LinearDrift ($\text{speed}=1.5, t=0.10$)
+
+| Scenario Config | Method | Recall@10 | Search | Planning | Store | Detector | Total Dist | Violations | Repaired |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **$n=200, d=2, \text{seed}=44$** | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 10 | 0 |
+| | ours | 1.0000 | 0 | 124 | 64 | 76 | 264 | 0 | 10 |
+| | our emulation of hnswlib-update-style | 1.0000 | 0 | 1363 | 0 | 0 | 1363 | 134 | 30 |
+| | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 331 | 0 | 0 | 331 | 110 | 33 |
+| **$n=200, d=8, \text{seed}=50$** | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 27 | 0 |
+| | ours | 1.0000 | 0 | 1442 | 784 | 965 | 3191 | 0 | 22 |
+| | our emulation of hnswlib-update-style | 1.0000 | 0 | 31008 | 0 | 0 | 31008 | 26 | 54 |
+| | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 5678 | 0 | 0 | 5678 | 488 | 82 |
+| **$n=1000, d=2, \text{seed}=44$** | no-repair control | 1.0000 | 0 | 0 | 0 | 0 | 0 | 28 | 0 |
+| | ours | 1.0000 | 0 | 442 | 190 | 248 | 880 | 0 | 28 |
+| | our emulation of hnswlib-update-style | 1.0000 | 0 | 4748 | 0 | 0 | 4748 | 604 | 86 |
+| | our emulation of MN-RU-style (beta) | 1.0000 | 0 | 687 | 0 | 0 | 687 | 351 | 82 |
+| **$n=1000, d=8, \text{seed}=50$** | no-repair control | 0.9990 | 0 | 0 | 0 | 0 | 0 | 176 | 0 |
+| | ours | 0.9990 | 0 | 12186 | 6828 | 7918 | 26932 | 0 | 152 |
+| | our emulation of hnswlib-update-style | 1.0000 | 0 | 388788 | 0 | 0 | 388788 | 29 | 445 |
+| | our emulation of MN-RU-style (beta) | 0.9990 | 0 | 65803 | 0 | 0 | 65803 | 1436 | 356 |
+

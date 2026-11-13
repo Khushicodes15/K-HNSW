@@ -495,4 +495,3 @@ def test_sync_nodes_prevents_stale_vector_violations_under_drift() -> None:
         f"Expected 0 unhealed violations when sync_nodes updates coordinates, "
         f"but found {len(unhealed)} violated edges: {unhealed}"
     )
-
