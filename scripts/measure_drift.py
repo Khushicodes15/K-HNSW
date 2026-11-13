@@ -1020,7 +1020,7 @@ def run_rebuild_quality_arms(
                     meter_planning: CostMeter,
                     ef: int | None,
                     meter_reverse_link: CostMeter | None = None,
-                    det: KineticDetector | None = None,
+                    detector: KineticDetector | None = None,
                     t: float = 0.0,
                 ) -> list[Rewrite]:
                     if arm_name == "arm3_rebuild_ef_construction_64":
@@ -1033,7 +1033,7 @@ def run_rebuild_quality_arms(
                             meter_planning,
                             64,
                             meter_reverse_link,
-                            det,
+                            detector,
                             t,
                         )
                     elif arm_name == "arm4_rebuild_exact_top_m":
@@ -1091,7 +1091,7 @@ def run_rebuild_quality_arms(
                             meter_planning,
                             ef,
                             meter_reverse_link,
-                            det,
+                            detector,
                             t,
                         )
 
@@ -1102,7 +1102,7 @@ def run_rebuild_quality_arms(
                 store = copy.deepcopy(base_store)
                 det_meter = CostMeter()
                 heap = KineticEventHeap(version_of=idx.version)
-                detector = KineticDetector(
+                detector_inst = KineticDetector(
                     index=idx,
                     store=store,
                     heap=heap,
@@ -1111,7 +1111,7 @@ def run_rebuild_quality_arms(
                     sync_vector=make_hnsw_sync(idx),
                     meter=det_meter,
                 )
-                detector.schedule_all(t0=0.0)
+                detector_inst.schedule_all(t0=0.0)
 
                 total_cost = 0
                 orig_rebuild = loop_mod._rebuild_moved_out_links
@@ -1126,7 +1126,7 @@ def run_rebuild_quality_arms(
 
                         if arm == "arm5_oracle_reinsert":
                             det_before = det_meter.count
-                            failures = detector.advance(t_curr)
+                            failures = detector_inst.advance(t_curr)
                             det_cost = det_meter.count - det_before
                             total_cost += det_cost
 
@@ -1157,11 +1157,11 @@ def run_rebuild_quality_arms(
                                 total_cost += dist_used
 
                             store.build(idx, CostMeter())
-                            detector.schedule_all(t0=t_curr)
+                            detector_inst.schedule_all(t0=t_curr)
                         else:
                             engine = KHNSWRepairEngine(
                                 store=store,
-                                detector=detector,
+                                detector=detector_inst,
                                 time_source=t_curr,
                                 search_layer=search_layer,
                                 max_rounds=50,
