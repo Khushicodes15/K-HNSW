@@ -82,6 +82,8 @@ def evaluate_recall(
 
 def trace_search_path(index: HNSWIndex, query: np.ndarray, ef: int = 16) -> set[int]:
     """Trace all nodes visited during HNSW search."""
+    import heapq
+
     visited: set[int] = set()
     ep = index.entry_point()
     if ep is None:
@@ -93,6 +95,8 @@ def trace_search_path(index: HNSWIndex, query: np.ndarray, ef: int = 16) -> set[
 
     # 1. Greedy descent from top level to 1
     for lc in range(top_lvl, 0, -1):
+        for nb in index.neighbors(curr_ep, lc):
+            visited.add(nb)
         res = search_layer(index._store, query, [curr_ep], 1, lc)
         if res:
             first = res[0]
@@ -100,12 +104,29 @@ def trace_search_path(index: HNSWIndex, query: np.ndarray, ef: int = 16) -> set[
             curr_ep = nid
             visited.add(nid)
 
-    # 2. Level 0 beam search
-    res0 = search_layer(index._store, query, [curr_ep], ef, 0)
-    for r in res0:
-        nid = int(r.node_id if hasattr(r, "node_id") else r)
-        visited.add(nid)
+    # 2. Level 0 beam search exploration
+    v_layer0: set[int] = set()
+    ep_vec = index.vector(curr_ep)
+    d_ep = float(np.sum((ep_vec - query) ** 2))
+    cand: list[tuple[float, int]] = [(d_ep, curr_ep)]
+    w: list[tuple[float, int]] = [(-d_ep, curr_ep)]
+    v_layer0.add(curr_ep)
 
+    while cand:
+        d_c, c = heapq.heappop(cand)
+        if d_c > -w[0][0]:
+            break
+        for nb in index.neighbors(c, 0):
+            if nb not in v_layer0:
+                v_layer0.add(nb)
+                d_nb = float(np.sum((index.vector(nb) - query) ** 2))
+                if d_nb < -w[0][0] or len(w) < ef:
+                    heapq.heappush(cand, (d_nb, nb))
+                    heapq.heappush(w, (-d_nb, nb))
+                    if len(w) > ef:
+                        heapq.heappop(w)
+
+    visited.update(v_layer0)
     return visited
 
 
