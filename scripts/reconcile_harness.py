@@ -225,25 +225,42 @@ def run_seed(seed: int) -> dict[str, Any]:
         )
 
         cost_ours = 0
-        for step in range(1, steps + 1):
-            t_curr = round(step * dt, 5)
-            pos_step = drift.positions(t_curr)
-            for nid in range(n):
-                idx_ours._store.set_vector(nid, pos_step[nid].astype(np.float32))
-            engine_ours._time_source = t_curr
+        rebuilt_this_step: list[int] = []
+        orig_rebuild_fn = loop_mod._rebuild_moved_out_links
 
-            det_before = det_meter_ours.count
-            res = engine_ours.run_repairs(idx_ours, budget=1e9, sink=ListSink())
-            det_cost = det_meter_ours.count - det_before
+        def _recording_rebuild(
+            index_arg: Any,
+            moved_arg: int,
+            *args_r: Any,
+            _rec: list[int] = rebuilt_this_step,
+            _fn: Any = orig_rebuild_fn,
+            **kwargs_r: Any,
+        ) -> Any:
+            _rec.append(moved_arg)
+            return _fn(index_arg, moved_arg, *args_r, **kwargs_r)
 
-            # Identify nodes that were rebuilt at this step
-            rebuilt_per_step[step] = list(res.get("unrepaired_nodes", []))
-            rebuild_cost = sum(
-                res["budget_used"].get(k, 0)
-                for k in ["search", "planning", "store", "reverse_link"]
-            )
-            cost_ours += det_cost + rebuild_cost
-        cost_ours += det_meter_ours.count  # Include initial scheduling
+        loop_mod._rebuild_moved_out_links = _recording_rebuild
+        try:
+            for step in range(1, steps + 1):
+                t_curr = round(step * dt, 5)
+                pos_step = drift.positions(t_curr)
+                for nid in range(n):
+                    idx_ours._store.set_vector(nid, pos_step[nid].astype(np.float32))
+                engine_ours._time_source = t_curr
+
+                rebuilt_this_step.clear()
+                det_before = det_meter_ours.count
+                res = engine_ours.run_repairs(idx_ours, budget=1e9, sink=ListSink())
+                det_cost = det_meter_ours.count - det_before
+                rebuild_cost = sum(
+                    res["budget_used"].get(k, 0)
+                    for k in ["search", "planning", "store", "reverse_link"]
+                )
+                cost_ours += det_cost + rebuild_cost
+                rebuilt_per_step[step] = list(rebuilt_this_step)
+            cost_ours += det_meter_ours.count
+        finally:
+            loop_mod._rebuild_moved_out_links = orig_rebuild_fn
 
         # Store in-degree analysis for Item E
         for nid in range(n):
