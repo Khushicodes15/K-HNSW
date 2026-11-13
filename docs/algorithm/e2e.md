@@ -42,7 +42,7 @@ The simulation executes three consecutive continuous and discrete motion phases 
 - Time advances across steps $t \in \{0.05, 0.10, 0.15\}$.
 - Points drift continuously with constant velocities ($p_i(t) = a_i + b_i \cdot t$).
 - `KineticDetector.advance(t)` pops due certificate invalidation events from the `KineticEventHeap` and confirms true Delaunay empty-ellipse violations via float32 rechecking.
-- `KHNSWRepairEngine.run_repairs` schedules localized graph rewrites, pruning invalid edges and restoring routing connectivity.
+- `KHNSWRepairEngine.run_repairs` schedules localized graph rewrites, pruning invalid certificates and maintaining local Delaunay empty-ellipse invariants.
 
 ### Phase 2: Trajectory Modification under Drift
 - At $t=0.20$, specific nodes ($\{10, 25, 50, 100, 200\}$) undergo trajectory changes (abrupt changes in velocity directions scaled by nearest-neighbor distance).
@@ -80,16 +80,27 @@ After every repair round and at simulation termination, the following assertions
 
 ## 4. Empirical Recall Comparison: Ours vs. No-Repair Control
 
-Recall@10 was evaluated on 100 queries (queries centered at perturbed nodes + queries across the global distribution) at $ef \in \{16, 32\}$:
+Routing fidelity and recall@10 were evaluated on $n=500, M=8, d=8$ across 25 perturbed nodes ($5\%$ of the graph) and 100 global queries at $ef=64$, comparing the un-repaired control against K-HNSW before and after reciprocal reverse-link repair (averaged across seeds $\{42, 43, 44\}$):
 
-| Metric / Configuration | Ours (K-HNSW Repaired) | No-Repair Control | Delta ($\Delta$) | Status |
-| :--- | :---: | :---: | :---: | :---: |
-| **Overall Recall@10 ($ef=32$)** | **0.9720** | 0.9800 | -0.0080 | Preserved |
-| **Perturbed Nodes Recall@10 ($ef=32$)** | **0.9560** | 0.9840 | Control lost 0.0160 | Degraded |
-| **Large Perturbation ($12\times / 30\times$ NN, $ef=32$)** | **0.7560** | 0.7400 | **+0.0160** | **Control Lost Recall** |
+| Displacement Scale | Metric | No-Repair Control | Ours (Without Reverse Links) | Ours (With Reverse Links) | Delete + Reinsert Upper Bound |
+| :---: | :--- | :---: | :---: | :---: | :---: |
+| **Moderate ($3.0\times$ NN)** | **Self-Findability** | 0.907 | 0.440 | **1.000** | 1.000 |
+| | **In-Edge from True 10-NN** | 0.493 | 0.293 | **0.987** | 1.000 |
+| | **Recall@10 (Moved Nodes)** | 0.977 | 0.919 | **0.999** | 1.000 |
+| | **Recall@10 (Global 100)** | 0.997 | 0.998 | **1.000** | 0.998 |
+| **Large ($12.0\times$ NN)** | **Self-Findability** | 0.493 | 0.160 | **1.000** | 1.000 |
+| | **In-Edge from True 10-NN** | 0.173 | 0.240 | **1.000** | 0.987 |
+| | **Recall@10 (Moved Nodes)** | 0.891 | 0.812 | **0.991** | 0.992 |
+| | **Recall@10 (Global 100)** | 0.998 | 1.000 | **1.000** | 0.998 |
+| **Extreme ($30.0\times$ NN)** | **Self-Findability** | 0.387 | 0.120 | **1.000** | 1.000 |
+| | **In-Edge from True 10-NN** | 0.173 | 0.280 | **1.000** | 0.987 |
+| | **Recall@10 (Moved Nodes)** | 0.847 | 0.769 | **0.988** | 0.995 |
+| | **Recall@10 (Global 100)** | 0.998 | 1.000 | **1.000** | 0.998 |
 
-> [!NOTE]
-> Under moderate displacement ($2\times / 5\times$), the dense unperturbed background graph ($95\%$ of nodes) allows beam search with $ef=32$ to navigate around isolated perturbed nodes. When displacement is increased to $12\times / 30\times$ mean NN distance, the no-repair control experiences routing failure (Recall: $0.7400$ vs Ours: $0.7560$).
+> [!IMPORTANT]
+> - **Moved Node Ingress**: Without reciprocal reverse links, rebuilding only out-links severely isolates moved nodes. Even though the moved node has outgoing edges, incoming edges from its origin neighborhood are dropped by certificate repair and no new in-edges are formed from the destination cluster. Consequently, queries targeting moved nodes lose routing ingress (self-findability drops to $0.120 - 0.160$ and recall drops to $0.769 - 0.812$, below the control).
+> - **Restoration via Reverse Links**: Synthesizing reciprocal $w \to m$ edges directly restores routing ingress: self-findability reaches **$1.000$** (matching delete+reinsert), true 10-NN in-edge incidence reaches **$100\%$**, and recall@10 at moved nodes reaches **$0.991$** at $12\times$ and **$0.988$** at $30\times$, outperforming the control ($0.891$ and $0.847$).
+> - **Global Reachability**: Across the 95% unperturbed nodes, the dense background graph retains global recall $\ge 0.997$ across all configurations.
 
 ---
 
