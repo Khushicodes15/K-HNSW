@@ -42,7 +42,8 @@ The simulation executes three consecutive continuous and discrete motion phases 
 - Time advances across steps $t \in \{0.05, 0.10, 0.15\}$.
 - Points drift continuously with constant velocities ($p_i(t) = a_i + b_i \cdot t$).
 - `KineticDetector.advance(t)` pops due certificate invalidation events from the `KineticEventHeap` and confirms true Delaunay empty-ellipse violations via float32 rechecking.
-- `KHNSWRepairEngine.run_repairs` schedules localized graph rewrites, pruning invalid certificates and maintaining local Delaunay empty-ellipse invariants.
+- `KHNSWRepairEngine.run_repairs` extracts drifting nodes from confirmed failures via velocity checking (`trajectory_of(u)[1] != 0`), executing both out-link rebuild and reciprocal reverse-link synthesis for moving nodes to maintain degree bounds and prevent in-degree collapse.
+- Zero certificate violations achieved after each step represents adherence to local Delaunay topological invariants rather than an empirical claim of monotonically superior recall over un-repaired controls.
 
 ### Phase 2: Trajectory Modification under Drift
 - At $t=0.20$, specific nodes ($\{10, 25, 50, 100, 200\}$) undergo trajectory changes (abrupt changes in velocity directions scaled by nearest-neighbor distance).
@@ -101,6 +102,7 @@ Routing fidelity and recall@10 were evaluated on $n=500, M=8, d=8$ across 25 per
 > - **Moved Node Ingress**: Without reciprocal reverse links, rebuilding only out-links severely isolates moved nodes. Even though the moved node has outgoing edges, incoming edges from its origin neighborhood are dropped by certificate repair and no new in-edges are formed from the destination cluster. Consequently, queries targeting moved nodes lose routing ingress (self-findability drops to $0.120 - 0.160$ and recall drops to $0.769 - 0.812$, below the control).
 > - **Restoration via Reverse Links**: Synthesizing reciprocal $w \to m$ edges directly restores routing ingress: self-findability reaches **$1.000$** (matching delete+reinsert), true 10-NN in-edge incidence reaches **$100\%$**, and recall@10 at moved nodes reaches **$0.991$** at $12\times$ and **$0.988$** at $30\times$, outperforming the control ($0.891$ and $0.847$).
 > - **Global Reachability**: Across the 95% unperturbed nodes, the dense background graph retains global recall $\ge 0.997$ across all configurations.
+> - **Invariant Preservation vs Recall Metric**: Zero certificate violations indicates that all local Delaunay/witness conditions are strictly satisfied; it is an invariant guarantee, not a quality metric that guarantees superior recall under every transient perturbation. Drift-moved node handling preserves in-degrees and restores self-findability to 1.000 without claiming drift repair monotonically outperforms un-repaired controls across all speeds.
 
 ---
 

@@ -134,12 +134,13 @@ The iterative repair loop and baseline emulations were evaluated using `scripts/
   Measurement overhead (from-scratch store validation and recall evaluation) is strictly excluded from `Total Dist`.
 - **Violations**: The global count of directed edges $(u, v, l)$ failing the Delaunay/witness certificate condition in a fresh `CertificateStore` built from scratch across the entire graph at measurement time. The pre-move baseline is 0 across all configurations (settle pass settled).
 - **No-Repair Control**: Evaluates the index after spatial displacement with zero repair applied.
-- **Note on Recall**: For small displacements in dense graphs, the no-repair control achieves recall $\approx 1.0000$ because minor coordinate perturbations do not immediately disrupt global routing connectivity. The primary purpose of repair is actively preserving the empty-ellipse Delaunay/certificate invariant to prevent structural degradation over extended trajectories.
+- **Zero Violations as an Invariant (Not a Quality Metric)**:
+  Achieving zero certificate violations confirms that every directed edge satisfies the local empty-ellipse Delaunay condition. Zero violations is a structural invariant and correctness contract of the graph, not a proxy metric for nearest-neighbor search recall. Repair does not claim to monotonically improve recall over an un-repaired control at individual snapshots; rather, it maintains bounded out-degrees, eliminates topologically invalid edges, and preserves certificate consistency across extended kinetic drift.
 
 ### 6.2 Empirical Measurements
 
 > [!NOTE]
-> The Discrete Moves benchmarks below have been regenerated with reciprocal reverse-link synthesis enabled (PR #17). Adding incoming links from destination neighbors rewrites those neighbors and re-evaluates their certificates, updating "Repaired" unique nodes from 0-1 to 5-8 (at $n=200$) and 27-46 (at $n=1000$) while maintaining 0 violations and 1.0000 recall. Continuous LinearDrift (Section 6.3) is identical to prior benchmarks because smooth drift routes failures purely through kinetic certificates without passing `moved_node`.
+> The Discrete Moves benchmarks below incorporate reciprocal reverse-link synthesis (PR #17). Adding incoming links from destination neighbors rewrites those neighbors and re-evaluates their certificates, updating "Repaired" unique nodes from 0-1 to 5-8 (at $n=200$) and 27-46 (at $n=1000$) while maintaining 0 violations and 1.0000 recall. Section 8.6 provides empirical measurements for continuous drift under drift-moved node handling.
 
 #### Discrete Moves ($n=200, M=8, d=2, \text{seed}=44$)
 
@@ -273,6 +274,8 @@ Three distinct repair engines implement the `Repairer` interface:
   Fulfills the strict call order of the `Repairer` contract (`read old vector -> index.move -> repairer.on_move`). Internally registers the node via `notify_moved` and synchronizes certificate status.
 - **`run_repairs(index, budget, sink) -> dict[str, Any]`**:
   Executes repair passes for all accumulated moved nodes and/or confirmed detector failures. Upon completion, the worklist of pending moves is cleared. If called when no work is pending, immediately returns zero metrics with `stopped_reason = "nothing_to_do"`.
+- **Drift-Moved Node Extraction**:
+  During continuous kinetic drift where no discrete `notify_moved` calls occur, `KHNSWRepairEngine` inspects confirmed certificate failure edges from `detector.advance(t_curr)` and their canonical witnesses. It queries the detector's kinematic model via `trajectory_of(node_id)` and identifies nodes with non-zero velocity ($\vec{v} \ne \mathbf{0}$). For each unique drifting node, the engine executes `repair_loop(..., moved_node=node_id, t=t_curr)`, ensuring out-link beam search reconstruction (`_rebuild_moved_out_links`) and reciprocal reverse-link synthesis are performed at the new timestamp. Drifting nodes repaired in this pass are tracked in `result["moved_in_drift"]`.
 
 ### 7.3 Budget Accounting and Safe Halting
 
@@ -374,7 +377,7 @@ The table below presents empirical measurements on `HNSWIndex` ($n=500, M=8, d=8
 | | MN-RU-style baseline | 4.55 | 0.320 | 0.200 | 0.828 | 1.000 | 4,175 |
 | | Delete + Reinsert (Upper Bound) | 2.40 | 1.000 | 0.987 | 0.995 | 0.998 | 10,194 |
 
-### 8.5 Empirical Insights and Findings
+### 8.5 Empirical Insights and Findings (Discrete Moves)
 
 1. **Elimination of Moved Node Blind Spots**:
    Under large displacements ($12\times$ and $30\times$ NN), reverse links increase self-findability from $12\% - 16\%$ to **$100.0\%$**, matching the full delete+reinsert upper bound.
@@ -382,8 +385,33 @@ The table below presents empirical measurements on `HNSWIndex` ($n=500, M=8, d=8
    $100\%$ of moved nodes establish at least one incoming edge from their true 10-nearest neighbors in their destination cluster (compared to $17.3\%$ in control and $24\% - 28\%$ before reverse links).
 3. **Recall Superiority**:
    Recall@10 evaluated at moved nodes reaches **$0.991$** (at $12\times$) and **$0.988$** (at $30\times$), decisively outperforming the un-repaired control ($0.891$ and $0.847$), Hnswlib-style emulation ($0.889$ and $0.849$), and MN-RU-style emulation ($0.879$ and $0.828$).
-5. **Delete + Reinsert Distance Accounting Note**:
+4. **Delete + Reinsert Distance Accounting Note**:
    In the table above, the "Delete + Reinsert" upper bound cost reflects `index.add` distance computations tracked via `idx.distance_computations` (which meters `search_layer` evaluations during entry-point navigation). `index.delete` is purely topological (0 distance computations). When internal heuristic candidate evaluations inside `select_neighbors_heuristic` during `index.add` are also metered, total delete+reinsert work is ~2.0x–2.3x higher: 25,825 (0.2x), 24,768 (1.0x), 21,564 (3.0x), 21,675 (12.0x), and 22,013 (30.0x). Under either accounting, K-HNSW achieves comparable self-findability (100%) and recall without incurring full reinsertion churn.
+
+### 8.6 Continuous Kinetic Drift with Drift-Moved Node Handling
+
+Under continuous kinetic drift without explicit movement notifications, moving nodes cause certificate failures on incident edges. By identifying moving nodes via non-zero velocity filtering on confirmed failure candidates (`_trajectory_of(nid)`), `KHNSWRepairEngine` routes drifting nodes through out-link rebuild and reverse-link synthesis.
+
+Evaluation on `HNSWIndex` ($n=500, M=8, d=8$, $T=0.30$ in 10 steps, 10% drifting nodes, seeds $\{42, 43, 44\}$):
+
+| Speed | Variant | Drift Recall@10 ($ef=16$) | Drift Recall@10 ($ef=32$) | Global Recall@10 ($ef=16$) | Global Recall@10 ($ef=32$) | Self-Find ($ef=64$) | Mean In-Deg | Violations | Total Cost |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **10x** | No-Repair Control | 0.9487 | 0.9867 | 0.9613 | 0.9933 | 1.000 | 6.66 | 419.3 | 0 |
+| | Ours (before drift-moved fix) | 0.8880 | 0.9653 | 0.9667 | 0.9960 | 0.993 | 4.03 | **0.0** | 37,585 |
+| | **Ours (after drift-moved fix)** | **0.9013** | **0.9827** | **0.9633** | **0.9950** | **1.000** | **6.37** | **0.0** | 201,997 |
+| **30x** | No-Repair Control | 0.9060 | 0.9713 | 0.9613 | 0.9933 | 1.000 | 6.66 | 460.3 | 0 |
+| | Ours (before drift-moved fix) | 0.8313 | 0.9253 | 0.9683 | 0.9963 | 0.960 | 3.23 | **0.0** | 34,048 |
+| | **Ours (after drift-moved fix)** | **0.8840** | **0.9693** | **0.9667** | **0.9963** | **1.000** | **5.31** | **0.0** | 127,038 |
+| **100x**| No-Repair Control | 0.8627 | 0.9520 | 0.9613 | 0.9933 | 1.000 | 6.66 | 477.3 | 0 |
+| | Ours (before drift-moved fix) | 0.7733 | 0.8780 | 0.9703 | 0.9963 | 0.960 | 3.18 | **0.0** | 31,050 |
+| | **Ours (after drift-moved fix)** | **0.8813** | **0.9627** | **0.9703** | **0.9963** | **1.000** | **4.89** | **0.0** | 85,713 |
+
+Under 100% drifting nodes at $30\times$ speed:
+- **No-Repair Control**: Drift Recall@10 $ef=16$: 0.9687 ($ef=32$: 0.9967), Violations: 712.3, In-Degree: 7.68.
+- **Ours (after drift-moved fix)**: Drift Recall@10 $ef=16$: **0.9927** ($ef=32$: **0.9993**), Violations: **0.0**, Self-Find: **1.000**, In-Degree: 7.71.
+
+> [!NOTE]
+> Zero violations is an empty-ellipse topological invariant rather than a recall booster. While no-repair retains obsolete shortcut edges that yield high recall on static query sets, K-HNSW eliminates invalid certificates (achieving exactly 0 violations) while drift-moved rebuild restores self-findability to 1.000 and recovers in-degrees without leaving isolated nodes.
 
 
 
