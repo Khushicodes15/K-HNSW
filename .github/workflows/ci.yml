@@ -24,11 +24,18 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
+        env:
+          HNSWLIB_NO_NATIVE: "1"
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,api]"
+          # hnswlib has no pre-built wheels on PyPI and setup.py defaults to -march=native,
+          # baking in the builder runner's CPU and causing SIGILL (exit code 132) on runners
+          # with different CPU features. Evict any cached native wheel and build with HNSWLIB_NO_NATIVE=1.
+          pip cache remove "hnswlib*" || true
+          HNSWLIB_NO_NATIVE=1 pip install --no-binary hnswlib "hnswlib>=0.8.0"
           # Try installing bench extra; hnswlib/faiss install cleanly on linux
-          pip install -e ".[bench]" || echo "Bench extra installation skipped"
+          HNSWLIB_NO_NATIVE=1 pip install --no-binary hnswlib -e ".[bench]" || echo "Bench extra installation skipped"
 
       - name: Ruff Lint check
         run: ruff check .
