@@ -101,7 +101,7 @@ def evaluate_reachability(index: HNSWIndex, target: int) -> bool:
     return False
 
 
-def run_benchmark() -> dict[str, Any]:
+def run_benchmark(seeds: list[int] | None = None) -> dict[str, Any]:
     """Execute complete drift benchmark across Part A, C, D, and E."""
     n = 500
     m = 8
@@ -109,7 +109,8 @@ def run_benchmark() -> dict[str, Any]:
     t_final = 0.30
     steps = 10
     dt = t_final / steps
-    seeds = [42, 43, 44]
+    if seeds is None:
+        seeds = [42, 43, 44]
     speeds = [10.0, 30.0, 100.0]
     conditions = ["no_repair", "ours_before", "ours_after", "ours_after_no_drop"]
 
@@ -1209,6 +1210,118 @@ def run_rebuild_quality_arms(
     return results
 
 
+def merge_seed_results(file_paths: list[str]) -> dict[str, Any]:
+    """Merge per-seed JSON benchmark results into a single benchmark dictionary."""
+    combined: dict[str, Any] = {
+        "sweep_10pct": [],
+        "miss_classification": {},
+        "miss_examples_d": [],
+        "all_drift_30x": [],
+        "insert_cost_scale": {"per_seed": [], "mean": 0.0},
+        "step1": [],
+        "static_recall": {},
+        "dynamics": {},
+        "arms": [],
+    }
+    loaded = []
+    for p in file_paths:
+        with open(p, "r", encoding="utf-8") as f:
+            loaded.append(json.load(f))
+
+    for d in loaded:
+        combined["sweep_10pct"].extend(d.get("sweep_10pct", []))
+        combined["miss_classification"].update(d.get("miss_classification", {}))
+        if not combined["miss_examples_d"]:
+            combined["miss_examples_d"] = d.get("miss_examples_d", [])
+        combined["all_drift_30x"].extend(d.get("all_drift_30x", []))
+        combined["insert_cost_scale"]["per_seed"].extend(
+            d.get("insert_cost_scale", {}).get("per_seed", [])
+        )
+        combined["step1"].extend(d.get("step1", []))
+        combined["arms"].extend(d.get("arms", []))
+
+    # Sort lists to preserve canonical ordering
+    speed_order = {10.0: 0, 30.0: 1, 100.0: 2}
+    cond_order = {
+        "no_repair": 0,
+        "ours_before": 1,
+        "ours_after": 2,
+        "ours_after_no_drop": 3,
+        "ours-before": 1,
+        "ours-after": 2,
+    }
+    arm_order = {
+        "arm1_ours_after": 0,
+        "arm2_rebuild_union_old": 1,
+        "arm3_rebuild_ef_construction_64": 2,
+        "arm4_rebuild_exact_top_m": 3,
+        "arm5_oracle_reinsert": 4,
+    }
+
+    combined["sweep_10pct"].sort(
+        key=lambda x: (
+            speed_order.get(x["speed"], 99),
+            x["seed"],
+            cond_order.get(x["condition"], 99),
+        )
+    )
+    combined["all_drift_30x"].sort(key=lambda x: (x["seed"], cond_order.get(x["condition"], 99)))
+    combined["step1"].sort(key=lambda x: (x["seed"], cond_order.get(x["condition"], 99)))
+    combined["arms"].sort(
+        key=lambda x: (
+            speed_order.get(x["speed"], 99),
+            x["seed"],
+            arm_order.get(x["arm"], 99),
+        )
+    )
+
+    if combined["insert_cost_scale"]["per_seed"]:
+        combined["insert_cost_scale"]["mean"] = float(
+            np.mean(combined["insert_cost_scale"]["per_seed"])
+        )
+
+    for cond in ["no_repair_10x", "no_repair_30x", "drifting_removed", "speed_0_all"]:
+        per_seeds = []
+        for d in loaded:
+            if "static_recall" in d and cond in d["static_recall"]:
+                per_seeds.extend(d["static_recall"][cond].get("per_seed", []))
+        if per_seeds:
+            combined["static_recall"][cond] = {
+                "per_seed": per_seeds,
+                "mean": float(np.mean(per_seeds)),
+            }
+
+    for spd in ["10x", "100x"]:
+        all_fails = []
+        all_rebuilds = []
+        all_costs = []
+        all_tot_costs = []
+        for d in loaded:
+            if "dynamics" in d and spd in d["dynamics"]:
+                dyn = d["dynamics"][spd]
+                all_fails.append(dyn.get("per_step_failures_mean", []))
+                all_rebuilds.append(dyn.get("per_step_moved_in_drift_mean", []))
+                all_costs.append(dyn.get("per_step_cost_mean", []))
+                all_tot_costs.extend(dyn.get("total_cost_per_seed", []))
+        if all_tot_costs:
+            combined["dynamics"][spd] = {
+                "per_step_failures_mean": [
+                    float(np.mean([f[s] for f in all_fails])) for s in range(len(all_fails[0]))
+                ],
+                "per_step_moved_in_drift_mean": [
+                    float(np.mean([r[s] for r in all_rebuilds]))
+                    for s in range(len(all_rebuilds[0]))
+                ],
+                "per_step_cost_mean": [
+                    float(np.mean([c[s] for c in all_costs])) for s in range(len(all_costs[0]))
+                ],
+                "total_cost_per_seed": all_tot_costs,
+                "total_cost_mean": float(np.mean(all_tot_costs)),
+            }
+
+    return combined
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Measure drift benchmark")
     parser.add_argument(
@@ -1217,13 +1330,32 @@ def main() -> None:
         default="docs/data/drift_benchmark.json",
         help="Path to save JSON benchmark output",
     )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        default=None,
+        help="Seeds to run (e.g. --seeds 42)",
+    )
+    parser.add_argument(
+        "--merge",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Merge multiple JSON files into output",
+    )
     args = parser.parse_args()
-
-    print("Executing reproducible kinetic drift benchmark...")
-    results = run_benchmark()
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if args.merge:
+        print(f"Merging {args.merge} into {out_path}...")
+        results = merge_seed_results(args.merge)
+    else:
+        print(f"Executing reproducible kinetic drift benchmark (seeds: {args.seeds})...")
+        results = run_benchmark(seeds=args.seeds)
+
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
     print(f"Benchmark results successfully written to {out_path}")
