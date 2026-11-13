@@ -229,15 +229,15 @@ def run_seed(seed: int) -> dict[str, Any]:
         orig_rebuild_fn = loop_mod._rebuild_moved_out_links
 
         def _recording_rebuild(
-            index_arg: Any,
-            moved_arg: int,
             *args_r: Any,
             _rec: list[int] = rebuilt_this_step,
             _fn: Any = orig_rebuild_fn,
             **kwargs_r: Any,
         ) -> Any:
-            _rec.append(moved_arg)
-            return _fn(index_arg, moved_arg, *args_r, **kwargs_r)
+            m = kwargs_r.get("moved", args_r[1] if len(args_r) > 1 else None)
+            if m is not None:
+                _rec.append(int(m))
+            return _fn(*args_r, **kwargs_r)
 
         loop_mod._rebuild_moved_out_links = _recording_rebuild
         try:
@@ -596,17 +596,32 @@ def main() -> None:
                 static_tracing[spd].append(data["static_tracing"][spd])
                 for cond in ["no_repair", "ours_after"]:
                     in_degrees[spd][cond].append(data["in_degree"][spd][cond])
-            f.unlink()
 
         final_data = {
             "runs": combined_runs,
             "static_tracing": {
                 spd: {
                     "frac_paths_visiting_drifting_mean": float(
-                        np.mean([x["frac_paths_visiting_drifting"] for x in static_tracing[spd]])
+                        np.mean(
+                            [
+                                x.get(
+                                    "frac_paths_visiting_drifting_mean",
+                                    x.get("frac_paths_visiting_drifting", 0.0),
+                                )
+                                for x in static_tracing[spd]
+                            ]
+                        )
                     ),
                     "mean_drifting_nodes_visited_mean": float(
-                        np.mean([x["mean_drifting_nodes_visited"] for x in static_tracing[spd]])
+                        np.mean(
+                            [
+                                x.get(
+                                    "mean_drifting_nodes_visited_mean",
+                                    x.get("mean_drifting_nodes_visited", 0.0),
+                                )
+                                for x in static_tracing[spd]
+                            ]
+                        )
                     ),
                 }
                 for spd in ["10x", "30x"]
@@ -629,6 +644,10 @@ def main() -> None:
 
         with open(args.output, "w", encoding="utf-8") as fp:
             json.dump(final_data, fp, indent=2)
+
+        for f in out_files:
+            if f.exists():
+                f.unlink()
         print(f"Parallel reconciliation run completed. Wrote {args.output}")
 
     else:
