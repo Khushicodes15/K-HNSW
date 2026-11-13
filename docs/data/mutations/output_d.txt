@@ -1,0 +1,147 @@
+...............................................................F........ [ 21%]
+.........ss............................................................. [ 43%]
+.F...................................................................... [ 65%]
+........................................................................ [ 87%]
+.........................................                                [100%]
+================================== FAILURES ===================================
+________ test_sync_nodes_prevents_stale_vector_violations_under_drift _________
+
+    def test_sync_nodes_prevents_stale_vector_violations_under_drift() -> None:
+        """Skipping detector.sync_nodes causes stale-vector planning and unhealed violations."""
+        seed = 42
+        n = 100
+        d = 2
+        m = 4
+        rng = np.random.default_rng(seed)
+        X = rng.standard_normal((n, d)).astype(np.float32)
+    
+        idx = HNSWIndex(dim=d, m=m, seed=seed)
+        idx.add(np.arange(n, dtype=np.int64), X)
+        meter = CostMeter()
+        store = CertificateStore()
+        store.build(idx, meter)
+        _settle_hnsw(idx, store, meter)
+    
+        drift = LinearDrift(X, seed=seed, speed=5.0)
+        heap = KineticEventHeap(version_of=idx.version)
+        detector = KineticDetector(
+            index=idx,
+            store=store,
+            heap=heap,
+            trajectory_of=drift.trajectory,
+            horizon=10.0,
+            sync_vector=make_hnsw_sync(idx),
+            meter=meter,
+        )
+        t = 0.20
+        detector.schedule_all(t0=0.0)
+        failures = detector.advance(t)
+        assert len(failures) > 0, "Precondition: kinetic detector must yield confirmed failures"
+    
+        res = repair_loop(idx, store, detector=detector, failures=failures, t=t)
+        assert res.stopped_reason == "converged"
+    
+        pos_t = drift.positions(t).astype(np.float32)
+        wrap = OracleIndexWrapper(idx, pos_t)
+        fresh_store = CertificateStore()
+        fresh_meter = CostMeter()
+        fresh_store.build(wrap, fresh_meter)
+    
+        unhealed = [
+            (u, v, lvl)
+            for u in idx.ids()
+            for lvl in range(idx.node_level(u) + 1)
+            for v in idx.neighbors(u, lvl)
+            if fresh_store.status((u, v, lvl)) == EdgeStatus.VIOLATED.value
+        ]
+>       assert len(unhealed) == 0, (
+            f"Expected 0 unhealed violations when sync_nodes updates coordinates, "
+            f"but found {len(unhealed)} violated edges: {unhealed}"
+        )
+E       AssertionError: Expected 0 unhealed violations when sync_nodes updates coordinates, but found 2 violated edges: [(7, 24, 1), (61, 17, 0)]
+E       assert 2 == 0
+E        +  where 2 = len([(7, 24, 1), (61, 17, 0)])
+
+tests\integration\test_repair_loop_hnsw.py:494: AssertionError
+____________ test_drift_path_rebuild_requires_detector_sync_nodes _____________
+
+    def test_drift_path_rebuild_requires_detector_sync_nodes() -> None:
+        """Test (mutation d): Drift path rebuild requires pre-planning detector.sync_nodes."""
+        rng = np.random.default_rng(99)
+        n = 20
+        d = 2
+        X = rng.standard_normal((n, d)).astype(np.float32)
+        levels = {i: 0 for i in range(n)}
+        rg = ReferenceGraph.from_points(X, M=4, seed=99, levels=levels)
+    
+        store = CertificateStore()
+        meter = CostMeter()
+        store.build(rg, meter)
+        _settle_rg(rg, store)
+    
+        drift_node = 0
+        velocities = np.zeros((n, d), dtype=np.float64)
+        velocities[drift_node] = np.array([45.0, 45.0], dtype=np.float64)
+    
+        def traj_of(node_id: int) -> tuple[np.ndarray, np.ndarray]:
+            return X[node_id].astype(np.float64), velocities[node_id]
+    
+        sink = ListSink()
+        heap = KineticEventHeap(version_of=rg.version)
+        detector = KineticDetector(
+            index=rg,
+            store=store,
+            heap=heap,
+            trajectory_of=traj_of,
+            meter=CostMeter(),
+            horizon=1.0,
+            sync_vector=make_rg_sync(rg),
+        )
+        detector.schedule_all(t0=0.0)
+    
+        t_step = 0.12
+        sync_called_before_search = False
+        sync_calls: list[tuple[set[int], float]] = []
+        orig_sync = detector.sync_nodes
+    
+        def tracking_sync(nodes: Iterable[int], t: float) -> None:
+            sync_calls.append((set(nodes), float(t)))
+            orig_sync(nodes, t)
+    
+        detector.sync_nodes = tracking_sync  # type: ignore[method-assign]
+    
+        def checking_search_layer(index: Any, q: Any, *args: Any, **kwargs: Any) -> Any:
+            nonlocal sync_called_before_search
+            if len(sync_calls) > 0 and any(
+                drift_node in nodes and abs(call_t - t_step) < 1e-6 for nodes, call_t in sync_calls
+            ):
+                sync_called_before_search = True
+            return search_layer(index, q, *args, **kwargs)
+    
+        engine = KHNSWRepairEngine(
+            store=store,
+            detector=detector,
+            time_source=t_step,
+            search_layer=checking_search_layer,
+        )
+    
+        res = engine.run_repairs(rg, budget=10000.0, sink=sink)
+        assert res["moved_in_drift"] >= 1, "Precondition: drifting node must be recognized in drift"
+>       assert sync_called_before_search, (
+            "detector.sync_nodes was not called before search_layer: "
+            "drift node rebuild ran with stale vector"
+        )
+E       AssertionError: detector.sync_nodes was not called before search_layer: drift node rebuild ran with stale vector
+E       assert False
+
+tests\unit\test_drift_moved_nodes.py:602: AssertionError
+============================== warnings summary ===============================
+..\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\User\Downloads\khsnw\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/integration/test_repair_loop_hnsw.py::test_sync_nodes_prevents_stale_vector_violations_under_drift
+FAILED tests/unit/test_drift_moved_nodes.py::test_drift_path_rebuild_requires_detector_sync_nodes
+

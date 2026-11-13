@@ -1022,5 +1022,535 @@
       456
     ],
     "mean": 462.0
-  }
+  },
+  "step1": [
+    {
+      "seed": 42,
+      "condition": "no_repair",
+      "mean_in_deg_drifting": 7.76,
+      "mean_in_deg_all": 6.882,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 0.88
+    },
+    {
+      "seed": 42,
+      "condition": "ours-before",
+      "mean_in_deg_drifting": 2.84,
+      "mean_in_deg_all": 6.044,
+      "self_findability": 0.94,
+      "frac_true_10nn_in_edge": 0.82
+    },
+    {
+      "seed": 42,
+      "condition": "ours-after",
+      "mean_in_deg_drifting": 4.16,
+      "mean_in_deg_all": 6.172,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 1.0
+    },
+    {
+      "seed": 43,
+      "condition": "no_repair",
+      "mean_in_deg_drifting": 7.86,
+      "mean_in_deg_all": 6.908,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 0.96
+    },
+    {
+      "seed": 43,
+      "condition": "ours-before",
+      "mean_in_deg_drifting": 3.18,
+      "mean_in_deg_all": 6.148,
+      "self_findability": 0.94,
+      "frac_true_10nn_in_edge": 0.94
+    },
+    {
+      "seed": 43,
+      "condition": "ours-after",
+      "mean_in_deg_drifting": 4.62,
+      "mean_in_deg_all": 6.284,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 1.0
+    },
+    {
+      "seed": 44,
+      "condition": "no_repair",
+      "mean_in_deg_drifting": 7.42,
+      "mean_in_deg_all": 6.86,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 0.94
+    },
+    {
+      "seed": 44,
+      "condition": "ours-before",
+      "mean_in_deg_drifting": 3.08,
+      "mean_in_deg_all": 6.154,
+      "self_findability": 0.96,
+      "frac_true_10nn_in_edge": 0.9
+    },
+    {
+      "seed": 44,
+      "condition": "ours-after",
+      "mean_in_deg_drifting": 4.84,
+      "mean_in_deg_all": 6.326,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 1.0
+    }
+  ],
+  "static_recall": {
+    "no_repair_10x": {
+      "per_seed": [
+        0.985,
+        0.9830000000000001,
+        0.9840000000000001
+      ],
+      "mean": 0.984
+    },
+    "no_repair_30x": {
+      "per_seed": [
+        0.985,
+        0.9830000000000001,
+        0.9840000000000001
+      ],
+      "mean": 0.984
+    },
+    "drifting_removed": {
+      "per_seed": [
+        0.9940000000000001,
+        0.9969999999999999,
+        0.996
+      ],
+      "mean": 0.9956666666666667
+    },
+    "speed_0_all": {
+      "per_seed": [
+        0.9940000000000001,
+        0.9940000000000001,
+        0.995
+      ],
+      "mean": 0.9943333333333334
+    }
+  },
+  "dynamics": {
+    "10x": {
+      "per_step_failures_mean": [
+        397.3333333333333,
+        82.0,
+        25.666666666666668,
+        15.0,
+        7.333333333333333,
+        6.0,
+        6.0,
+        4.666666666666667,
+        2.3333333333333335,
+        1.6666666666666667
+      ],
+      "per_step_moved_in_drift_mean": [
+        50.0,
+        38.333333333333336,
+        23.0,
+        16.0,
+        8.333333333333334,
+        7.666666666666667,
+        7.666666666666667,
+        6.333333333333333,
+        3.3333333333333335,
+        3.0
+      ],
+      "per_step_cost_mean": [
+        28298.333333333332,
+        10720.333333333334,
+        5610.333333333333,
+        3644.6666666666665,
+        1776.0,
+        1625.3333333333333,
+        1581.0,
+        1301.6666666666667,
+        775.3333333333334,
+        575.3333333333334
+      ],
+      "total_cost_per_seed": [
+        56886,
+        54696,
+        56143
+      ],
+      "total_cost_mean": 55908.333333333336
+    },
+    "100x": {
+      "per_step_failures_mean": [
+        505.0,
+        12.666666666666666,
+        5.666666666666667,
+        2.0,
+        1.6666666666666667,
+        1.0,
+        0.0,
+        0.3333333333333333,
+        0.3333333333333333,
+        0.6666666666666666
+      ],
+      "per_step_moved_in_drift_mean": [
+        50.0,
+        14.333333333333334,
+        7.333333333333333,
+        2.6666666666666665,
+        2.0,
+        1.3333333333333333,
+        0.0,
+        0.6666666666666666,
+        1.0,
+        1.3333333333333333
+      ],
+      "per_step_cost_mean": [
+        36420.333333333336,
+        3162.6666666666665,
+        1610.3333333333333,
+        482.0,
+        429.6666666666667,
+        255.0,
+        0.0,
+        109.0,
+        162.66666666666666,
+        231.33333333333334
+      ],
+      "total_cost_per_seed": [
+        43866,
+        42887,
+        41836
+      ],
+      "total_cost_mean": 42863.0
+    }
+  },
+  "arms": [
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.8240000000000001,
+      "drift_rec32": 0.944,
+      "static_rec16": 0.9770000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 56886
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.8240000000000001,
+      "drift_rec32": 0.944,
+      "static_rec16": 0.9770000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 56886
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.8599999999999999,
+      "drift_rec32": 0.958,
+      "static_rec16": 0.9770000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 103191
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.8,
+      "drift_rec32": 0.916,
+      "static_rec16": 0.9770000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 40214
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.7799999999999998,
+      "drift_rec32": 0.8939999999999999,
+      "static_rec16": 0.9690000000000001,
+      "static_rec32": 0.9930000000000001,
+      "violated": 8,
+      "cost": 50918
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.8420000000000001,
+      "drift_rec32": 0.948,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.997,
+      "violated": 0,
+      "cost": 54696
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.8420000000000001,
+      "drift_rec32": 0.948,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.997,
+      "violated": 0,
+      "cost": 54696
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.86,
+      "drift_rec32": 0.9560000000000001,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.997,
+      "violated": 0,
+      "cost": 98454
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.8320000000000002,
+      "drift_rec32": 0.94,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.997,
+      "violated": 0,
+      "cost": 36665
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.828,
+      "drift_rec32": 0.9279999999999999,
+      "static_rec16": 0.972,
+      "static_rec32": 0.9940000000000001,
+      "violated": 6,
+      "cost": 52688
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.8639999999999999,
+      "drift_rec32": 0.9739999999999999,
+      "static_rec16": 0.977,
+      "static_rec32": 0.995,
+      "violated": 0,
+      "cost": 56143
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.8639999999999999,
+      "drift_rec32": 0.9739999999999999,
+      "static_rec16": 0.977,
+      "static_rec32": 0.995,
+      "violated": 0,
+      "cost": 56143
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.89,
+      "drift_rec32": 0.9839999999999999,
+      "static_rec16": 0.977,
+      "static_rec32": 0.995,
+      "violated": 0,
+      "cost": 105155
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.8579999999999999,
+      "drift_rec32": 0.958,
+      "static_rec16": 0.977,
+      "static_rec32": 0.995,
+      "violated": 0,
+      "cost": 36653
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.84,
+      "drift_rec32": 0.954,
+      "static_rec16": 0.9680000000000001,
+      "static_rec32": 0.9910000000000001,
+      "violated": 5,
+      "cost": 47627
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.7919999999999999,
+      "drift_rec32": 0.9019999999999999,
+      "static_rec16": 0.9760000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 48579
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.7919999999999999,
+      "drift_rec32": 0.9019999999999999,
+      "static_rec16": 0.9760000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 48579
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.8239999999999997,
+      "drift_rec32": 0.9319999999999999,
+      "static_rec16": 0.9760000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 79130
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.7779999999999998,
+      "drift_rec32": 0.89,
+      "static_rec16": 0.9760000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 37761
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.7699999999999999,
+      "drift_rec32": 0.9179999999999999,
+      "static_rec16": 0.9690000000000001,
+      "static_rec32": 0.9930000000000001,
+      "violated": 7,
+      "cost": 32146
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.8700000000000001,
+      "drift_rec32": 0.9480000000000001,
+      "static_rec16": 0.9810000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 44373
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.8700000000000001,
+      "drift_rec32": 0.9480000000000001,
+      "static_rec16": 0.9810000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 44373
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.88,
+      "drift_rec32": 0.9560000000000001,
+      "static_rec16": 0.9810000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 75212
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.862,
+      "drift_rec32": 0.9380000000000002,
+      "static_rec16": 0.9810000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 34800
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.796,
+      "drift_rec32": 0.9159999999999999,
+      "static_rec16": 0.972,
+      "static_rec32": 0.9940000000000001,
+      "violated": 3,
+      "cost": 33138
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.8419999999999999,
+      "drift_rec32": 0.9440000000000001,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 47584
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.8419999999999999,
+      "drift_rec32": 0.9440000000000001,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 47584
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.8699999999999999,
+      "drift_rec32": 0.9579999999999999,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 84135
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.8539999999999999,
+      "drift_rec32": 0.9440000000000001,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 33919
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.8220000000000001,
+      "drift_rec32": 0.9300000000000002,
+      "static_rec16": 0.9680000000000001,
+      "static_rec32": 0.9910000000000001,
+      "violated": 5,
+      "cost": 32319
+    }
+  ]
 }

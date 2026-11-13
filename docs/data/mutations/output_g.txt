@@ -1,0 +1,612 @@
+.........FF....FF....................................................... [ 21%]
+.........ss............................................................. [ 43%]
+.FF..................................................................... [ 65%]
+........................................................................ [ 87%]
+.........................................                                [100%]
+================================== FAILURES ===================================
+_____ test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants[2] ______
+
+d = 2
+
+    @pytest.mark.parametrize("d", [2, 8])
+    def test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants(d: int) -> None:
+        """Tests (1, 2, 4): Drifting nodes on HNSWIndex get rebuilt out-links and reverse links."""
+        n = 35
+        m = 4
+        seed = 42 + d
+        rng = np.random.default_rng(seed)
+        X = rng.standard_normal((n, d)).astype(np.float32)
+    
+        idx = HNSWIndex(dim=d, m=m, seed=seed)
+        idx.add(np.arange(n, dtype=np.int64), X)
+    
+        store = CertificateStore()
+        meter = CostMeter()
+        store.build(idx, meter)
+        _settle_hnsw(idx, store)
+    
+        initial_adj = {
+            (u, lvl): list(idx.neighbors(u, lvl))
+            for u in idx.ids()
+            for lvl in range(idx.node_level(u) + 1)
+        }
+    
+        # 1 drifting node, 34 static
+        drift_node = 0
+        velocities = np.zeros((n, d), dtype=np.float64)
+        velocities[drift_node] = np.ones(d, dtype=np.float64) * 35.0
+    
+        def traj_of(node_id: int) -> tuple[np.ndarray, np.ndarray]:
+            return X[node_id].astype(np.float64), velocities[node_id]
+    
+        sink = ListSink()
+        emitter = EventEmitter("hnsw_drift_test", sink)
+        heap = KineticEventHeap(version_of=idx.version)
+        detector = KineticDetector(
+            index=idx,
+            store=store,
+            heap=heap,
+            trajectory_of=traj_of,
+            meter=CostMeter(),
+            horizon=1.0,
+            sync_vector=make_hnsw_sync(idx),
+            emitter=emitter,
+        )
+        detector.schedule_all(t0=0.0)
+    
+        engine = KHNSWRepairEngine(
+            store=store,
+            detector=detector,
+            time_source=0.0,
+            search_layer=search_layer,
+            run_id="hnsw_drift_test",
+        )
+    
+        t_step = 0.10
+        for i in range(n):
+            idx._store.set_vector(i, (X[i] + velocities[i] * t_step).astype(np.float32))
+        engine._time_source = t_step
+    
+        res = engine.run_repairs(idx, budget=10000.0, sink=sink)
+    
+        assert res["moved_in_drift"] == 1, "Precondition: exactly 1 drifting node must be recognized"
+        assert res["stopped_reason"] in {"converged", "max_rounds"}
+    
+        # 1. In-degree >= 1 and reciprocal reverse link
+        in_nbrs = idx.in_neighbors(drift_node, 0)
+        assert len(in_nbrs) >= 1, f"Drifting node in-degree must be >= 1, got {len(in_nbrs)}"
+        out_nbrs = idx.neighbors(drift_node, 0)
+        assert len(out_nbrs) > 0, "Drifting node must have rebuilt out-links"
+        reciprocal = [w for w in out_nbrs if drift_node in idx.neighbors(w, 0)]
+        assert len(reciprocal) >= 1, f"Expected reciprocal reverse link, got {reciprocal}"
+    
+        # 2. Structural invariants and degree bounds
+        assert validate_invariants(idx) == [], "Invariants must hold after drift repair"
+        assert check_degree_bounds(idx) == [], "Degree bounds must hold after drift repair"
+    
+        # 3. From-scratch store agreement
+        fresh_store = CertificateStore()
+        fresh_meter = CostMeter()
+        fresh_store.build(idx, fresh_meter)
+        for u in idx.ids():
+            for lvl in range(idx.node_level(u) + 1):
+                for v in idx.neighbors(u, lvl):
+                    edge = (u, v, lvl)
+                    inc_st = store.status(edge)
+                    fresh_st = fresh_store.status(edge)
+>                   assert inc_st == fresh_st, f"Store status mismatch at edge {edge}"
+E                   AssertionError: Store status mismatch at edge (0, 14, 0)
+E                   assert 'VIOLATED' == 'VALID'
+E                     
+E                     - VALID
+E                     + VIOLATED
+
+tests\integration\test_drift_moved_nodes_hnsw.py:123: AssertionError
+_____ test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants[8] ______
+
+d = 8
+
+    @pytest.mark.parametrize("d", [2, 8])
+    def test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants(d: int) -> None:
+        """Tests (1, 2, 4): Drifting nodes on HNSWIndex get rebuilt out-links and reverse links."""
+        n = 35
+        m = 4
+        seed = 42 + d
+        rng = np.random.default_rng(seed)
+        X = rng.standard_normal((n, d)).astype(np.float32)
+    
+        idx = HNSWIndex(dim=d, m=m, seed=seed)
+        idx.add(np.arange(n, dtype=np.int64), X)
+    
+        store = CertificateStore()
+        meter = CostMeter()
+        store.build(idx, meter)
+        _settle_hnsw(idx, store)
+    
+        initial_adj = {
+            (u, lvl): list(idx.neighbors(u, lvl))
+            for u in idx.ids()
+            for lvl in range(idx.node_level(u) + 1)
+        }
+    
+        # 1 drifting node, 34 static
+        drift_node = 0
+        velocities = np.zeros((n, d), dtype=np.float64)
+        velocities[drift_node] = np.ones(d, dtype=np.float64) * 35.0
+    
+        def traj_of(node_id: int) -> tuple[np.ndarray, np.ndarray]:
+            return X[node_id].astype(np.float64), velocities[node_id]
+    
+        sink = ListSink()
+        emitter = EventEmitter("hnsw_drift_test", sink)
+        heap = KineticEventHeap(version_of=idx.version)
+        detector = KineticDetector(
+            index=idx,
+            store=store,
+            heap=heap,
+            trajectory_of=traj_of,
+            meter=CostMeter(),
+            horizon=1.0,
+            sync_vector=make_hnsw_sync(idx),
+            emitter=emitter,
+        )
+        detector.schedule_all(t0=0.0)
+    
+        engine = KHNSWRepairEngine(
+            store=store,
+            detector=detector,
+            time_source=0.0,
+            search_layer=search_layer,
+            run_id="hnsw_drift_test",
+        )
+    
+        t_step = 0.10
+        for i in range(n):
+            idx._store.set_vector(i, (X[i] + velocities[i] * t_step).astype(np.float32))
+        engine._time_source = t_step
+    
+        res = engine.run_repairs(idx, budget=10000.0, sink=sink)
+    
+        assert res["moved_in_drift"] == 1, "Precondition: exactly 1 drifting node must be recognized"
+        assert res["stopped_reason"] in {"converged", "max_rounds"}
+    
+        # 1. In-degree >= 1 and reciprocal reverse link
+        in_nbrs = idx.in_neighbors(drift_node, 0)
+        assert len(in_nbrs) >= 1, f"Drifting node in-degree must be >= 1, got {len(in_nbrs)}"
+        out_nbrs = idx.neighbors(drift_node, 0)
+        assert len(out_nbrs) > 0, "Drifting node must have rebuilt out-links"
+        reciprocal = [w for w in out_nbrs if drift_node in idx.neighbors(w, 0)]
+        assert len(reciprocal) >= 1, f"Expected reciprocal reverse link, got {reciprocal}"
+    
+        # 2. Structural invariants and degree bounds
+        assert validate_invariants(idx) == [], "Invariants must hold after drift repair"
+        assert check_degree_bounds(idx) == [], "Degree bounds must hold after drift repair"
+    
+        # 3. From-scratch store agreement
+        fresh_store = CertificateStore()
+        fresh_meter = CostMeter()
+        fresh_store.build(idx, fresh_meter)
+        for u in idx.ids():
+            for lvl in range(idx.node_level(u) + 1):
+                for v in idx.neighbors(u, lvl):
+                    edge = (u, v, lvl)
+                    inc_st = store.status(edge)
+                    fresh_st = fresh_store.status(edge)
+>                   assert inc_st == fresh_st, f"Store status mismatch at edge {edge}"
+E                   AssertionError: Store status mismatch at edge (0, 3, 0)
+E                   assert 'VIOLATED' == 'VALID'
+E                     
+E                     - VALID
+E                     + VIOLATED
+
+tests\integration\test_drift_moved_nodes_hnsw.py:123: AssertionError
+___________________ test_hnsw_self_findability_at_30x_drift ___________________
+
+    def test_hnsw_self_findability_at_30x_drift() -> None:
+        """Test (5): On HNSWIndex at 30x drift: self-findability >= no_repair."""
+        n = 500
+        m = 8
+        d = 8
+        speed = 30.0
+        T = 0.30
+        steps = 10
+        dt = T / steps
+        seeds = [42, 43, 44]
+    
+        for seed in seeds:
+            rng = np.random.default_rng(seed)
+            X0 = rng.standard_normal((n, d)).astype(np.float32)
+    
+            base_index = HNSWIndex(dim=d, m=m, seed=seed)
+            base_index.add(np.arange(n, dtype=np.int64), X0)
+            settled_store = CertificateStore()
+            meter = CostMeter()
+            settled_store.build(base_index, meter)
+            _settle_hnsw(base_index, settled_store)
+    
+            drift = LinearDrift(X0, seed=seed, speed=speed)
+            drifting_nodes = sorted(rng.choice(n, size=int(0.10 * n), replace=False).tolist())
+            non_drift = [i for i in range(n) if i not in drifting_nodes]
+            drift._velocities[non_drift] = 0.0
+    
+            pos_T = drift.positions(T)
+    
+            # 1. No repair control
+            idx_ctrl = copy.deepcopy(base_index)
+            for nid in range(n):
+                idx_ctrl._store.set_vector(nid, pos_T[nid])
+    
+            ctrl_self_find = 0
+            for u in drifting_nodes:
+                ids, _ = idx_ctrl.search(pos_T[u], k=1, ef=64)
+                if len(ids) > 0 and ids[0] == u:
+                    ctrl_self_find += 1
+            ctrl_rate = ctrl_self_find / len(drifting_nodes)
+    
+            # 2. Ours with drift-moved rebuild
+            idx_ours = copy.deepcopy(base_index)
+            store_ours = copy.deepcopy(settled_store)
+            heap = KineticEventHeap(version_of=idx_ours.version)
+            detector = KineticDetector(
+                index=idx_ours,
+                store=store_ours,
+                heap=heap,
+                trajectory_of=drift.trajectory,
+                meter=CostMeter(),
+                horizon=0.50,
+                sync_vector=make_hnsw_sync(idx_ours),
+            )
+            detector.schedule_all(t0=0.0)
+    
+            engine = KHNSWRepairEngine(
+                store=store_ours,
+                detector=detector,
+                time_source=0.0,
+                search_layer=search_layer,
+            )
+    
+            for step in range(1, steps + 1):
+                t_curr = round(step * dt, 5)
+                pos_t = drift.positions(t_curr)
+                for nid in range(n):
+                    idx_ours._store.set_vector(nid, pos_t[nid])
+                engine._time_source = t_curr
+                engine.run_repairs(idx_ours, budget=1e9, sink=ListSink())
+    
+            ours_self_find = 0
+            for u in drifting_nodes:
+                ids, _ = idx_ours.search(pos_T[u], k=1, ef=64)
+                if len(ids) > 0 and ids[0] == u:
+                    ours_self_find += 1
+            ours_rate = ours_self_find / len(drifting_nodes)
+    
+>           assert ours_rate >= ctrl_rate, (
+                f"Seed {seed}: ours self-findability ({ours_rate:.3f}) < no_repair ({ctrl_rate:.3f})"
+            )
+E           AssertionError: Seed 42: ours self-findability (0.960) < no_repair (1.000)
+E           assert 0.96 >= 1.0
+
+tests\integration\test_drift_moved_nodes_hnsw.py:336: AssertionError
+_________________________ test_end_to_end_simulation __________________________
+
+    def test_end_to_end_simulation() -> None:
+        """Drive HNSWIndex (n=500, M=8, d=8) through 3 kinetic phases with complete audit checks."""
+        n = 500
+        m = 8
+        d = 8
+        seed = 42
+        rng = np.random.default_rng(seed)
+        X = rng.standard_normal((n, d)).astype(np.float32)
+    
+        # 1. Build and settle HNSW index
+        idx = HNSWIndex(dim=d, m=m, seed=seed)
+        idx.add(np.arange(n, dtype=np.int64), X)
+    
+        store = CertificateStore()
+        meter = CostMeter()
+        store.build(idx, meter)
+        settle_hnsw(idx, store, meter)
+    
+        # Initial invariant checks
+        assert validate_invariants(idx) == [], "Precondition: initial graph invariants must pass"
+        assert check_degree_bounds(idx) == [], "Precondition: initial degree bounds must pass"
+    
+        scale = mean_nn_distance(X, seed=seed)
+        sink = ListSink()
+        emitter = EventEmitter(run_id="e2e-simulation", sink=sink)
+    
+        drift = LinearDrift(X, seed=seed, speed=5.0)
+        heap = KineticEventHeap(version_of=idx.version)
+        detector = KineticDetector(
+            index=idx,
+            store=store,
+            heap=heap,
+            trajectory_of=drift.trajectory,
+            meter=meter,
+            sync_vector=make_hnsw_sync(idx),
+            emitter=emitter,
+            horizon=1.0,
+        )
+        detector.schedule_all(t0=0.0)
+    
+        engine = KHNSWRepairEngine(
+            store=store,
+            detector=detector,
+            time_source=0.0,
+            ef=64,
+            run_id="e2e-simulation",
+        )
+    
+        initial_versions = {u: idx.version(u) for u in idx.ids()}
+        initial_adjacency = {
+            (u, lvl): set(idx.neighbors(u, lvl))
+            for u in idx.ids()
+            for lvl in range(idx.node_level(u) + 1)
+        }
+        all_moved_nodes: set[int] = set()
+    
+        # PHASE 1: Drift in steps
+        t_drift_steps = [0.05, 0.10, 0.15]
+        for t_step in t_drift_steps:
+            detector.sync_nodes(idx.ids(), t_step)
+            engine._time_source = t_step
+            engine.run_repairs(idx, budget=100000.0, sink=sink)
+    
+            assert validate_invariants(idx) == [], f"Invariants failed during drift at t={t_step}"
+            assert check_degree_bounds(idx) == [], f"Degree bounds failed during drift at t={t_step}"
+    
+        # PHASE 2: Trajectory change at t=0.20 then more drift
+        t_change = 0.20
+        detector.sync_nodes(idx.ids(), t_change)
+        engine._time_source = t_change
+        trajectory_changed_nodes = [10, 25, 50, 100, 200]
+        all_moved_nodes.update(trajectory_changed_nodes)
+    
+        for u in trajectory_changed_nodes:
+            curr_pos = drift.positions(t_change)[u]
+            v_dir = rng.standard_normal(d).astype(np.float64)
+            v_dir /= np.linalg.norm(v_dir)
+            new_v = v_dir * (10.0 * scale)
+            drift._base[u] = curr_pos.astype(np.float64) - new_v * t_change
+            drift._velocities[u] = new_v
+            idx.move(u, curr_pos.astype(np.float32))
+            detector.on_trajectory_change(u, t=t_change)
+            engine.notify_moved(u, t=t_change)
+    
+        engine.run_repairs(idx, budget=100000.0, sink=sink)
+        assert validate_invariants(idx) == [], "Invariants failed after trajectory change"
+        assert check_degree_bounds(idx) == [], "Degree bounds failed after trajectory change"
+    
+        for t_step in [0.25, 0.30]:
+            detector.sync_nodes(idx.ids(), t_step)
+            engine._time_source = t_step
+            engine.run_repairs(idx, budget=100000.0, sink=sink)
+    
+            assert validate_invariants(idx) == [], f"Invariants failed during drift at t={t_step}"
+            assert check_degree_bounds(idx) == [], f"Degree bounds failed during drift at t={t_step}"
+    
+        # PHASE 3: Discrete-move phase with LARGE displacement on 5% of nodes
+        final_t = 0.30
+        ctrl_idx = copy.deepcopy(idx)
+    
+        num_moved = int(0.05 * n)  # 25 nodes
+        perm = rng.permutation(n)
+        # Exclude trajectory changed nodes to maintain clear tracking
+        candidates = [x for x in perm if x not in trajectory_changed_nodes]
+        moved_2x = candidates[: num_moved // 2]
+        moved_5x = candidates[num_moved // 2 : num_moved]
+        discrete_moved = list(moved_2x) + list(moved_5x)
+        all_moved_nodes.update(discrete_moved)
+    
+        for u in moved_2x:
+            disp = rng.standard_normal(d).astype(np.float32)
+            disp /= np.linalg.norm(disp)
+            new_p = idx.vector(u) + disp * (2.0 * scale)
+            drift._base[u] = new_p.astype(np.float64) - drift._velocities[u] * final_t
+            idx.move(u, new_p)
+            ctrl_idx.move(u, new_p)
+            detector.on_trajectory_change(u, t=final_t)
+            engine.notify_moved(u, t=final_t)
+    
+        for u in moved_5x:
+            disp = rng.standard_normal(d).astype(np.float32)
+            disp /= np.linalg.norm(disp)
+            new_p = idx.vector(u) + disp * (5.0 * scale)
+            drift._base[u] = new_p.astype(np.float64) - drift._velocities[u] * final_t
+            idx.move(u, new_p)
+            ctrl_idx.move(u, new_p)
+            detector.on_trajectory_change(u, t=final_t)
+            engine.notify_moved(u, t=final_t)
+    
+        res_discrete = engine.run_repairs(idx, budget=200000.0, sink=sink)
+        assert res_discrete["stopped_reason"] in {"converged", "max_rounds"}
+        assert res_discrete["edges_repaired"] > 0
+    
+        # Final Invariants Check
+        assert validate_invariants(idx) == [], "Final invariants check failed"
+        assert check_degree_bounds(idx) == [], "Final degree bounds check failed"
+    
+        # Final Oracle Agreement Check: from-scratch store matches incremental store exactly
+        oracle_store = CertificateStore()
+        oracle_meter = CostMeter()
+        oracle_store.build(idx, oracle_meter)
+    
+        oracle_mismatches: list[str] = []
+        for u in idx.ids():
+            for lvl in range(idx.node_level(u) + 1):
+                for v in idx.neighbors(u, lvl):
+                    edge = (u, v, lvl)
+                    st_store = store._edge_status.get(edge)
+                    st_oracle = oracle_store._edge_status.get(edge)
+                    if st_store != st_oracle:
+                        oracle_mismatches.append(f"{edge}: store={st_store}, oracle={st_oracle}")
+>       assert oracle_mismatches == [], (
+            f"Final oracle store disagreed with incremental store on {len(oracle_mismatches)} edges:\n"
+            + "\n".join(oracle_mismatches[:10])
+        )
+E       AssertionError: Final oracle store disagreed with incremental store on 7 edges:
+E         (210, 150, 0): store=VALID, oracle=VIOLATED
+E         (243, 190, 0): store=VIOLATED, oracle=VALID
+E         (358, 219, 0): store=VALID, oracle=VIOLATED
+E         (407, 333, 0): store=VALID, oracle=VIOLATED
+E         (469, 27, 0): store=VIOLATED, oracle=VALID
+E         (483, 156, 0): store=VALID, oracle=VIOLATED
+E         (483, 308, 0): store=VALID, oracle=VIOLATED
+E       assert ['(210, 150, ...IOLATED', ...] == []
+E         
+E         Left contains 7 more items, first extra item: '(210, 150, 0): store=VALID, oracle=VIOLATED'
+E         Use -v to get more diff
+
+tests\integration\test_end_to_end.py:229: AssertionError
+____________ test_drift_path_rebuild_requires_detector_sync_nodes _____________
+
+    def test_drift_path_rebuild_requires_detector_sync_nodes() -> None:
+        """Test (mutation d): Drift path rebuild requires pre-planning detector.sync_nodes."""
+        rng = np.random.default_rng(99)
+        n = 20
+        d = 2
+        X = rng.standard_normal((n, d)).astype(np.float32)
+        levels = {i: 0 for i in range(n)}
+        rg = ReferenceGraph.from_points(X, M=4, seed=99, levels=levels)
+    
+        store = CertificateStore()
+        meter = CostMeter()
+        store.build(rg, meter)
+        _settle_rg(rg, store)
+    
+        drift_node = 0
+        velocities = np.zeros((n, d), dtype=np.float64)
+        velocities[drift_node] = np.array([45.0, 45.0], dtype=np.float64)
+    
+        def traj_of(node_id: int) -> tuple[np.ndarray, np.ndarray]:
+            return X[node_id].astype(np.float64), velocities[node_id]
+    
+        sink = ListSink()
+        heap = KineticEventHeap(version_of=rg.version)
+        detector = KineticDetector(
+            index=rg,
+            store=store,
+            heap=heap,
+            trajectory_of=traj_of,
+            meter=CostMeter(),
+            horizon=1.0,
+            sync_vector=make_rg_sync(rg),
+        )
+        detector.schedule_all(t0=0.0)
+    
+        t_step = 0.12
+        sync_called_before_search = False
+        sync_calls: list[tuple[set[int], float]] = []
+        orig_sync = detector.sync_nodes
+    
+        def tracking_sync(nodes: Iterable[int], t: float) -> None:
+            sync_calls.append((set(nodes), float(t)))
+            orig_sync(nodes, t)
+    
+        detector.sync_nodes = tracking_sync  # type: ignore[method-assign]
+    
+        def checking_search_layer(index: Any, q: Any, *args: Any, **kwargs: Any) -> Any:
+            nonlocal sync_called_before_search
+            if len(sync_calls) > 0 and any(
+                drift_node in nodes and abs(call_t - t_step) < 1e-6 for nodes, call_t in sync_calls
+            ):
+                sync_called_before_search = True
+            return search_layer(index, q, *args, **kwargs)
+    
+        engine = KHNSWRepairEngine(
+            store=store,
+            detector=detector,
+            time_source=t_step,
+            search_layer=checking_search_layer,
+        )
+    
+        res = engine.run_repairs(rg, budget=10000.0, sink=sink)
+        assert res["moved_in_drift"] >= 1, "Precondition: drifting node must be recognized in drift"
+>       assert sync_called_before_search, (
+            "detector.sync_nodes was not called before search_layer: "
+            "drift node rebuild ran with stale vector"
+        )
+E       AssertionError: detector.sync_nodes was not called before search_layer: drift node rebuild ran with stale vector
+E       assert False
+
+tests\unit\test_drift_moved_nodes.py:602: AssertionError
+_____________ test_drift_path_rebuild_requires_on_topology_change _____________
+
+    def test_drift_path_rebuild_requires_on_topology_change() -> None:
+        """Test (mutation f): Drift path rebuild must notify detector.on_topology_change with t."""
+        rng = np.random.default_rng(101)
+        n = 20
+        d = 2
+        X = rng.standard_normal((n, d)).astype(np.float32)
+        levels = {i: 0 for i in range(n)}
+        rg = ReferenceGraph.from_points(X, M=4, seed=101, levels=levels)
+    
+        store = CertificateStore()
+        meter = CostMeter()
+        store.build(rg, meter)
+        _settle_rg(rg, store)
+    
+        drift_node = 0
+        velocities = np.zeros((n, d), dtype=np.float64)
+        velocities[drift_node] = np.array([55.0, -55.0], dtype=np.float64)
+    
+        def traj_of(node_id: int) -> tuple[np.ndarray, np.ndarray]:
+            return X[node_id].astype(np.float64), velocities[node_id]
+    
+        sink = ListSink()
+        heap = KineticEventHeap(version_of=rg.version)
+        detector = KineticDetector(
+            index=rg,
+            store=store,
+            heap=heap,
+            trajectory_of=traj_of,
+            meter=CostMeter(),
+            horizon=1.0,
+            sync_vector=make_rg_sync(rg),
+        )
+        detector.schedule_all(t0=0.0)
+    
+        t_step = 0.15
+        for i in range(n):
+            rg._vectors[i] = (X[i] + velocities[i] * t_step).astype(np.float32)
+    
+        topo_calls: list[tuple[int, int, float]] = []
+        orig_topo = detector.on_topology_change
+    
+        def tracking_topo(node_id: int, lvl: int, t: float = 0.0) -> None:
+            topo_calls.append((int(node_id), int(lvl), float(t)))
+            orig_topo(node_id, lvl, t=t)
+    
+        detector.on_topology_change = tracking_topo  # type: ignore[method-assign]
+    
+        engine = KHNSWRepairEngine(
+            store=store,
+            detector=detector,
+            time_source=t_step,
+            search_layer=search_layer,
+        )
+    
+        res = engine.run_repairs(rg, budget=10000.0, sink=sink)
+        assert res["moved_in_drift"] >= 1, "Precondition: drifting node must be recognized in drift"
+>       assert len(topo_calls) >= 1, (
+            "detector.on_topology_change was never called after drift rebuild (mutation f violation)"
+        )
+E       AssertionError: detector.on_topology_change was never called after drift rebuild (mutation f violation)
+E       assert 0 >= 1
+E        +  where 0 = len([])
+
+tests\unit\test_drift_moved_nodes.py:664: AssertionError
+============================== warnings summary ===============================
+..\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\User\Downloads\khsnw\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/integration/test_drift_moved_nodes_hnsw.py::test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants[2]
+FAILED tests/integration/test_drift_moved_nodes_hnsw.py::test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants[8]
+FAILED tests/integration/test_drift_moved_nodes_hnsw.py::test_hnsw_self_findability_at_30x_drift
+FAILED tests/integration/test_end_to_end.py::test_end_to_end_simulation - Ass...
+FAILED tests/unit/test_drift_moved_nodes.py::test_drift_path_rebuild_requires_detector_sync_nodes
+FAILED tests/unit/test_drift_moved_nodes.py::test_drift_path_rebuild_requires_on_topology_change
+

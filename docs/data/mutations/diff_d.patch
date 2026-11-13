@@ -1,0 +1,13 @@
+diff --git a/src/khnsw/core/repair/loop.py b/src/khnsw/core/repair/loop.py
+index e69a625..7964a6e 100644
+--- a/src/khnsw/core/repair/loop.py
++++ b/src/khnsw/core/repair/loop.py
+@@ -453,7 +453,7 @@ def repair_loop(
+                 nodes_to_sync.update(index.neighbors(moved_id, lvl))
+ 
+         if detector is not None:
+-            detector.sync_nodes(nodes_to_sync, t)
++            pass  # detector.sync_nodes(nodes_to_sync, t)
+ 
+         # 4. Planning: plan with khnsw_plan, rebuilding moved node out-links in same pass
+         rewrites: list[Rewrite] = []

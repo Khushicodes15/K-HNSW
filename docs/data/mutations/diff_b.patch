@@ -1,0 +1,18 @@
+diff --git a/src/khnsw/core/repair/engine.py b/src/khnsw/core/repair/engine.py
+index e29a3c1..e798491 100644
+--- a/src/khnsw/core/repair/engine.py
++++ b/src/khnsw/core/repair/engine.py
+@@ -144,12 +144,7 @@ class KHNSWRepairEngine:
+                         candidates.add(int(witness))
+                 drift_set: set[int] = set()
+                 for nid in candidates:
+-                    try:
+-                        _, vel = traj_fn(nid)
+-                        if np.any(np.asarray(vel) != 0.0):
+-                            drift_set.add(int(nid))
+-                    except Exception:
+-                        pass
++                    drift_set.add(int(nid))
+                 drift_moved_nodes = sorted(drift_set)
+ 
+         # Check if there is anything to do

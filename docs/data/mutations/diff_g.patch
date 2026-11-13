@@ -1,0 +1,13 @@
+diff --git a/src/khnsw/core/repair/engine.py b/src/khnsw/core/repair/engine.py
+index e29a3c1..a0a6ec7 100644
+--- a/src/khnsw/core/repair/engine.py
++++ b/src/khnsw/core/repair/engine.py
+@@ -253,7 +253,7 @@ class KHNSWRepairEngine:
+                         detector=self._detector,
+                         moved_node=node_id,
+                         failures=detector_failures,
+-                        t=t_curr,
++                        t=0.0,
+                         search_layer=self._search_layer,
+                         budget=rem_budget,
+                         max_rounds=self._max_rounds,
