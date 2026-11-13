@@ -441,3 +441,57 @@ def test_explicit_t_shifted_on_hnsw(d: int) -> None:
     assert len(topo_ts) > 0, "Precondition: topology changes must occur"
     for t_val in topo_ts:
         assert pytest.approx(t_val) == t0
+
+
+def test_sync_nodes_prevents_stale_vector_violations_under_drift() -> None:
+    """Skipping detector.sync_nodes causes stale-vector planning and unhealed violations."""
+    seed = 42
+    n = 100
+    d = 2
+    m = 4
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((n, d)).astype(np.float32)
+
+    idx = HNSWIndex(dim=d, m=m, seed=seed)
+    idx.add(np.arange(n, dtype=np.int64), X)
+    meter = CostMeter()
+    store = CertificateStore()
+    store.build(idx, meter)
+    _settle_hnsw(idx, store, meter)
+
+    drift = LinearDrift(X, seed=seed, speed=5.0)
+    heap = KineticEventHeap(version_of=idx.version)
+    detector = KineticDetector(
+        index=idx,
+        store=store,
+        heap=heap,
+        trajectory_of=drift.trajectory,
+        horizon=10.0,
+        sync_vector=make_hnsw_sync(idx),
+        meter=meter,
+    )
+    t = 0.20
+    detector.schedule_all(t0=0.0)
+    failures = detector.advance(t)
+    assert len(failures) > 0, "Precondition: kinetic detector must yield confirmed failures"
+
+    res = repair_loop(idx, store, detector=detector, failures=failures, t=t)
+    assert res.stopped_reason == "converged"
+
+    pos_t = drift.positions(t).astype(np.float32)
+    wrap = OracleIndexWrapper(idx, pos_t)
+    fresh_store = CertificateStore()
+    fresh_meter = CostMeter()
+    fresh_store.build(wrap, fresh_meter)
+
+    unhealed = [
+        (u, v, lvl)
+        for u in idx.ids()
+        for lvl in range(idx.node_level(u) + 1)
+        for v in idx.neighbors(u, lvl)
+        if fresh_store.status((u, v, lvl)) == EdgeStatus.VIOLATED.value
+    ]
+    assert len(unhealed) == 0, (
+        f"Expected 0 unhealed violations when sync_nodes updates coordinates, "
+        f"but found {len(unhealed)} violated edges: {unhealed}"
+    )

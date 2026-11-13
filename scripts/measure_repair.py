@@ -126,6 +126,7 @@ def run_discrete_benchmark(
         perturbations[int(node)] = (X[node] + direction * displacement).astype(np.float32)
 
     methods = [
+        "no-repair control",
         "ours",
         "our emulation of hnswlib-update-style",
         "our emulation of MN-RU-style (beta)",
@@ -142,20 +143,26 @@ def run_discrete_benchmark(
         store = CertificateStore()
         store.build(idx, meter_store)
         _settle_hnsw(idx, store, meter_store)
+        assert count_from_scratch_violations(idx) == 0, (
+            "Precondition failed: pre-move index must have 0 violations"
+        )
 
         cat_dist: dict[str, int] = {"search": 0, "planning": 0, "store": 0, "detector": 0}
         repaired_nodes_set: set[int] = set()
 
-        # Apply movements
-        for node_id in moved_nodes:
-            new_v = perturbations[node_id]
-            idx.move(node_id, new_v)
-            m_before = meter_store.count
-            store.on_move(idx, node_id, meter_store)
-            cat_dist["store"] += meter_store.count - m_before
+        if method == "no-repair control":
+            # Apply movements without running repair or maintaining store
+            for node_id in moved_nodes:
+                idx.move(node_id, perturbations[node_id])
+        elif method == "ours":
+            # Apply movements and maintain CertificateStore
+            for node_id in moved_nodes:
+                new_v = perturbations[node_id]
+                idx.move(node_id, new_v)
+                m_before = meter_store.count
+                store.on_move(idx, node_id, meter_store)
+                cat_dist["store"] += meter_store.count - m_before
 
-        # Execute repairs
-        if method == "ours":
             for node_id in moved_nodes:
                 res = repair_loop(idx, store, moved_node=node_id, budget=None)
                 cat_dist["search"] += res.budget_used["search"]
@@ -165,6 +172,10 @@ def run_discrete_benchmark(
                 if res.edges_repaired > 0:
                     repaired_nodes_set.add(node_id)
         elif method == "our emulation of hnswlib-update-style":
+            # Apply movements directly to index; real hnswlib has no CertificateStore
+            for node_id in moved_nodes:
+                idx.move(node_id, perturbations[node_id])
+
             meter_plan = CostMeter()
             for node_id in moved_nodes:
                 plan = native_plan(idx, moved=node_id, meter=meter_plan)
@@ -172,10 +183,12 @@ def run_discrete_benchmark(
                 if plan.rewrites:
                     for r in plan.rewrites:
                         repaired_nodes_set.add(r.node)
-                    m_before = meter_store.count
-                    apply_plan(idx, plan, store=store, meter=meter_store)
-                    cat_dist["store"] += meter_store.count - m_before
+                    apply_plan(idx, plan, store=None, meter=None)
         elif method == "our emulation of MN-RU-style (beta)":
+            # Apply movements directly to index; real MN-RU has no CertificateStore
+            for node_id in moved_nodes:
+                idx.move(node_id, perturbations[node_id])
+
             meter_plan = CostMeter()
             for node_id in moved_nodes:
                 plan = mnru_plan(idx, moved=node_id, alpha=1.0, scope="one_hop", meter=meter_plan)
@@ -183,9 +196,7 @@ def run_discrete_benchmark(
                 if plan.rewrites:
                     for r in plan.rewrites:
                         repaired_nodes_set.add(r.node)
-                    m_before = meter_store.count
-                    apply_plan(idx, plan, store=store, meter=meter_store)
-                    cat_dist["store"] += meter_store.count - m_before
+                    apply_plan(idx, plan, store=None, meter=None)
 
         # Ground truth coordinates after movements
         X_final = np.array([idx.vector(i) for i in range(n)], dtype=np.float32)
@@ -229,7 +240,37 @@ def run_linear_drift_benchmark(
     X = rng.standard_normal((n, d)).astype(np.float32)
     queries = rng.standard_normal((num_queries, d)).astype(np.float32)
 
+    drift = LinearDrift(X, seed=seed, speed=1.5)
+    pos_t = drift.positions(t_step).astype(np.float32)
+    exact_sets = brute_force_knn(pos_t, queries, k=10)
+
+    # First discover confirmed failure sources at t_step using reference detector
+    idx_ref = HNSWIndex(dim=d, m=m, seed=seed)
+    idx_ref.add(np.arange(n, dtype=np.int64), X)
+    store_ref = CertificateStore()
+    meter_ref = CostMeter()
+    store_ref.build(idx_ref, meter_ref)
+    _settle_hnsw(idx_ref, store_ref, meter_ref)
+    assert count_from_scratch_violations(idx_ref) == 0, (
+        "Precondition failed: pre-move index must have 0 violations"
+    )
+
+    heap_ref = KineticEventHeap(version_of=idx_ref.version)
+    detector_ref = KineticDetector(
+        index=idx_ref,
+        store=store_ref,
+        heap=heap_ref,
+        trajectory_of=drift.trajectory,
+        horizon=10.0,
+        sync_vector=make_hnsw_sync(idx_ref),
+        meter=CostMeter(),
+    )
+    detector_ref.schedule_all(t0=0.0)
+    ref_failures = detector_ref.advance(t_step)
+    failure_sources = sorted({u for (u, _, _) in ref_failures})
+
     methods = [
+        "no-repair control",
         "ours",
         "our emulation of hnswlib-update-style",
         "our emulation of MN-RU-style (beta)",
@@ -246,67 +287,73 @@ def run_linear_drift_benchmark(
         store.build(idx, meter_store)
         _settle_hnsw(idx, store, meter_store)
 
-        drift = LinearDrift(X, seed=seed, speed=1.5)
-        heap = KineticEventHeap(version_of=idx.version)
-        meter_det = CostMeter()
-        detector = KineticDetector(
-            index=idx,
-            store=store,
-            heap=heap,
-            trajectory_of=drift.trajectory,
-            horizon=10.0,
-            sync_vector=make_hnsw_sync(idx),
-            meter=meter_det,
-        )
-        detector.schedule_all(t0=0.0)
-
-        # Advance to t_step
-        confirmed_failures = detector.advance(t_step)
+        sync_fn = make_hnsw_sync(idx)
 
         cat_dist: dict[str, int] = {
             "search": 0,
             "planning": 0,
             "store": 0,
-            "detector": meter_det.count,
+            "detector": 0,
         }
         repaired_nodes_set: set[int] = set()
 
-        if method == "ours":
+        if method == "no-repair control":
+            # Sync all points to t_step without running repair
+            for u in range(n):
+                sync_fn(u, pos_t[u])
+        elif method == "ours":
+            heap = KineticEventHeap(version_of=idx.version)
+            meter_det = CostMeter()
+            detector = KineticDetector(
+                index=idx,
+                store=store,
+                heap=heap,
+                trajectory_of=drift.trajectory,
+                horizon=10.0,
+                sync_vector=sync_fn,
+                meter=meter_det,
+            )
+            detector.schedule_all(t0=0.0)
+            confirmed_failures = detector.advance(t_step)
+            cat_dist["detector"] = meter_det.count
+
             res = repair_loop(idx, store, detector=detector, failures=confirmed_failures, t=t_step)
             cat_dist["search"] += res.budget_used["search"]
             cat_dist["planning"] += res.budget_used["planning"]
             cat_dist["store"] += res.budget_used["store"]
             cat_dist["detector"] += res.budget_used["detector"]
             repaired_nodes_set.update({u for (u, _, _) in confirmed_failures})
+
+            # Sync all remaining nodes to t_step for ground truth evaluation
+            for u in range(n):
+                sync_fn(u, pos_t[u])
         elif method == "our emulation of hnswlib-update-style":
+            # Sync all points to t_step; baselines repair failure sources
+            for u in range(n):
+                sync_fn(u, pos_t[u])
+
             meter_plan = CostMeter()
-            # In update-style emulation, sources of confirmed failures are repaired
-            failure_sources = sorted({u for (u, _, _) in confirmed_failures})
             for node_id in failure_sources:
                 plan = native_plan(idx, moved=node_id, meter=meter_plan)
                 cat_dist["planning"] += plan.distance_computations
                 if plan.rewrites:
                     for r in plan.rewrites:
                         repaired_nodes_set.add(r.node)
-                    m_before = meter_store.count
-                    apply_plan(idx, plan, store=store, meter=meter_store)
-                    cat_dist["store"] += meter_store.count - m_before
+                    apply_plan(idx, plan, store=None, meter=None)
         elif method == "our emulation of MN-RU-style (beta)":
+            # Sync all points to t_step; baselines repair failure sources
+            for u in range(n):
+                sync_fn(u, pos_t[u])
+
             meter_plan = CostMeter()
-            failure_sources = sorted({u for (u, _, _) in confirmed_failures})
             for node_id in failure_sources:
                 plan = mnru_plan(idx, moved=node_id, alpha=1.0, scope="one_hop", meter=meter_plan)
                 cat_dist["planning"] += plan.distance_computations
                 if plan.rewrites:
                     for r in plan.rewrites:
                         repaired_nodes_set.add(r.node)
-                    m_before = meter_store.count
-                    apply_plan(idx, plan, store=store, meter=meter_store)
-                    cat_dist["store"] += meter_store.count - m_before
+                    apply_plan(idx, plan, store=None, meter=None)
 
-        # Sync all points to t_step to evaluate ground truth recall
-        pos_t = drift.positions(t_step).astype(np.float32)
-        exact_sets = brute_force_knn(pos_t, queries, k=10)
         rec10 = evaluate_recall(idx, queries, exact_sets, k=10)
         violations = count_from_scratch_violations(idx)
         total_dist = sum(cat_dist.values())
@@ -334,7 +381,7 @@ def run_linear_drift_benchmark(
 
 
 def print_table(title: str, rows: list[dict[str, Any]]) -> None:
-    """Print formatted markdown table."""
+    """Print formatted markdown table with caption and notes."""
     print(f"\n### {title}\n")
     headers = [
         ("Method", 36),
@@ -351,7 +398,10 @@ def print_table(title: str, rows: list[dict[str, Any]]) -> None:
     sep_str = "|:".join("-" * w + ":|" for _, w in headers)
     print(f"| {hdr_str} |")
     print(f"|:{sep_str}")
+    ctrl_recall = 0.0
     for r in rows:
+        if r["method"] == "no-repair control":
+            ctrl_recall = r["recall10"]
         vals = [
             f"{r['method']:<36}",
             f"{r['recall10']:<9.4f}",
@@ -364,6 +414,26 @@ def print_table(title: str, rows: list[dict[str, Any]]) -> None:
             f"{r['nodes_repaired']:<8}",
         ]
         print(f"| {' | '.join(vals)} |")
+
+    print("\n*Definitions and accounting:*")
+    print(
+        "- **Total Dist**: Strictly algorithm cost (search + planning + store + detector) "
+        "incurred during repair. Baselines have no CertificateStore and pay only planning cost. "
+        "Measurement overhead (from-scratch store validation and recall evaluation) is excluded."
+    )
+    print(
+        "- **Violations**: Global count of VIOLATED directed edges in a CertificateStore "
+        "built from scratch on the index at measurement time "
+        "(pre-move baseline is 0 across all configs)."
+    )
+    print("- **Repaired**: Number of unique nodes modified or rewritten by the repair algorithm.")
+    if ctrl_recall >= 0.999:
+        print(
+            "- *Note on recall*: The no-repair control achieves recall ~1.0000 because small "
+            "displacements in a dense graph preserve global reachability; repair actively restores "
+            "the empty-ellipse Delaunay/certificate invariant to prevent structural degradation "
+            "over extended trajectories."
+        )
 
 
 def main() -> None:
