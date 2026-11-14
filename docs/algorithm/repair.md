@@ -482,32 +482,76 @@ Evaluated across seeds $\{42, 43, 44\}$ on the vanilla graph (eval $ef=16/32$, 1
 
 ---
 
-### 8.9 Node-Level Displacement Tracking & Lazy Reinsertion (Phase 5m Specification)
+### 8.9 Node-Level Displacement Tracking & Lazy Reinsertion (Phase 5m & 5n)
 
-The `NodeDisplacementTracker` component (`src/khnsw/core/scheduling/tracker.py`) implements a localized, displacement-driven maintenance policy designed to trigger reinsertion only when a node has experienced significant spatial departure from its local neighborhood:
+#### 1. Staleness Rule and Kinematic Trigger Mechanics
+The `NodeDisplacementTracker` component (`src/khnsw/core/scheduling/tracker.py`) replaces global continuous edge-certificate monitoring with localized node-level displacement checks:
+- **Anchor and Neighborhood Radius**: For each node $i$, upon registration or reinsertion, the tracker stores anchor $p_i \in \mathbb{R}^d$ and level-0 neighborhood radius:
+  $$r_i = \max_{j \in N_0(i)} \|p_i - x_j\|_2$$
+- **Staleness Condition**: Evaluated exclusively for nodes with non-zero velocity at simulation timestamp $t$:
+  $$\text{stale}(i, t) \iff \|x_i(t) - p_i\|_2 > \theta \cdot r_i$$
+  Incurs exactly $1$ distance computation per moving node per step (`stale_check`).
+- **Maintenance Action**: When triggered, node $i$ is reinserted via `delete` and `_insert_one` preserving its original hierarchy level. Following reinsertion, anchor $p_i \leftarrow x_i(t)$ and radius $r_i$ are refreshed from the newly formed level-0 neighborhood.
 
-1. **Anchor and Neighborhood Radius**:
-   - For each node $i$, upon registration or reinsertion, the tracker stores its anchor coordinates $p_i \in \mathbb{R}^d$ and computes its level-0 neighborhood radius:
-     $$r_i = \max_{j \in N_0(i)} \|p_i - x_j\|_2$$
-     requiring $M_0$ distance evaluations from the current neighbor list.
+#### 2. Budgeted Priority Policy
+The `BudgetedPriorityTracker` component (`src/khnsw/core/scheduling/tracker.py`) bounds maintenance expenditure by enforcing a fixed per-step reinsertion budget $B$:
+- At each step $t$, compute score $s_i = \|x_i(t) - p_i\|_2 / r_i$ for all moving nodes (1 check per moving node).
+- Rank moving nodes in descending order of $s_i$ and reinsert at most the top $B$ nodes.
+- Reinserted nodes refresh $p_i \leftarrow x_i(t)$, resetting their score to $0$ for subsequent steps.
 
-2. **Staleness Condition**:
-   - At each simulation timestamp $t$, staleness is evaluated exclusively for nodes with non-zero velocity:
-     $$\text{stale}(i, t) \iff \|x_i(t) - p_i\|_2 > \theta \cdot r_i$$
-   - Each staleness check incurs exactly $1$ distance computation per moving node per step, tracked under the `CostMeter` category `stale_check`.
+#### 3. Protocol Audit: Radial Drift Confound Resolution (Phase 5n Item A)
+Auditing velocity alignments $\cos(v_i, X_0[i])$ across seeds $\{42, 43, 44\}$ reveals a fundamental protocol distinction:
+- **`default_rng` Confound**: In `LinearDrift.__init__`, velocities are sampled via `rng = np.random.default_rng(np.random.SeedSequence([self._seed, 0]))`. When $X_0$ is drawn from `default_rng(seed)`, NumPy generates the identical PRNG variates for `normals` as for $X_0$. Consequently, $v_i \propto X_0[i]$, yielding **pure radial drift** ($\cos \equiv 1.0000$ for all nodes). Under radial drift, beam searches remain artificially aligned along rays, masking recall degradation even at extreme displacements.
+- **`RandomState` and `indep_dir`**: Using distinct PRNG streams for $X_0$, drifting IDs, and velocity directions (`indep_dir`) yields true isotropic drift with mean cosine $\approx 0$. Drifting nodes depart from their local graph neighborhoods, causing `no_repair` recall to drop from $0.98$ to $0.65$.
 
-3. **Maintenance Action on Staleness**:
-   - When $\text{stale}(i, t)$ evaluates to `True`, node $i$ is reinserted into the graph via the index's standard deletion and insertion path (`delete + _insert_one`) preserving its original hierarchy level.
-   - Evaluated in two structural variants:
-     - **Variant 1**: Standard reinsertion (delete + add with fixed levels).
-     - **Variant 2**: Reinsertion preceded by static in-neighbor pre-repair (`in_neighbour_pre_repair`).
-   - Following reinsertion, anchor $p_i$ is reset to $x_i(t)$ and radius $r_i$ is recomputed from the freshly formed level-0 neighborhood.
+| Protocol | Mean $\cos(v, X_0)$ | Min $\cos$ | Max $\cos$ | Mean $|\cos|$ | `no_repair` 1x | 3x | 9x | 27x |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **RandomState** | -0.0125 | -0.7542 | +0.8580 | 0.2799 | 0.9833 | 0.8907 | 0.7413 | 0.6520 |
+| **default_rng** *(radial)* | **+1.0000** | **+1.0000** | **+1.0000** | **1.0000** | **0.9853** | **0.9693** | **0.9400** | **0.9087** |
+| **indep_dir** *(isotropic)* | **+0.0066** | **-0.8192** | **+0.8856** | **0.3191** | **0.9840** | **0.9013** | **0.7660** | **0.6540** |
 
-4. **Pre-Registered Decision Rule**:
-   - The lazy reinsertion policy counts as a win if and only if:
-     - At the same cost, its mean-over-steps drifting recall exceeds the periodic arm nearest in cost by $\ge 0.02$ ($ef=16$, $n=500$ mean across 3 seeds), **OR**
-     - It matches periodic $K=1$'s mean-over-steps recall within $0.01$ at $< 50\%$ of its cost.
-   - Formal evaluation and comparative metrics across the fixed grid $\theta \in \{0.25, 0.5, 1.0, 2.0\}$ are deferred to dedicated benchmark measurements.
+#### 4. Controls and Staggering Ablation (Phase 5n Item B, $n=500, 30\%$ Drift, $8\times$, 10 Steps)
+To determine whether adaptive policies gain from per-node departure tracking or simply from temporal staggering, reinsertion counts were matched to `lazy_theta_1.0` ($C=312$ reinsertions, $B \approx 31$/step) across seeds $\{42, 43, 44\}$:
+
+| Protocol | Arm | Mean Drf@16 | Final Drf@16 | Mean St@16 | Total Cost | Total Reinserts |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **indep_dir** | `no_repair` | 0.7458 | 0.5740 | 0.9653 | 0 | 0 |
+| | `periodic_k1` | 0.9413 | 0.9164 | 0.9797 | 701,763 | 1500 |
+| | `periodic_k2` | 0.9345 | 0.9067 | 0.9715 | 346,411 | 750 |
+| | `periodic_k5` | 0.9019 | 0.9044 | 0.9599 | 136,079 | 300 |
+| | `lazy_theta_0.5` | 0.9345 | 0.9062 | 0.9738 | 232,581 | 545 |
+| | `lazy_theta_1.0` | **0.9349** | 0.9191 | 0.9694 | 135,556 | 312 |
+| | `lazy_theta_2.0` | 0.9044 | 0.9116 | 0.9655 | 68,549 | 152 |
+| | `round_robin` | **0.9269** | 0.9151 | 0.9699 | 134,049 | 312 |
+| | `fixed_distance` | 0.9293 | 0.9118 | 0.9686 | 190,108 | 450 |
+| | `random` | 0.9126 | 0.8960 | 0.9686 | 137,460 | 312 |
+| | `budgeted_priority` | **0.9280** | 0.9042 | 0.9700 | 136,336 | 312 |
+| **RandomState** | `lazy_theta_1.0` | **0.9329** | 0.9053 | 0.9673 | 135,313 | 312 |
+| | `round_robin` | **0.9236** | 0.8927 | 0.9653 | 133,810 | 312 |
+| | `budgeted_priority` | **0.9250** | 0.9007 | 0.9674 | 135,828 | 312 |
+
+**Pre-Registered Decision Rule Outcome**:
+- In `indep_dir`: `lazy_theta_1.0` exceeds `round_robin` by $+0.0080$ ($< 0.01$); `budgeted_priority` exceeds by $+0.0010$ ($< 0.01$).
+- In `RandomState`: `lazy_theta_1.0` exceeds `round_robin` by $+0.0093$ ($< 0.01$); `budgeted_priority` exceeds by $+0.0014$ ($< 0.01$).
+- **Conclusion**: The pre-registered $\ge 0.01$ threshold is not met. **The performance gain of adaptive lazy reinsertion over periodic batching is predominantly attributable to temporal staggering** (distributing reinsertions continuously over time rather than executing batch repairs).
+- **Per-Node Radius Effect**: Fixed-distance thresholding ($D = \text{median}(r_i)$) achieves $0.9293$ recall but requires $450$ reinsertions ($+44\%$), whereas adaptive radius $\theta=1.0$ achieves $0.9349$ with $312$ reinsertions. However, because both differ from blind `round_robin` ($0.9269$) by $< 0.01$, no claim is made that per-node radii provide a significant accuracy benefit over uniform staggering.
+
+#### 5. Large-Scale Evaluation (Phase 5n Item C, $n=2000, 10\%$ Drift, $8\times$, 10 Steps, `indep_dir`)
+Evaluated across seeds $\{42, 43, 44\}$ under the unconfounded `indep_dir` protocol:
+
+| Arm | Mean Drf@16 | Final Drf@16 | Mean St@16 | Total Cost | Stale Check | Pre-Repair | Reinsert | Total Reinserts |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| `no_repair` | 0.7456 | 0.5427 | 0.9757 | 0 | 0 | 0 | 0 | 0 |
+| `periodic_k1` | 0.9113 | 0.8520 | 0.9754 | 1,724,902 | 0 | 294,200 | 1,430,701 | 2000 |
+| `periodic_k5` | 0.8913 | 0.8595 | 0.9740 | 356,455 | 0 | 76,125 | 280,330 | 400 |
+| `round_robin` | **0.9242** | 0.8825 | 0.9775 | 357,631 | 0 | 0 | 357,631 | 443 |
+| `budgeted_priority` | **0.9248** | 0.8737 | 0.9789 | 360,704 | 2,000 | 0 | 358,704 | 443 |
+| `lazy_theta_1.0` | **0.9280** | 0.8727 | 0.9787 | 358,641 | 2,000 | 0 | 356,641 | 443 |
+
+#### 6. Decommissioned Repair Components: Measured Not Useful
+Rigorous measurement across Phase 5 sweeps establishes that two proposed repair mechanisms provide negative value:
+1. **Edge-Certificate Failure Detection**: Tracking kinetic Voronoi edge certificates via `KineticDetector` and `CertificateStore` adds $197,164$ ($n=500$) to $456,341$ ($n=2000$) distance calculations to the maintenance budget. In $n=2000$, `cert_triggered` achieves lower recall ($0.9089$) than simple staggered reinsertion ($0.9280$) at over $4\times$ the cost ($1,598,047$ vs $358,641$). Edge certificates are **measured not useful** for point drift maintenance.
+2. **In-Neighbor Pre-Repair (`in_neighbour_pre_repair`)**: Heuristic pruning of static in-neighbors before node reinsertion adds $25,000 - 300,000$ distance evaluations without improving drifting recall (e.g., $0.9304$ with pre-repair vs $0.9329$ without in $n=500$; $0.8767$ vs $0.9007$ in $30\times$ continuous drift). In-neighbor pre-repair is **measured not useful**.
 
 
 

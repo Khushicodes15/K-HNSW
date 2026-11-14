@@ -270,3 +270,172 @@ class NodeDisplacementTracker:
             "reinsert_cost": reinsert_cost,
             "total_cost": total_cost,
         }
+
+
+class BudgetedPriorityTracker:
+    """Tracks node displacement and reinserts top-B highest-scoring nodes each step.
+
+    For each moving node i:
+    - Anchor p_i: spatial coordinates at registration or last reinsertion.
+    - Radius r_i: max distance to level-0 neighbors at registration or last reinsertion.
+    - Score s_i = ||x_i(t) - p_i||_2 / r_i.
+
+    At each step:
+    - Checks displacement for moving nodes (1 distance check per moving node).
+    - Sorts moving nodes by s_i descending (highest score first).
+    - Reinserts at most budget B nodes (with score > min_score).
+    - Updates anchor p_i <- x_i(t) and recomputes r_i for reinserted nodes.
+    """
+
+    def __init__(
+        self,
+        index: HNSWIndex,
+        budget: int = 1,
+        meter: CostMeter | None = None,
+        min_score: float = 0.0,
+    ) -> None:
+        """Initialize budgeted priority tracker.
+
+        Parameters
+        ----------
+        index : HNSWIndex
+            Underlying hierarchical graph index.
+        budget : int, default=1
+            Maximum number of nodes to reinsert per step (B).
+        meter : CostMeter, optional
+            Cost meter for tracking distance computations.
+        min_score : float, default=0.0
+            Minimum score threshold required for a node to be eligible for reinsertion.
+        """
+        self._index = index
+        self._budget = max(0, int(budget))
+        self._meter = meter if meter is not None else CostMeter()
+        self._min_score = float(min_score)
+
+        self._anchors: dict[int, NDArray[np.float32]] = {}
+        self._radii: dict[int, float] = {}
+
+    @property
+    def index(self) -> HNSWIndex:
+        """Underlying HNSW index."""
+        return self._index
+
+    @property
+    def budget(self) -> int:
+        """Reinsertion budget per step B."""
+        return self._budget
+
+    @property
+    def meter(self) -> CostMeter:
+        """Cost meter."""
+        return self._meter
+
+    def anchor(self, node_id: int) -> NDArray[np.float32]:
+        """Return the current anchor position of node_id."""
+        return self._anchors[int(node_id)]
+
+    def radius(self, node_id: int) -> float:
+        """Return the current radius of node_id."""
+        return self._radii[int(node_id)]
+
+    def register_node(self, node_id: int, pos: NDArray[Any] | None = None) -> None:
+        """Register anchor and radius for node_id."""
+        nid = int(node_id)
+        if pos is None:
+            p_vec = np.asarray(self._index.vector(nid), dtype=np.float32).copy()
+        else:
+            p_vec = np.asarray(pos, dtype=np.float32).copy()
+
+        self._anchors[nid] = p_vec
+
+        nbrs = list(self._index.neighbors(nid, level=0))
+        if nbrs:
+            max_r = 0.0
+            for nb in nbrs:
+                nb_vec = np.asarray(self._index.vector(nb), dtype=np.float32)
+                d = float(np.linalg.norm(p_vec - nb_vec))
+                if d > max_r:
+                    max_r = d
+            self._radii[nid] = max_r
+        else:
+            self._radii[nid] = 0.0
+
+    def register_all(self, positions: NDArray[Any] | None = None) -> None:
+        """Register anchors and radii for all nodes currently in the index."""
+        for nid in self._index.ids():
+            pos = positions[nid] if positions is not None else None
+            self.register_node(nid, pos=pos)
+
+    def compute_score(self, node_id: int, pos_t: NDArray[Any]) -> float:
+        """Compute score s_i = ||x_i(t) - p_i||_2 / r_i for node_id.
+
+        Incurs exactly 1 distance computation metered in CostMeter.
+        """
+        nid = int(node_id)
+        p_anchor = self._anchors[nid]
+        r_node = self._radii[nid]
+
+        curr = np.asarray(pos_t, dtype=np.float32)
+        _ = self._meter.dist(p_anchor, curr)
+
+        disp = float(np.linalg.norm(curr - p_anchor))
+        return disp / r_node if r_node > 0.0 else 0.0
+
+    def step(
+        self,
+        current_positions: NDArray[Any],
+        moving_nodes: Sequence[int],
+    ) -> dict[str, Any]:
+        """Execute one budgeted priority step.
+
+        Parameters
+        ----------
+        current_positions : NDArray[Any]
+            Positions at current timestamp, shape (N, D).
+        moving_nodes : Sequence[int]
+            List of node IDs that have non-zero velocity.
+
+        Returns
+        -------
+        dict[str, Any]
+            Execution summary containing:
+            - reinserted_nodes: list of reinserted node IDs (ordered highest score first)
+            - reinsert_count: int (at most budget B)
+            - stale_check_cost: int
+            - reinsert_cost: int
+            - total_cost: int
+        """
+        pos_mat = np.asarray(current_positions, dtype=np.float32)
+        moving_list = [int(x) for x in moving_nodes]
+
+        stale_check_before = self._meter.count
+        scores: list[tuple[float, int]] = []
+        for nid in moving_list:
+            s = self.compute_score(nid, pos_mat[nid])
+            scores.append((s, nid))
+
+        stale_check_cost = self._meter.count - stale_check_before
+
+        # Sort descending by score (highest score first)
+        scores.sort(key=lambda item: item[0], reverse=True)
+
+        # Select at most budget B nodes with score > min_score
+        eligible = [nid for s, nid in scores if s > self._min_score]
+        selected = eligible[: self._budget]
+
+        reinsert_cost = 0
+        for nid in selected:
+            c = reinsert_node_fixed_level(self._index, nid, pos_mat[nid])
+            reinsert_cost += c
+            # Anchor and radius reset after reinsertion -> score resets to 0
+            self.register_node(nid, pos=pos_mat[nid])
+
+        total_cost = stale_check_cost + reinsert_cost
+
+        return {
+            "reinserted_nodes": selected,
+            "reinsert_count": len(selected),
+            "stale_check_cost": stale_check_cost,
+            "reinsert_cost": reinsert_cost,
+            "total_cost": total_cost,
+        }
