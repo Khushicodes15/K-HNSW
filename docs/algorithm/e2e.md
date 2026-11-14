@@ -104,16 +104,27 @@ Routing fidelity and recall@10 were evaluated on $n=500, M=8, d=8$ across 25 per
 > - **Global Reachability**: Across the 95% unperturbed nodes, the dense background graph retains global recall $\ge 0.997$ across all configurations.
 > - **Invariant Preservation vs Recall Metric**: Zero certificate violations indicates that all local Delaunay/witness conditions are strictly satisfied; it is an invariant guarantee, not a quality metric that guarantees superior recall under every transient perturbation. Drift-moved node handling preserves in-degrees and restores self-findability to 1.000 without claiming drift repair monotonically outperforms un-repaired controls across all speeds.
 
-### 4.1 Continuous Drift Protocol Findings (Phase 5j Claims)
+### 4.1 Kinetic Drift Protocol Findings (Phase 5k Settled & Vanilla Analysis)
 
-1. **Protocol Drift Retention (Claim i)**: Under the continuous linear drift protocol on the settled graph, `no_repair` recall remains above **0.88** even at $30\times$ speed (drifting recall@10 is $0.9487$ at $10\times$, $0.9060$ at $30\times$, and $0.8627$ at $100\times$ for $ef=16$; and $>0.95$ across all speeds at $ef=32$).
-2. **Rebuild Recovery vs Cost (Claim ii)**: Rebuilding moved nodes during drift restores drifting recall to **~0.90** ($0.9013$ at $10\times$, $0.8840$ at $30\times$ for $ef=16$; $0.9827$ and $0.9693$ for $ef=32$), eliminating all certificate violations ($0.0$), but incurs search and repair distance costs ($91,753$ at $10\times$, $62,957$ at $30\times$) comparable to fresh insertion ($92,300 - 93,500$).
-3. **Valid Vanilla Headroom (Claim iii)**: On the valid vanilla pair (`no_repair` vs. full rebuild ceiling at final coordinates without `settle_hnsw` confounding):
-   - At $10\times$ drift ($ef=16$): `no_repair` is $0.8907$, `ceiling` is $0.9933$, yielding headroom of **$+0.1027$** ($+10.3\%$). At $ef=32$: headroom is **$+0.0540$**.
-   - At $30\times$ drift ($ef=16$): `no_repair` drops to $0.7413$, `ceiling` is $0.9400$, yielding headroom of **$+0.1987$** ($+19.9\%$). At $ef=32$: headroom is **$+0.1520$**.
-   - Across displacements ($n=500, d=8$): headroom exceeds $0.03$ for all displacements $\ge 2.0\times$ mean 1-NN distance, reaching $+0.3000$ (10% drift) and $+0.6689$ (30% drift) at $32\times$. At $n=2000, d=8$ (10% drift), headroom reaches **$+0.3260$** at $8\times$ and **$+0.7895$** at $32\times$ ($ef=16$).
-4. **Settle Confound (Claim iv)**: Running `settle_hnsw` on freshly built HNSWIndex at $t=0$ alters degree distribution from **10.26** to **6.97** level-0 edges per node (a $32.1\%$ reduction from $5,131$ to $3,483$ edges) by dropping construction-time Delaunay violations.
-5. **Scheduler/Ablation Switches (Claim v)**: All prospective scheduler prioritization, batching, and candidate filtering switches not yet implemented in `src/khnsw` are marked **specified-not-built**.
+1. **Settled Graph Performance Relative to No-Repair (Claim i)**:
+   On the settled graph, all repair variants—including K-HNSW at $ef=16$ rebuild (drifting recall $0.8927$ at $10\times$, $0.8687$ at $30\times$), K-HNSW at $ef=64$ rebuild ($0.9007$ at $10\times$, $0.8833$ at $30\times$), in-place reinsertion ($0.8813$ at $10\times$, $0.8673$ at $30\times$), and oracle reinsertion arms ($0.8733 - 0.8873$ at $10\times$, $0.8520 - 0.8607$ at $30\times$)—score strictly below `no_repair` ($0.9487$ at $10\times$, $0.9060$ at $30\times$) at evaluation $ef=16$. At evaluation $ef=32$, repair arms perform within $0.01$ of `no_repair` ($0.9867$ at $10\times$, $0.9713$ at $30\times$). Rebuild does not restore recall above the un-repaired baseline at $ef=16$.
+
+2. **Certificate Invariants vs. Search Recall (Claim ii)**:
+   Achieving zero violated certificates confirms adherence to empty-ellipse Delaunay invariants; it does not imply superior search recall. In fact, un-repaired graphs retain topologically invalid shortcut edges that yield higher recall at lower search queue capacities ($ef=16$).
+
+3. **Construction Settle Confound (Claim iii)**:
+   Running `settle_hnsw` on a freshly constructed HNSWIndex at $t=0$ removes $32.1\%$ of level-0 edges (dropping level-0 edges from $5,131$ to $3,483$ and mean level-0 out-degree from $10.26$ to $6.97$, means across seeds 42–44). Consequently, the settled baseline is structurally distinct and significantly thinned compared to a standard vanilla HNSW graph.
+
+4. **In-Neighbour Pre-Repair (Claim v)**:
+   Re-selecting static in-neighbour lists using the standard heuristic prior to reinsertion improved in-place reinsertion recall by $\approx 0.04$ at $10\times$ (from $0.8813$ to $0.9207$) and $\approx 0.02$ at $30\times$ (from $0.8673$ to $0.8893$) at $ef=16$ on the settled graph. However, performance remained below the `no_repair` baseline ($0.9487$ at $10\times$, $0.9060$ at $30\times$).
+
+5. **Vanilla Graph Benchmark & Decision Analysis (Claim iv)**:
+   - On the vanilla graph (`settle=False`, output `docs/data/vanilla_arms_benchmark.json`), `no_repair` drifting recall@10 ($ef=16$) is **0.9693** at $10\times$ (cost 0) and **0.9400** at $30\times$ (cost 0), matching or exceeding the full rebuild ceiling (**0.9673** at $10\times$, cost 124,964; and **0.9393** at $30\times$, cost 124,496).
+   - Only `no_repair` satisfies the criterion of reaching within $0.01$ of ceiling drifting recall at $<50\%$ of ceiling cost. All active repair arms (reinsert once, periodic reinsert, and K-HNSW engine) score below `no_repair` at $ef=16$ ($0.8767 - 0.9193$).
+   - *Harness caveat*: In the unified harness with `default_rng(seed)`, vanilla recall is consistently higher than settled recall across all speeds ($0.9693$ vs $0.9487$ at $10\times$; $0.9400$ vs $0.9060$ at $30\times$). The lower recall observed in earlier scratch runs ($0.8907$ at $10\times$) was due to legacy `np.random.RandomState(seed)`, which sampled an intrinsically lower-recall configuration ($0.8907$ vanilla vs $0.8453$ settled).
+
+6. **Scheduler/Ablation Switches (Claim vi)**:
+   All prospective scheduler prioritization, batching, and candidate filtering switches not implemented in `src/khnsw` are marked **specified-not-built**.
 
 ---
 

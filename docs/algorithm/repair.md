@@ -415,35 +415,67 @@ Under 100% drifting nodes at $30\times$ speed:
 
 ---
 
-### 8.7 Baseline Confound and Headroom Analysis (Phase 5j Findings)
+### 8.7 Settled Graph Benchmark Findings (Phase 5h–5k Claims)
 
-Comprehensive investigation across `docs/data/reconcile_benchmark.json` and `docs/data/vanilla_headroom.json` established the following verified algorithmic findings:
+Comprehensive reconciliation across `docs/data/reconcile_benchmark.json` and `docs/data/vanilla_arms_benchmark.json` established the following verified algorithmic findings on the settled graph:
 
-1. **Protocol Drift Retention (Claim i)**:
-   Under the current linear drift protocol on the settled benchmark index, `no_repair` recall remains above **0.88** even at $30\times$ drift speed (specifically, drifting recall@10 is $0.9487$ at $10\times$, $0.9060$ at $30\times$, and $0.8627$ at $100\times$ for $ef=16$; and above $0.95$ across all speeds at $ef=32$).
+1. **Recall Relative to No-Repair (Claim i)**:
+   On the settled benchmark graph, all repair methods—including K-HNSW at $ef=16$ rebuild (drifting recall $0.8927$ at $10\times$, $0.8687$ at $30\times$), K-HNSW at $ef=64$ rebuild ($0.9007$ at $10\times$, $0.8833$ at $30\times$), in-place reinsertion ($0.8813$ at $10\times$, $0.8673$ at $30\times$), and oracle reinsertion arms ($0.8733 - 0.8873$ at $10\times$, $0.8520 - 0.8607$ at $30\times$)—score strictly below `no_repair` ($0.9487$ at $10\times$, $0.9060$ at $30\times$) at evaluation $ef=16$. At evaluation $ef=32$, repair arms perform within $0.01$ of `no_repair` ($0.9867$ at $10\times$, $0.9713$ at $30\times$). Rebuild does not restore recall above the un-repaired baseline at $ef=16$.
 
-2. **Rebuild Recovery and Cost Trade-off (Claim ii)**:
-   Rebuilding moved nodes in the drift path (`ours_after`) restores drifting recall to **~0.90** ($0.9013$ at $10\times$ and $0.8840$ at $30\times$ for $ef=16$; $0.9827$ and $0.9693$ for $ef=32$), eliminating all certificate violations ($0.0$). However, it incurs total distance computation costs ($91,753$ at $10\times$, $62,957$ at $30\times$) comparable to fresh insertion search distance cost ($92,300 - 93,500$).
+2. **Certificate Invariants vs. Search Recall (Claim ii)**:
+   Achieving zero violated certificates confirms adherence to empty-ellipse Delaunay invariants; it does not imply superior search recall. In fact, un-repaired graphs retain topologically invalid shortcut edges that yield higher recall at lower search queue capacities ($ef=16$).
 
-3. **Valid Vanilla Pair Headroom (Claim iii)**:
-   When evaluated on an un-settled vanilla HNSW pair (`no_repair` vs. full rebuild ceiling at final coordinates without `settle_hnsw` confounding):
-   - At $10\times$ drift ($ef=16$): `no_repair` is $0.8907$, `ceiling` is $0.9933$, yielding headroom $(\text{ceiling} - \text{no\_repair})$ of **$+0.1027$** ($+10.3\%$). At $ef=32$: headroom is **$+0.0540$**.
-   - At $30\times$ drift ($ef=16$): `no_repair` drops to $0.7413$, `ceiling` is $0.9400$, yielding headroom of **$+0.1987$** ($+19.9\%$). At $ef=32$: headroom is **$+0.1520$**.
-   - Across displacement multiples of mean 1-NN distance ($n=500, d=8$):
-     - At $0.5\times$ displacement: headroom is negligible ($\le 0.0084$).
-     - At $2.0\times$ displacement: headroom reaches **$+0.0573$** (10% drift) and **$+0.1113$** (30% drift) at $ef=16$.
-     - At $8.0\times$ displacement: headroom reaches **$+0.1833$** (10% drift) and **$+0.4042$** (30% drift) at $ef=16$.
-     - At $32.0\times$ displacement: headroom reaches **$+0.3000$** (10% drift) and **$+0.6689$** (30% drift) at $ef=16$.
-   - At $n=2000, d=8$ (10% drift, seed 42):
-     - At $8.0\times$ displacement: headroom reaches **$+0.3260$** ($ef=16$: $0.5455$ vs $0.8715$) and **$+0.3325$** ($ef=32$).
-     - At $32.0\times$ displacement: headroom reaches **$+0.7895$** ($ef=16$: $0.1285$ vs $0.9180$) and **$+0.7860$** ($ef=32$).
-   - Headroom exceeds $0.03$ for all conditions with displacement $\ge 2.0\times$ mean 1-NN distance.
+3. **Construction Settle Confound (Claim iii)**:
+   Running `settle_hnsw` on a freshly constructed HNSWIndex at $t=0$ removes $32.1\%$ of level-0 edges (dropping level-0 edges from $5,131$ to $3,483$ and mean level-0 out-degree from $10.26$ to $6.97$, means across seeds 42–44). Consequently, the settled baseline is structurally distinct and significantly thinned compared to a standard vanilla HNSW graph.
 
-4. **Construction Settle Confound (Claim iv)**:
-   Running `settle_hnsw` on a freshly constructed HNSWIndex at $t=0$ alters the graph's degree distribution: mean level-0 out-degree drops from **10.26** to **6.97**, total level-0 edges decrease from **5,131** to **3,483** (a $32.1\%$ reduction), and total graph edges drop from **5,441** to **3,724** (means across seeds 42-44), because initial certificate pruning eliminates construction-time Delaunay violations without reciprocal replenishment.
+4. **In-Neighbour Pre-Repair (Claim v)**:
+   Re-selecting static in-neighbour lists using the standard heuristic prior to reinsertion improved in-place reinsertion recall by $\approx 0.04$ at $10\times$ (from $0.8813$ to $0.9207$) and $\approx 0.02$ at $30\times$ (from $0.8673$ to $0.8893$) at $ef=16$ on the settled graph. However, performance remained below the `no_repair` baseline ($0.9487$ at $10\times$, $0.9060$ at $30\times$).
 
-5. **Ablation & Scheduler Status (Claim v)**:
-   Prospective scheduler prioritization switches, alternative candidate filtering flags, and batching heuristics not currently present in `src/khnsw` are cataloged as **specified-not-built**.
+5. **Scheduler and Ablation Switches (Claim vi)**:
+   Prospective scheduler prioritization policies, batching mechanisms, and alternative candidate filtering switches not implemented in `src/khnsw` are cataloged as **specified-not-built**.
+
+---
+
+### 8.8 Vanilla Graph Benchmark Findings and Decision Analysis (Phase 5k)
+
+Evaluating repair strategies on the un-settled vanilla graph (`settle=False`, output `docs/data/vanilla_arms_benchmark.json`) yielded the following findings:
+
+#### 1. Harness Configuration & Discrepancy Note (Claim iv)
+- In the unified harness with `default_rng(seed)`, `no_repair` drifting recall@10 ($ef=16$) is **0.9693** at $10\times$ and **0.9400** at $30\times$ on the vanilla graph (compared to **0.9487** and **0.9060** on the settled graph).
+- The lower baseline recall observed in earlier scratch runs (e.g. $0.8907$ at $10\times$) stemmed entirely from using legacy `np.random.RandomState(seed)`, which samples a distinct point cloud and drifting node set with lower baseline recall ($0.8907$ vanilla vs $0.8453$ settled at $10\times$, $0.7413$ vanilla vs $0.6927$ settled at $30\times$). In all matched configurations, the vanilla graph consistently exhibits higher recall than the settled graph due to its $32\%$ higher edge density.
+- Total drifting displacement corresponds to $3.0\times$ mean 1-NN distance at $10\times$ speed and $9.0\times$ mean 1-NN distance at $30\times$ speed ($T=0.30$).
+
+#### 2. Decision Table on the Vanilla Graph (Claim iv continued)
+Evaluated across seeds $\{42, 43, 44\}$ on the vanilla graph (eval $ef=16/32$, 10% drift):
+
+| Speed | Arm | Drift Rec@10 ($ef=16$) | Drift Rec@10 ($ef=32$) | Static Rec@10 ($ef=16$) | Violated | Drift Cost | Setup Cost | Reaches $\ge \text{ceil}-0.01$ at $< 50\%$ Cost? |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **10x** | 1 no repair | 0.9693 | 0.9933 | 0.9890 | 2482.7 | 0 | 0 | **YES** |
+| **10x** | 2 ceiling (rebuild all 500) | 0.9673 | 0.9953 | 0.9980 | 2165.3 | 124,964 | 0 | No |
+| **10x** | 3 inplace reinsert once | 0.9120 | 0.9760 | 0.9890 | 1757.3 | 22,166 | 0 | No |
+| **10x** | 4 inplace reinsert + prerepair once | 0.9127 | 0.9787 | 0.9887 | 679.7 | 34,646 | 0 | No |
+| **10x** | 5a reinsert every step (no prerepair) | 0.9100 | 0.9760 | 0.9887 | 1731.0 | 221,283 | 0 | No |
+| **10x** | 5b reinsert every step (+ prerepair) | 0.9187 | 0.9800 | 0.9867 | 432.7 | 253,831 | 0 | No |
+| **10x** | 6a periodic k=2 (+ prerepair) | 0.9193 | 0.9827 | 0.9873 | 491.7 | 131,640 | 0 | No |
+| **10x** | 6b periodic k=5 (+ prerepair) | 0.9180 | 0.9813 | 0.9877 | 605.7 | 58,326 | 0 | No |
+| **10x** | 7a ours t0 repaired (ef=16) | 0.8927 | 0.9813 | 0.9767 | 0.0 | 91,753 | 80,061 | No |
+| **10x** | 7a ours t0 repaired (ef=64) | 0.9013 | 0.9827 | 0.9767 | 0.0 | 201,997 | 80,061 | No |
+| **10x** | 7b ours t0 exempted (ef=16) | 0.9033 | 0.9833 | 0.9893 | 1255.0 | 126,311 | 0 | No |
+| **10x** | 7b ours t0 exempted (ef=64) | 0.8973 | 0.9800 | 0.9877 | 1017.3 | 241,781 | 0 | No |
+| **30x** | 1 no repair | 0.9400 | 0.9867 | 0.9890 | 2506.3 | 0 | 0 | **YES** |
+| **30x** | 2 ceiling (rebuild all 500) | 0.9393 | 0.9880 | 0.9987 | 2129.3 | 124,496 | 0 | No |
+| **30x** | 3 inplace reinsert once | 0.9000 | 0.9773 | 0.9890 | 1746.3 | 22,028 | 0 | No |
+| **30x** | 4 inplace reinsert + prerepair once | 0.8887 | 0.9700 | 0.9890 | 676.0 | 33,686 | 0 | No |
+| **30x** | 5a reinsert every step (no prerepair) | 0.9007 | 0.9773 | 0.9887 | 1737.3 | 217,168 | 0 | No |
+| **30x** | 5b reinsert every step (+ prerepair) | 0.8767 | 0.9620 | 0.9863 | 510.3 | 231,106 | 0 | No |
+| **30x** | 6a periodic k=2 (+ prerepair) | 0.8787 | 0.9620 | 0.9877 | 576.7 | 120,517 | 0 | No |
+| **30x** | 6b periodic k=5 (+ prerepair) | 0.8873 | 0.9673 | 0.9880 | 629.3 | 55,652 | 0 | No |
+| **30x** | 7a ours t0 repaired (ef=16) | 0.8687 | 0.9633 | 0.9780 | 0.0 | 62,957 | 80,061 | No |
+| **30x** | 7a ours t0 repaired (ef=64) | 0.8840 | 0.9693 | 0.9783 | 0.0 | 127,038 | 80,061 | No |
+| **30x** | 7b ours t0 exempted (ef=16) | 0.9007 | 0.9740 | 0.9897 | 1298.3 | 94,427 | 0 | No |
+| **30x** | 7b ours t0 exempted (ef=64) | 0.9120 | 0.9780 | 0.9883 | 1213.7 | 166,113 | 0 | No |
+
+*Note*: Only `no_repair` satisfies the criterion of reaching within $0.01$ of the ceiling's drifting recall at less than half the ceiling's cost. All active repair arms score below `no_repair` at $ef=16$.
 
 
 
