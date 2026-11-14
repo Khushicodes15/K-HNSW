@@ -6,23 +6,43 @@
 
 ## 1. Project Status & Empirical Findings
 
-K-HNSW investigates mechanisms to preserve search navigability and recall in HNSW indexes subject to continuous vector drift. For the complete inventory of empirical claims, formal verification statuses, and benchmark evidence, see [`docs/claims.md`](docs/claims.md).
+K-HNSW investigates mechanisms to preserve search navigability and recall in HNSW indexes subject to continuous vector drift. The table below summarizes the formal status of all 16 claims registered in [`docs/claims.md`](docs/claims.md):
 
-### Supported Results
-- **Temporal Staggering Advantage**: Unassisted `round_robin` reinsertion scores higher mean drifting recall than bursty `periodic_k5` at matched cumulative reinsertion counts: **+0.0252** at $n=500$ ($0.9275$ vs $0.9023$; $133,945$ vs $125,722$ distance computations) and **+0.0270** at $n=2000$ ($0.9242$ vs $0.8972$; $357,395$ vs $316,203$ distance computations). Furthermore, at $n=2000$, `round_robin` achieves slightly higher recall than step-by-step reinsertion `periodic_k1` ($0.9242$ vs $0.9224$) at **22.7% of its distance computation cost** ($357,395$ vs $1,571,353$, a $77.3\%$ savings). (Source: `docs/data/missing_controls_benchmark.json`).
-- **Graph Recall Collapse Under Isotropic Drift**: Without maintenance (`no_repair`), 1-NN recall drops to $\approx 0.65$ under continuous isotropic drift ($0.6562$ at $n=500$ under 30% drift, $0.6497$ at $n=2000$ under 10% drift at $ef=16$).
-- **In-Neighbor Pre-Repair Penalty**: Static in-neighbor pre-repair consistently degrades drifting recall (by $-0.0073$ at $n=500$ and $-0.0094$ at $n=2000$) while increasing distance computation costs by $+23.6\%$ to $+24.7\%$ (Source: `docs/data/missing_controls_benchmark.json`).
-- **Initial Voronoi Filtering**: Voronoi edge pruning (`settle_hnsw`) removes $32.1\%$ of level-0 edges from freshly constructed indexes (mean level-0 edges drop from $5,131.3$ to $3,483.3$), but kinetic Voronoi edge certificates cost $\approx 4\times$ more distance evaluations than heuristic reinsertion without improving recall.
+### Empirical Claims Summary (`docs/claims.md`)
 
-### Withdrawn Claims
-- **Memory-Based Figures**: Early Phase 5g recall/cost numbers typed from unreconciled scratch/memory rather than script output were formally withdrawn (Claim 1 in `docs/claims.md`).
-- **Drift Recall Ceiling**: The hypothesis that $\approx 0.90$ was an intrinsic ceiling imposed by drift itself was disproven; controlled full rebuild ceilings achieve $0.9671$ to $0.9938$ (Claim 2).
-- **PRNG Collision Artifact**: Early claims that unassisted `no_repair` outperformed repair arms were traced to a PRNG stream collision in `LinearDrift` that induced pure radial drift ($\cos \equiv 1.0$), rather than realistic isotropic drift (Claims 8 and 10).
+| Status | Count | Claims |
+| :--- | :---: | :--- |
+| `supported` | 5 | Claims 11, 12, 13, 14, 15 |
+| `unsupported` | 3 | Claims 2, 3, 7 |
+| `withdrawn` | 6 | Claims 1, 4, 5, 6, 8, 9 |
+| `radial-protocol-only` | 1 | Claim 10 |
+| `untested hypothesis` | 1 | Claim 16 |
 
-### Untested Hypotheses & Open Work
-- **Microscopic Pre-Repair Transition**: The hypothesis that in-neighbor pre-repair hurts recall because it deletes obsolete edges before replacement bidirectional links are formed remains untested at the individual edge transition level.
-- **Real High-Dimensional Embeddings**: Experiments have been conducted exclusively on synthetic Gaussian vectors ($d=8$ and $d=16$); evaluation on real-world text or vision embeddings is pending.
-- **External Baselines**: Empirical comparisons have focused on internal controls (`round_robin`, `periodic_k5`, `periodic_k1`, `displacement_theta`); comparison against external dynamic graph libraries (e.g., FreshHNSW) has not yet been conducted.
+#### Supported Claims (5)
+- **Claim 11 (`supported`)**: `settle_hnsw` removes 32.1% of level-0 edges (`docs/data/vanilla_headroom.json`). Running `settle_hnsw` on fresh `HNSWIndex` drops mean level-0 edges from $5,131.3$ to $3,483.3$ ($-32.12\%$) and mean out-degree from $10.26$ to $6.97$.
+- **Claim 12 (`supported`)**: `no_repair` graph recall collapses under isotropic continuous drift (`docs/data/missing_controls_benchmark.json`, `docs/data/controls_benchmark.json`). At 8x displacement, unassisted drift recall collapses from $>0.98$ to $0.6562$ ($n=500$, 30% drift) and $0.6497$ ($n=2000$, 10% drift) at $ef=16$.
+- **Claim 13 (`supported`)**: Temporal staggering (`round_robin`) outperforms bursty periodic repair (`docs/data/missing_controls_benchmark.json`). At matched cumulative reinsertion counts, unassisted `round_robin` beats unassisted `periodic_k5` by $+0.0252$ in $n=500$ ($0.9275$ vs $0.9023$; $133,945$ vs $125,722$ distance computations) and $+0.0270$ in $n=2000$ ($0.9242$ vs $0.8972$; $357,395$ vs $316,203$ distance computations). Against continuous step-by-step reinsertion (`periodic_k1`): at $n=500$, `periodic_k1` achieves higher recall ($0.9338$ vs $0.9275$, $+0.0063$) at $4.6\times$ the distance cost ($621,384$ vs $133,945$); at $n=2000$, `round_robin` achieves slightly higher recall ($0.9242$ vs $0.9224$) at $22.7\%$ of the cost of `periodic_k1` ($357,395$ vs $1,571,353$, a $77.3\%$ savings).
+- **Claim 14 (`supported`)**: In-neighbor pre-repair degrades recall and inflates maintenance cost (`docs/data/missing_controls_benchmark.json`). Pre-repair consistently lowers recall by $0.0073$ in $n=500$ ($0.9202$ vs $0.9275$) and by $0.0094$ in $n=2000$ ($0.9148$ vs $0.9242$), while inflating distance costs by $+23.6\%$ to $+24.7\%$.
+- **Claim 15 (`supported`)**: Kinetic Voronoi edge certificates cost $\approx 4\times$ more for inferior recall (`docs/data/harness_conflict_benchmark.json`, `docs/data/lazy_reinsertion_benchmark.json`). In unified 5m benchmarks, `cert_triggered` achieves inferior recall ($0.9089$) at over $4.4\times$ higher cost ($1,598,047$ vs $357,629$) compared to `displacement_theta_1.0` ($0.9193$) at $n=2000$ (seed 42), and consumes $4.5\times$ more distance computations ($615,680$ vs $135,313$) for only $+0.0056$ recall at $n=500$ (seeds 42–44).
+
+#### Unsupported Claims (3)
+- **Claim 2 (`unsupported`)**: "The ~0.90 ceiling is a property of drift itself" (invalidated in Phase 5l; full rebuild ceilings in isotropic settings reach $0.9671 - 0.9938$; `docs/data/reconcile_benchmark.json`, `docs/data/harness_conflict_benchmark.json`).
+- **Claim 3 (`unsupported`)**: "In-degree recovered to the settled level" (asserted without edge-level degree distribution verification; `docs/data/drift_benchmark.json`).
+- **Claim 7 (`unsupported`)**: `fresh_insert_ref` is a valid reinsertion reference (invalid baseline: rebuilt the entire 500-node graph from scratch with unmetered static setup, structurally incomparable to single-node reinsertion; `docs/data/reconcile_benchmark.json`, `docs/data/vanilla_headroom.json`).
+
+#### Withdrawn Claims (6)
+- **Claim 1 (`withdrawn`)**: "5g static recall is 0.9750/0.9700/0.9730 with table costs 43k/91k/155k and violations 69/144/221" (`docs/data/drift_benchmark.json`; preliminary numbers typed from memory/unreconciled scratch; verified run gave mean static recall $0.9840$, total costs $201,997 / 126,827 / 85,713$, and violations $419 / 460 / 477$).
+- **Claim 4 (`withdrawn`)**: "Identical routing paths" explanation of static recall resilience (speculative conjecture; search paths were not traced or instrumented).
+- **Claim 5 (`withdrawn` - Wrong)**: "Miss classification class (d) = 0" (factually incorrect; committed JSON records miss counts of $d=41$ and $d=56$; `docs/data/drift_benchmark.json`).
+- **Claim 6 (`withdrawn` - Deleted)**: Stale-edge audit metric (mathematically ill-defined for continuous velocity trajectories; fully deleted).
+- **Claim 8 (`withdrawn`)**: "RNG confound" explains the 5j vs 5k recall conflict (`docs/data/harness_conflict_benchmark.json`, `docs/data/controls_benchmark.json`; retracted; root cause was a structural PRNG stream collision in `LinearDrift` generating pure radial drift under `default_rng`).
+- **Claim 9 (`withdrawn`)**: Phase 5m "WIN" labels for lazy reinsertion over periodic repair (`docs/data/controls_benchmark.json`; retracted; margins $+0.0080, +0.0093, +0.0038$ over `round_robin` failed the pre-registered $\ge 0.01$ threshold).
+
+#### Radial-Protocol-Only Claims (1)
+- **Claim 10 (`radial-protocol-only`)**: All Phase 5g–5k claims comparing repair arms against `no_repair` (`docs/data/drift_benchmark.json`, `docs/data/reconcile_benchmark.json`, `docs/data/vanilla_arms_benchmark.json`; held strictly under radial drift $\cos \equiv 1.0$; under realistic isotropic drift, un-repaired recall decays to $0.65$).
+
+#### Untested Hypothesis (1)
+- **Claim 16 (`untested hypothesis`)**: "Pre-repair hurts because it deletes obsolete edges prematurely before reinsertion connects replacing bi-directional links" (empirical penalty confirmed by Claim 14, but microscopic topological transition mechanism has not been isolated experimentally).
 
 ---
 
