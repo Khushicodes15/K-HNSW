@@ -833,6 +833,14 @@ def main() -> None:
         for d in loaded_data:
             headroom_runs.extend(d.get("headroom", []))
 
+        static_edge_audit_per_seed = []
+        for d in loaded_data:
+            sea = d["static_edge_audit"]
+            if "mean" in sea:
+                static_edge_audit_per_seed.append(sea["mean"])
+            else:
+                static_edge_audit_per_seed.append(sea)
+
         final_data = {
             "runs": combined_runs,
             "static_tracing": {
@@ -877,26 +885,19 @@ def main() -> None:
                 for spd in ["10x", "30x"]
             },
             "static_edge_audit": {
-                "per_seed": [d["static_edge_audit"] for d in loaded_data],
+                "per_seed": static_edge_audit_per_seed,
                 "mean": {
                     cond: {
                         "mean_out_deg": float(
-                            np.mean(
-                                [d["static_edge_audit"][cond]["mean_out_deg"] for d in loaded_data]
-                            )
+                            np.mean([s[cond]["mean_out_deg"] for s in static_edge_audit_per_seed])
                         ),
                         "frac_out_to_drift": float(
                             np.mean(
-                                [
-                                    d["static_edge_audit"][cond]["frac_out_to_drift"]
-                                    for d in loaded_data
-                                ]
+                                [s[cond]["frac_out_to_drift"] for s in static_edge_audit_per_seed]
                             )
                         ),
                         "frac_stale": float(
-                            np.mean(
-                                [d["static_edge_audit"][cond]["frac_stale"] for d in loaded_data]
-                            )
+                            np.mean([s[cond]["frac_stale"] for s in static_edge_audit_per_seed])
                         ),
                     }
                     for cond in ["no_repair", "ours_after", "fresh_insert_ref"]
