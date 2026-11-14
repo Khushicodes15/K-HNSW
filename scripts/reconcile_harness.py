@@ -49,7 +49,7 @@ from khnsw.core.events.schema import ListSink
 from khnsw.core.graph.hnsw import HNSWIndex
 from khnsw.core.movement.linear import LinearDrift
 from khnsw.core.repair.engine import KHNSWRepairEngine
-from khnsw.core.repair.loop import prune, rank_pool
+from khnsw.core.repair.loop import prune, rank_pool, repair_loop
 from khnsw.core.repair.plan import Rewrite
 from khnsw.core.scheduling.event_heap import KineticEventHeap
 from khnsw.core.search.heuristic import select_neighbors_heuristic
@@ -57,23 +57,8 @@ from khnsw.core.search.search_layer import search_layer
 
 
 def settle_hnsw(index: HNSWIndex, store: CertificateStore) -> None:
-    """Run native_plan repairs until all violated edges are resolved."""
-    from khnsw.core.repair.plan import native_plan
-
-    max_rounds = 50
-    meter_p = CostMeter()
-    meter_s = CostMeter()
-    for _ in range(max_rounds):
-        violated = [
-            edge
-            for edge, status in store._edge_status.items()
-            if status == EdgeStatus.VIOLATED.value
-        ]
-        if not violated:
-            break
-        plan = native_plan(index, violated, meter_p)
-        for rewrite in plan.rewrites:
-            store.set_neighbors(index, rewrite.node, rewrite.level, rewrite.new, meter_s)
+    """Run initial repair loop to eliminate construction-time violations."""
+    repair_loop(index, store)
 
 
 def brute_force_knn(
