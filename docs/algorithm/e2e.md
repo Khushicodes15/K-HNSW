@@ -106,6 +106,10 @@ Routing fidelity and recall@10 were evaluated on $n=500, M=8, d=8$ across 25 per
 
 ### 4.1 Kinetic Drift Protocol Findings (Phase 5k Settled & Vanilla Analysis)
 
+> [!WARNING]
+> **RADIAL-DRIFT PROTOCOL: does not generalise.**
+> The claims below were generated under nominal `default_rng(seed)` + `LinearDrift(seed)` (`docs/data/reconcile_benchmark.json` and `docs/data/vanilla_arms_benchmark.json`). As audited in Phase 5n Item A, this protocol generates **pure radial drift** ($\cos(v, X_0) \equiv 1.0000$) due to NumPy `SeedSequence` collision. The finding that "all repair arms score strictly below no_repair at ef=16" holds strictly under radial drift, where search beams travel outward along coordinate rays, artificially preserving high recall. Under true isotropic drift (`indep_dir` / `RandomState`, see `docs/algorithm/repair.md` Section 8.9), no-repair degrades to $0.65$ and staggered reinsertion provides significant recall recovery ($0.924 - 0.935$).
+
 1. **Settled Graph Performance Relative to No-Repair (Claim i)**:
    On the settled graph, all repair variants—including K-HNSW at $ef=16$ rebuild (drifting recall $0.8927$ at $10\times$, $0.8687$ at $30\times$), K-HNSW at $ef=64$ rebuild ($0.9007$ at $10\times$, $0.8833$ at $30\times$), in-place reinsertion ($0.8813$ at $10\times$, $0.8673$ at $30\times$), and oracle reinsertion arms ($0.8733 - 0.8873$ at $10\times$, $0.8520 - 0.8607$ at $30\times$)—score strictly below `no_repair` ($0.9487$ at $10\times$, $0.9060$ at $30\times$) at evaluation $ef=16$. At evaluation $ef=32$, repair arms perform within $0.01$ of `no_repair` ($0.9867$ at $10\times$, $0.9713$ at $30\times$). Rebuild does not restore recall above the un-repaired baseline at $ef=16$.
 

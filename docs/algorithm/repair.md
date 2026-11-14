@@ -388,7 +388,11 @@ The table below presents empirical measurements on `HNSWIndex` ($n=500, M=8, d=8
 4. **Delete + Reinsert Distance Accounting Note**:
    In the table above, the "Delete + Reinsert" upper bound cost reflects `index.add` distance computations tracked via `idx.distance_computations` (which meters `search_layer` evaluations during entry-point navigation). `index.delete` is purely topological (0 distance computations). When internal heuristic candidate evaluations inside `select_neighbors_heuristic` during `index.add` are also metered, total delete+reinsert work is ~2.0x–2.3x higher: 25,825 (0.2x), 24,768 (1.0x), 21,564 (3.0x), 21,675 (12.0x), and 22,013 (30.0x). Under either accounting, K-HNSW achieves comparable self-findability (100%) and recall without incurring full reinsertion churn.
 
-### 8.6 Continuous Kinetic Drift with Drift-Moved Node Handling
+### 8.6 Continuous Kinetic Drift with Drift-Moved Node Handling (Phase 5c / PR #18)
+
+> [!WARNING]
+> **RADIAL-DRIFT PROTOCOL: does not generalise.**
+> The benchmark sweep below (`docs/data/drift_benchmark.json`) was generated under `default_rng(seed)` initial coordinates coupled with `LinearDrift(X0, seed=seed)`. As proven in Phase 5n Item A, this protocol generates **pure radial drift** ($\cos(v, X_0) \equiv 1.0000$) due to NumPy `SeedSequence` PRNG stream collision. Claims that un-repaired controls retain high recall ($>0.90$) hold under radial drift only, where query routing beams travel along coordinate rays outward from the origin. Under true isotropic drift (Section 8.9), un-repaired recall decays to $0.65$.
 
 Under continuous kinetic drift without explicit movement notifications, moving nodes cause certificate failures on incident edges. By identifying moving nodes via non-zero velocity filtering on confirmed failure candidates (`_trajectory_of(nid)`), `KHNSWRepairEngine` routes drifting nodes through out-link rebuild and reverse-link synthesis.
 
@@ -417,6 +421,10 @@ Under 100% drifting nodes at $30\times$ speed:
 
 ### 8.7 Settled Graph Benchmark Findings (Phase 5h–5k Claims)
 
+> [!WARNING]
+> **RADIAL-DRIFT PROTOCOL: does not generalise.**
+> The benchmark tables in this section (`docs/data/reconcile_benchmark.json`) were generated under nominal `default_rng(seed)` + `LinearDrift(seed)` (radial drift, $\cos \equiv 1.0000$). Claims that "ours scores below no_repair at ef=16" or "rebuild does not restore recall above the un-repaired baseline" hold strictly under radial drift only, where no-repair is artificially shielded from topological disconnectivity.
+
 Comprehensive reconciliation across `docs/data/reconcile_benchmark.json` and `docs/data/vanilla_arms_benchmark.json` established the following verified algorithmic findings on the settled graph:
 
 1. **Recall Relative to No-Repair (Claim i)**:
@@ -437,6 +445,10 @@ Comprehensive reconciliation across `docs/data/reconcile_benchmark.json` and `do
 ---
 
 ### 8.8 Vanilla Graph Benchmark Findings and Decision Analysis (Phase 5k)
+
+> [!WARNING]
+> **RADIAL-DRIFT PROTOCOL: does not generalise.**
+> The decision table below (`docs/data/vanilla_arms_benchmark.json`) was generated under `default_rng(seed)` + `LinearDrift(seed)` (radial drift, $\cos \equiv 1.0000$). The claim that "only no_repair satisfies the criterion of reaching within 0.01 of ceiling recall" holds strictly under radial drift. Under isotropic drift (Section 8.9), no-repair degrades to $0.74$ ($ef=16$), where active maintenance restores recall to $0.93 - 0.94$.
 
 Evaluating repair strategies on the un-settled vanilla graph (`settle=False`, output `docs/data/vanilla_arms_benchmark.json`) yielded the following findings:
 
@@ -552,6 +564,48 @@ Evaluated across seeds $\{42, 43, 44\}$ under the unconfounded `indep_dir` proto
 Rigorous measurement across Phase 5 sweeps establishes that two proposed repair mechanisms provide negative value:
 1. **Edge-Certificate Failure Detection**: Tracking kinetic Voronoi edge certificates via `KineticDetector` and `CertificateStore` adds $197,164$ ($n=500$) to $456,341$ ($n=2000$) distance calculations to the maintenance budget. In $n=2000$, `cert_triggered` achieves lower recall ($0.9089$) than simple staggered reinsertion ($0.9280$) at over $4\times$ the cost ($1,598,047$ vs $358,641$). Edge certificates are **measured not useful** for point drift maintenance.
 2. **In-Neighbor Pre-Repair (`in_neighbour_pre_repair`)**: Heuristic pruning of static in-neighbors before node reinsertion adds $25,000 - 300,000$ distance evaluations without improving drifting recall (e.g., $0.9304$ with pre-repair vs $0.9329$ without in $n=500$; $0.8767$ vs $0.9007$ in $30\times$ continuous drift). In-neighbor pre-repair is **measured not useful**.
+
+#### 7. Missing Controls: Pre-Repair Disentanglement (Phase 6 Item B)
+Because periodic arms in Section 8.9.4 employed in-neighbor pre-repair while `round_robin` did not, an additional controlled sweep (`docs/data/missing_controls_benchmark.json`) evaluated both strategies with and without pre-repair under `indep_dir` across seeds $\{42, 43, 44\}$:
+
+| Setting | Arm | Mean Drf@16 | Final Drf@16 | Mean St@16 | Total Cost | Pre-Repair | Reinsert | Total Reinserts |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **$n=500$** | `periodic_k1_no_prerepair` | 0.9338 | 0.9036 | 0.9742 | 621,384 | 0 | 621,384 | 1500 |
+| (30% drift, 8x) | `periodic_k2_no_prerepair` | 0.9360 | 0.9053 | 0.9732 | 311,571 | 0 | 311,571 | 750 |
+| | `periodic_k5_no_prerepair` | 0.9023 | 0.9073 | 0.9655 | 125,722 | 0 | 125,722 | 300 |
+| | `round_robin_no_prerepair` | **0.9275** | **0.9176** | **0.9700** | **133,945** | **0** | **133,945** | **312** |
+| | `round_robin_with_prerepair` | 0.9202 | 0.9171 | 0.9625 | 165,622 | 34,684 | 130,939 | 312 |
+| **$n=2000$** | `periodic_k1_no_prerepair` | 0.9224 | 0.8657 | 0.9791 | 1,571,353 | 0 | 1,571,353 | 2000 |
+| (10% drift, 8x) | `periodic_k2_no_prerepair` | 0.9236 | 0.8668 | 0.9810 | 788,453 | 0 | 788,453 | 1000 |
+| | `periodic_k5_no_prerepair` | 0.8972 | 0.8695 | 0.9757 | 316,203 | 0 | 316,203 | 400 |
+| | `round_robin_no_prerepair` | **0.9242** | **0.8830** | **0.9775** | **357,395** | **0** | **357,395** | **443** |
+| | `round_robin_with_prerepair` | 0.9148 | 0.8782 | 0.9751 | 441,428 | 109,962 | 331,466 | 443 |
+
+**Key Empirical Findings**:
+1. **Staggering Advantage Survives Without Pre-Repair**: At matched reinsertion budgets, unassisted `round_robin` outperforms unassisted `periodic_k5` by **$+0.0252$ in $n=500$** ($0.9275$ vs $0.9023$) and by **$+0.0270$ in $n=2000$** ($0.9242$ vs $0.8972$). Furthermore, `round_robin` matches or exceeds `periodic_k1` recall ($0.9242$ vs $0.9224$ in $n=2000$) at **$22.7\%$ of its cost** ($357\text{k}$ vs $1.57\text{M}$).
+2. **Pre-Repair Negative Value**: Adding pre-repair to `round_robin` degrades recall by $0.007 - 0.010$ while increasing maintenance cost by $+24\% - 25\%$.
+
+#### 8. Formal Withdrawal of Phase 5m "WIN" Labels
+Phase 5m preliminarily labeled lazy reinsertion ($\theta=0.5, 1.0$) as a "WIN" based on comparison against `periodic_k5`. However, in the Phase 5n controlled ablation against `round_robin` with matched reinsertion counts:
+- `lazy_theta_1.0` beat `round_robin` by **$+0.0080$** in `indep_dir`, **$+0.0093$** in `RandomState`, and **$+0.0038$** in $n=2000$.
+- Because none of these margins achieved the pre-registered $\ge 0.01$ threshold, **all Phase 5m "WIN" labels are formally withdrawn**.
+- The recall advantage of lazy reinsertion over periodic batching is predominantly attributable to **temporal staggering** of reinsertions rather than adaptive departure-bound selectivity. Uniform random reinsertion is inferior to cyclic round-robin ($0.9126$ vs $0.9269$ in $n=500$), confirming that systematic coverage of the moving set across time is the operative mechanism.
+
+---
+
+### 8.10 Member 3 Scope & Component Status Table
+
+| Scope Area | Component / Subsystem | Implementation File Path | Status | Backing Data / JSON Reference |
+| :--- | :--- | :--- | :---: | :--- |
+| **Movement Models** | `LinearDrift`, `ClusterDrift`, `DiscreteReplacement`, `TeleportAdversary` | [`src/khnsw/core/movement/`](../src/khnsw/core/movement/) | **Built** | Stream collision hazard audited in `docs/data/controls_benchmark.json` |
+| **Certificates** | `KineticDetector`, `CertificateStore`, `empty_ellipse` | [`src/khnsw/core/detection/`](../src/khnsw/core/detection/) | **Measured Not Useful** | Adds 197k–456k cost without recall benefit (`docs/data/lazy_reinsertion_benchmark.json`) |
+| **Versioned Heap** | `KineticEventHeap`, `DueEvent`, generation guards | [`src/khnsw/core/scheduling/event_heap.py`](../src/khnsw/core/scheduling/event_heap.py) | **Built** | Heap order and stale-skip verified in `tests/unit/test_event_heap.py` |
+| **Local Repair** | `repair_loop`, reverse-link synthesis, pruning | [`src/khnsw/core/repair/`](../src/khnsw/core/repair/) | **Built** | Reverse links restore ingress in discrete moves (`docs/algorithm/repair.md` Section 8.4) |
+| **In-Neighbor Pre-Repair** | `in_neighbour_pre_repair` static neighbor heuristic | [`src/khnsw/core/scheduling/tracker.py`](../src/khnsw/core/scheduling/tracker.py) | **Measured Not Useful** | Degrades recall by ~0.01, raises cost +25% (`docs/data/missing_controls_benchmark.json`) |
+| **Hierarchy-Aware Repair** | Multi-layer local repair during reinsertion | — | **Specified Not Built** | Layer-0 repair and hierarchy level preservation on reinsertion exist; cross-layer heuristic re-routing does not exist |
+| **Priority Scheduler** | `MaintenancePolicy`, `BudgetedPriorityTracker`, `NodeDisplacementTracker` | [`src/khnsw/core/scheduling/policy.py`](../src/khnsw/core/scheduling/policy.py), [`tracker.py`](../src/khnsw/core/scheduling/tracker.py) | **Built** | Staggering advantage verified in `docs/data/controls_benchmark.json` & `missing_controls_benchmark.json` |
+| **Ablation Switches** | Policy types (`periodic`, `round_robin`, `lazy`, `budgeted_priority`), `theta`, `pre_repair` | [`src/khnsw/core/scheduling/policy.py`](../src/khnsw/core/scheduling/policy.py) | **Built** | Sweep data across all switches in `docs/data/controls_benchmark.json` |
+| **Event Logging** | `EventEmitter`, `ListSink`, `JsonlSink` integration | [`src/khnsw/core/events/`](../src/khnsw/core/events/) | **Built** (Contract Bound) | Trace emission operational; `events.md` lacks `node_reinsert` event type (contract amendment requested) |
 
 
 

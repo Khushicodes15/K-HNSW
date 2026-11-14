@@ -21,6 +21,19 @@ Node-level kinematic displacement tracking and lazy reinsertion:
 - **Targeted Check**: Only nodes with non-zero velocity are checked at each step ($1$ distance computation per moving node).
 - **Maintenance Policy**: On staleness, reinserts node $i$ with fixed hierarchy level (with optional in-neighbor pre-repair), and updates anchor $p_i$ and radius $r_i$ to current topology.
 
+### 3. `BudgetedPriorityTracker` (`tracker.py`)
+Budget-constrained priority reinsertion:
+- At each step, evaluates score $s_i = \|x_i(t) - p_i\|_2 / r_i$ for moving nodes.
+- Reinserts at most the top $B$ nodes with highest departure scores.
+- Resets anchor $p_i \leftarrow x_i(t)$ and recomputes $r_i$ for serviced nodes.
+
+### 4. `MaintenancePolicy` (`policy.py`)
+Unified public interface for downstream modules (Members 4 and 5):
+- Pluggable policies: `"none"`, `"periodic"`, `"round_robin"`, `"lazy"`, `"budgeted_priority"`.
+- Uniform entry point: `step(index, positions, t=0.0, moving_nodes=None) -> list[int]`.
+- Enforces fixed hierarchy levels on reinsertion and meters costs under `CostMeter`.
+- Contract-compliant: Operates cleanly without emitting uncontracted events (contract request noted).
+
 ### The Stale-Entry Rule
 An entry for directed edge `(u, v, level)` with witness `w` is **VALID** if and only if:
 1. Its recorded edge generation equals the active generation for `(u, v, level)`, AND
