@@ -441,8 +441,11 @@ Comprehensive reconciliation across `docs/data/reconcile_benchmark.json` and `do
 Evaluating repair strategies on the un-settled vanilla graph (`settle=False`, output `docs/data/vanilla_arms_benchmark.json`) yielded the following findings:
 
 #### 1. Harness Configuration & Discrepancy Note (Claim iv)
-- In the unified harness with `default_rng(seed)`, `no_repair` drifting recall@10 ($ef=16$) is **0.9693** at $10\times$ and **0.9400** at $30\times$ on the vanilla graph (compared to **0.9487** and **0.9060** on the settled graph).
-- The lower baseline recall observed in earlier scratch runs (e.g. $0.8907$ at $10\times$) stemmed entirely from using legacy `np.random.RandomState(seed)`, which samples a distinct point cloud and drifting node set with lower baseline recall ($0.8907$ vanilla vs $0.8453$ settled at $10\times$, $0.7413$ vanilla vs $0.6927$ settled at $30\times$). In all matched configurations, the vanilla graph consistently exhibits higher recall than the settled graph due to its $32\%$ higher edge density.
+- Two harnesses disagree on `no_repair` and `ceiling` recall for the same nominal setting ($n=500, d=8, M=8, 10\%\text{ drift}, T=0.30$):
+  - In Phase 5j (`scripts/measure_vanilla_headroom.py`), `no_repair` / `ceiling` drifting recall@10 ($ef=16$) was **0.8907** / **0.9933** at $10\times$ (mean across seeds 42–44).
+  - In Phase 5k (`scripts/measure_vanilla_arms.py`), `no_repair` / `ceiling` drifting recall@10 ($ef=16$) was **0.9693** / **0.9673** at $10\times$ (mean across seeds 42–44).
+- **Result of Item A Controlled Test**: When fed identical inputs ($X_0$, `drifting_nodes`, and `LinearDrift` generated once at seed 42), both code paths yield mathematically identical outputs (`no_repair` 0.8720, `ceiling` 0.9960 under the 5j inputs; `no_repair` 0.9740, `ceiling` 0.9600 under the 5k inputs). The protocols evaluate identical definitions of recall, ground truth, displacement ($3.0\times$ mean 1-NN at $10\times$), and ceiling level allocation.
+- **Displacement Curves (Item B)**: Sweeping displacement multiples $\{1, 3, 9, 27\}\times$ mean 1-NN distance reveals that the two curves do not coincide: the 5j generator collapses sharply ($0.9833 \to 0.8907 \to 0.7413 \to 0.6520$) creating large headroom, whereas the 5k generator degrades much more slowly ($0.9853 \to 0.9693 \to 0.9400 \to 0.9087$). Neither curve is asserted as universally normative beyond the empirical sweep data in `docs/data/harness_conflict_benchmark.json`.
 - Total drifting displacement corresponds to $3.0\times$ mean 1-NN distance at $10\times$ speed and $9.0\times$ mean 1-NN distance at $30\times$ speed ($T=0.30$).
 
 #### 2. Decision Table on the Vanilla Graph (Claim iv continued)
