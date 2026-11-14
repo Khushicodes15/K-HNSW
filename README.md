@@ -1,131 +1,132 @@
 # K-HNSW: Kinetic Hierarchical Navigable Small World
 
-> Research on repairing HNSW graph topology under continuous vector updates.
-
-## Status
-**Research prototype; algorithms are not yet implemented.**
-This repository currently provides the monorepo architecture, interface contracts, event trace schemas, Pyodide sync tooling, containerization, and continuous integration workflows.
-
-## What is NOT Claimed
-We do **not** claim to have invented dynamic HNSW or dynamic Approximate Nearest Neighbor (ANN) search. This project investigates kinetic data structures, certificate-based validity tracking, and localized budget-constrained repair mechanisms for maintaining navigability and search recall in existing HNSW hierarchies subject to vector drift.
-
-## License
-There is currently **no LICENSE file** in this repository. Licensing terms will be decided by the project team at a later phase.
+> Research on maintaining Hierarchical Navigable Small World (HNSW) proximity graph topology under continuous vector drift and dynamic updates.
 
 ---
 
-## Architectural Principles: Pure Core
-The computational core located at [`src/khnsw/core/`](file:///src/khnsw/core/) is strictly **pure**:
-- Imports are limited exclusively to Python's standard library, `numpy`, and internal `khnsw` modules.
-- This constraint guarantees that the core graph, detection, and repair engine can be compiled and executed directly inside client web browsers using [Pyodide](https://pyodide.org/).
-- Purity is validated on every commit by an AST-scanning contract test (`tests/contracts/test_core_purity.py`).
-- External, heavy C++ libraries (such as `hnswlib` or `faiss-cpu`) are isolated entirely within [`src/khnsw/adapters/`](file:///src/khnsw/adapters/).
+## 1. Project Status & Empirical Findings
+
+K-HNSW investigates mechanisms to preserve search navigability and recall in HNSW indexes subject to continuous vector drift. For the complete inventory of empirical claims, formal verification statuses, and benchmark evidence, see [`docs/claims.md`](docs/claims.md).
+
+### Supported Results
+- **Temporal Staggering Advantage**: Unassisted `round_robin` reinsertion scores higher mean drifting recall than bursty `periodic_k5` at matched cumulative reinsertion counts: **+0.0252** at $n=500$ ($0.9275$ vs $0.9023$; $133,945$ vs $125,722$ distance computations) and **+0.0270** at $n=2000$ ($0.9242$ vs $0.8972$; $357,395$ vs $316,203$ distance computations). Furthermore, at $n=2000$, `round_robin` achieves slightly higher recall than step-by-step reinsertion `periodic_k1` ($0.9242$ vs $0.9224$) at **22.7% of its distance computation cost** ($357,395$ vs $1,571,353$, a $77.3\%$ savings). (Source: `docs/data/missing_controls_benchmark.json`).
+- **Graph Recall Collapse Under Isotropic Drift**: Without maintenance (`no_repair`), 1-NN recall drops to $\approx 0.65$ under continuous isotropic drift ($0.6562$ at $n=500$ under 30% drift, $0.6497$ at $n=2000$ under 10% drift at $ef=16$).
+- **In-Neighbor Pre-Repair Penalty**: Static in-neighbor pre-repair consistently degrades drifting recall (by $-0.0073$ at $n=500$ and $-0.0094$ at $n=2000$) while increasing distance computation costs by $+23.6\%$ to $+24.7\%$ (Source: `docs/data/missing_controls_benchmark.json`).
+- **Initial Voronoi Filtering**: Voronoi edge pruning (`settle_hnsw`) removes $32.1\%$ of level-0 edges from freshly constructed indexes (mean level-0 edges drop from $5,131.3$ to $3,483.3$), but kinetic Voronoi edge certificates cost $\approx 4\times$ more distance evaluations than heuristic reinsertion without improving recall.
+
+### Withdrawn Claims
+- **Memory-Based Figures**: Early Phase 5g recall/cost numbers typed from unreconciled scratch/memory rather than script output were formally withdrawn (Claim 1 in `docs/claims.md`).
+- **Drift Recall Ceiling**: The hypothesis that $\approx 0.90$ was an intrinsic ceiling imposed by drift itself was disproven; controlled full rebuild ceilings achieve $0.9671$ to $0.9938$ (Claim 2).
+- **PRNG Collision Artifact**: Early claims that unassisted `no_repair` outperformed repair arms were traced to a PRNG stream collision in `LinearDrift` that induced pure radial drift ($\cos \equiv 1.0$), rather than realistic isotropic drift (Claims 8 and 10).
+
+### Untested Hypotheses & Open Work
+- **Microscopic Pre-Repair Transition**: The hypothesis that in-neighbor pre-repair hurts recall because it deletes obsolete edges before replacement bidirectional links are formed remains untested at the individual edge transition level.
+- **Real High-Dimensional Embeddings**: Experiments have been conducted exclusively on synthetic Gaussian vectors ($d=8$ and $d=16$); evaluation on real-world text or vision embeddings is pending.
+- **External Baselines**: Empirical comparisons have focused on internal controls (`round_robin`, `periodic_k5`, `periodic_k1`, `displacement_theta`); comparison against external dynamic graph libraries (e.g., FreshHNSW) has not yet been conducted.
 
 ---
 
-## Quick Start
+## 2. Setup & Installation
 
-### 1. Python Environment Setup
+The repository features a pure Python algorithmic core (`src/khnsw/core/`) requiring only Python standard library and NumPy, allowing in-browser execution via Pyodide.
+
+### Python Environment
 Requires Python $\ge 3.11$:
 ```bash
 python -m venv .venv
-# Activate on Windows:
+# On Windows:
 .venv\Scripts\activate
-# Activate on Linux/macOS:
+# On Linux/macOS:
 source .venv/bin/activate
 
 # Install core in editable mode with development & API extras:
 pip install -e ".[dev,api]"
-
-# Optionally install benchmarking dependencies (faiss-cpu, hnswlib, scipy, pandas):
-pip install -e ".[bench]"
 ```
 
-### 2. Run Tests & Linters
-```bash
-# Check code formatting & linting with Ruff
-ruff check .
-ruff format --check .
-
-# Run pytest test suite
-pytest
-```
-
-### 3. Frontend Development
+### Frontend Environment
 Requires Node.js $\ge 20$:
 ```bash
 cd frontend
 npm install
-npm test
-npm run lint
-npm run build
-npm run dev
 ```
-
-### 4. Sync Core to Frontend (Pyodide)
-To export the pure Python core package to `frontend/public/py/` for browser execution:
-```bash
-python scripts/sync_core_to_frontend.py
-```
-This populates `frontend/public/py/khnsw/` and generates `frontend/public/py/manifest.json`.
-
-### 5. Docker & Docker Compose
-Start both the FastAPI backend and the Vite frontend dev server in isolated containers:
-```bash
-docker compose up --build
-```
-- Backend API (Health): `http://localhost:8000/health`
-- Frontend Dashboard: `http://localhost:5173/`
 
 ---
 
-## Repository Map
+## 3. Running Tests & Linters
+
+### Python Linters and Contract Tests
+```bash
+# Code formatting and linting
+ruff check .
+ruff format --check .
+
+# Contract purity test (enforces zero non-stdlib/numpy imports in core)
+pytest tests/contracts/test_core_purity.py
+
+# Full test suite
+pytest
+```
+
+### Frontend Verification
+```bash
+cd frontend
+npm run lint
+npm test
+npm run build
+```
+
+---
+
+## 4. Diagnostic & Demonstration Scripts
+
+### Production Policy Replay Events
+Instruments `MaintenancePolicy` graph mutations into contracted `edge_remove` (`reason="policy_reinsert"`) and `edge_add` events, enabling deterministic graph state replay from an initial snapshot:
+```bash
+python scripts/diagnostic_replay_events.py
+```
+
+### Alternative Kinetic Edge-Certificate Engine
+Demonstrates kinetic Voronoi certificate tracking and repair planning (`KineticDetector`, `CertificateStore`, `khnsw_plan`):
+```bash
+python scripts/demo_events.py
+```
+> [!NOTE]
+> The kinetic certificate tracking model implemented in `scripts/demo_events.py` is an alternative experimental paradigm whose mathematical mechanics and event stream differ from the production `MaintenancePolicy` reinsertion engine.
+
+---
+
+## 5. Repository Architecture
+
 ```
 .
-├── .github/
-│   ├── workflows/ci.yml       # Python (3.11, 3.12) & Frontend CI
-│   ├── workflows/pages.yml    # GitHub Pages deployment pipeline
-│   ├── CODEOWNERS             # Component ownership boundaries
-│   ├── PULL_REQUEST_TEMPLATE.md
-│   └── ISSUE_TEMPLATE/        # Task and Bug issue templates
-├── AGENTS.md                  # Strict operational rules for AI coding assistants
-├── CONTRIBUTING.md            # Git workflows, code reviews, and PR policies
-├── Dockerfile.backend         # Python 3.12 backend container
-├── docker-compose.yml         # Backend + Frontend compose setup
-├── pyproject.toml             # Python packaging configuration
-├── benchmarks/                # Benchmark suites, baselines, and results
-├── configs/                   # Experiment YAML configurations
-├── data/                      # Dataset directory (contents gitignored)
-├── docs/
-│   ├── contracts/             # Protocols, metrics, and JSON schemas
-│   ├── algorithm/             # Formal problem definition & certificate math
-│   ├── literature/            # Literature review & paper notes
-│   ├── report/                # Research reports and drafts
-│   ├── adr/                   # Architecture Decision Records
-│   ├── OWNERSHIP.md           # 5-member role matrix & review pairs
-│   └── TASKS.md               # Task roadmaps and checklists
-├── frontend/                  # React + TypeScript + Vite visualization app
-├── scripts/                   # Tooling (sync_core_to_frontend.py)
 ├── src/khnsw/
-│   ├── core/                  # Pure stdlib + NumPy algorithmic core
-│   ├── adapters/              # External baseline wrappers (faiss, hnswlib)
-│   └── api/                   # FastAPI microservice
-└── tests/                     # Unit, property, parity, and contract tests
+│   ├── core/              # Pure Python stdlib + NumPy algorithmic core
+│   │   ├── graph/         # HNSW graph data structure and neighbor heuristic
+│   │   ├── movement/      # Linear and Brownian continuous drift models
+│   │   ├── detection/     # Kinetic certificate store and event heap
+│   │   ├── scheduling/    # MaintenancePolicy, displacement and priority trackers
+│   │   ├── repair/        # Topological reinsertion and repair loops
+│   │   └── events/        # Contracted trace schemas, event emitters, and sinks
+│   ├── adapters/          # External ANN library adapters (faiss, hnswlib)
+│   └── api/               # FastAPI backend service
+├── tests/
+│   ├── contracts/         # Core purity and JSON schema contract tests
+│   ├── unit/              # Unit tests for core algorithms and policies
+│   ├── integration/       # Multi-component repair and drift integration tests
+│   └── parity/            # Ground truth and algorithmic parity tests
+├── scripts/               # Diagnostic tooling, replay demonstrations, and Pyodide sync
+├── docs/                  # Technical documentation, claims register, and benchmark data
+└── frontend/              # React + TypeScript + Vite visualization dashboard
 ```
 
-## Team & Ownership
-- **Khushi Dhona** (Member 3 / Repo Owner): Update & Repair Engine (`src/khnsw/core/movement/`, `detection/`, `scheduling/`, `repair/`, `events/`)
-- **Mansi Bhattacharjee** (Member 1): Research & Algorithm Spec (`docs/algorithm/`, `docs/literature/`, `docs/contracts/metrics.md`)
-- **Arpanjot Kaur** (Member 2): Graph Engine & Baselines (`src/khnsw/core/graph/`, `src/khnsw/core/search/`, `src/khnsw/adapters/`)
-- **Saanvi Srivastava** (Member 4): Benchmarks & Evaluation (`benchmarks/`, `configs/`, `tests/parity/`)
-- **Ayushman Acharya** (Member 5): Frontend & System Integration (`frontend/`, `src/khnsw/api/`, `Dockerfile.backend`, `docker-compose.yml`, `.github/workflows/`)
+---
 
-See [`docs/OWNERSHIP.md`](docs/OWNERSHIP.md) for the full role and review pairing matrix.
+## 6. Documentation Index
 
-## Documentation Links
-- [Architecture Decision Record 0001: Monorepo](docs/adr/0001-monorepo.md)
-- [Team Ownership & Code Review Pairing Matrix](docs/OWNERSHIP.md)
-- [Work Checklists & Task Roadmaps](docs/TASKS.md)
-- [System Contracts & Schemas](docs/contracts/README.md)
-- [Evaluation Metrics & Protocols](docs/contracts/metrics.md)
-
+- [`docs/claims.md`](docs/claims.md): Register of all empirical claims, verification statuses, and evidence files.
+- [`docs/algorithm/problem.md`](docs/algorithm/problem.md): Formal formulation of continuous vector drift and index maintenance.
+- [`docs/algorithm/policies.md`](docs/algorithm/policies.md): Reinsertion scheduling policies, ablation comparisons, and policy replay event contracts.
+- [`docs/algorithm/repair.md`](docs/algorithm/repair.md): Topological repair mechanisms, in-neighbor pre-repair, and contract compliance audit.
+- [`docs/limitations.md`](docs/limitations.md): Detailed architectural, empirical, and computational limitations.
+- [`docs/contracts/`](docs/contracts/README.md): System contracts, event schemas, and evaluation metric specifications.
+- [`docs/OWNERSHIP.md`](docs/OWNERSHIP.md): Team role matrix and code review pairings.

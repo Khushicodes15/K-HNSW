@@ -136,3 +136,39 @@ class MaintenancePolicy:
   - In the unified 5m harness (`docs/data/lazy_reinsertion_benchmark.json`):
     - At $n=500$ (Setting I, `RandomState`, seeds 42–44): `cert_triggered` achieves $0.9385$ recall at cost $615,680$ ($814.7$ reinsertions) vs `displacement_theta_1.0` achieving $0.9329$ recall at cost $135,313$ ($312.0$ reinsertions) — an extra $480\text{k}$ distance operations for $+0.0056$ recall.
     - At $n=2000$ (Setting II, `RandomState`, seed 42): `cert_triggered` achieves lower recall ($0.9089$) than `displacement_theta_1.0` ($0.9193$) while consuming over $4.4\times$ the distance budget ($1,598,047$ vs $357,629$).
+
+---
+
+## 4. Policy Replay Events
+
+### Overview
+When an `EventEmitter` is provided to `MaintenancePolicy`, `step()` instruments all graph topology mutations caused by maintenance reinsertion and in-neighbor pre-repair. This allows downstream consumers (such as Member 5's visualization dashboard) to deterministically reconstruct the exact proximity graph state across simulation steps by replaying emitted events onto the initial graph snapshot (`initial_snapshot.json`).
+
+### Event Contracts and Payloads
+Because `docs/contracts/events.md` defines no custom `node_reinsert` or `maintenance` event types, `MaintenancePolicy` uses strictly contracted edge mutation events conforming to `docs/contracts/event.schema.json`:
+- **`edge_remove`**: Emitted when an existing directed edge $u \to v$ at layer $\ell$ is severed.
+  - **Envelope**: `type="edge_remove"`, `node=u`, `level=l`, `version=index.version(u)`, `t=timestamp`.
+  - **Payload**: `{"target_id": v, "reason": "policy_reinsert"}`.
+- **`edge_add`**: Emitted when a new directed edge $u \to v$ at layer $\ell$ is established.
+  - **Envelope**: `type="edge_add"`, `node=u`, `level=l`, `version=index.version(u)`, `t=timestamp`.
+  - **Payload**: `{"target_id": v}`. Note: the optional `distance` payload field is omitted because edge distances are not pre-computed during routing without extra distance computations, preserving exact `CostMeter` parity.
+- **Edge Identity**: A directed edge is uniquely and unambiguously identified in the replay stream by the tuple `(event.node, event.level, payload.target_id)`.
+
+### Emission Ordering & Degree Cap Safety
+Within each reinsertion (and pre-repair) operation, `MaintenancePolicy._emit_diff()` partitions net changes:
+1. **All removals are emitted first**: Every `edge_remove` event is dispatched to the emitter before any additions.
+2. **All additions are emitted second**: Every `edge_add` event is dispatched following removals.
+
+This guarantees that a replay engine enforcing strict degree bounds ($M_0$ at level 0, $M$ at level $\ell > 0$) will never encounter a transient degree overflow ($M + 1$) during playback.
+
+### Net Difference & Snapshot Dependency
+- **Net Difference Only**: Events record only the net difference between graph states before and after each reinsertion:
+  $$\text{removals} = \mathcal{E}_{\text{before}} \setminus \mathcal{E}_{\text{after}}, \quad \text{additions} = \mathcal{E}_{\text{after}} \setminus \mathcal{E}_{\text{before}}$$
+- **Unchanged Edges Emit No Events**: Edges that exist both before and after a reinsertion produce NO event. Consequently, a node's complete final neighbor list is not explicitly enumerated in the event stream; a replay consumer **must** apply the stream to `initial_snapshot.json`. The event stream alone cannot reveal a reinserted node's final neighbors.
+- **Diagnostic Toy Example Note**: In `scripts/diagnostic_replay_events.py` (a 10-node synthetic graph), node 1 retains a single neighbor (node 6) after reinsertion, emitting 4 removals (`target_id` $\in \{0, 2, 5, 8\}$) and 0 additions. Edge $(1, 6)$ existed before and after, producing no event. This behavior reflects the standard HNSW heuristic selection on a tiny 10-node graph and is not claimed as typical for standard index sizes.
+- **Pre-Repair Coverage**: When `pre_repair=True`, changes to static in-neighbor lists made by `in_neighbour_pre_repair()` are snapshotted and emitted using the same `edge_remove`/`edge_add` contract before node reinsertions occur.
+
+### Snapshot Mechanics & Performance Cost
+- **Zero Overhead Without Emitter**: When `emitter=None`, no snapshots are taken, no diffs are computed, and execution incurs zero extra distance or memory overhead.
+- **Snapshot Implementation**: Snapshotting reads the internal adjacency table directly from `index._store._forward`.
+- **Scaling Cost**: For each node reinserted (and once for pre-repair), a full-graph adjacency snapshot `{u: {lvl: set(nbrs)}}` is recorded before and after the operation. In local empirical measurements on synthetic Gaussian data ($n=2000, d=8$), a single graph snapshot took approximately **$7.7\text{ ms}$**. Because $B$ reinsertions require $2B$ full-graph snapshots per step, full-graph snapshotting scales with $\mathcal{O}(n \cdot B)$ and adds noticeable CPU overhead for very large graphs ($n \gg 2000$).
