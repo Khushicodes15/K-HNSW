@@ -104,6 +104,17 @@ Routing fidelity and recall@10 were evaluated on $n=500, M=8, d=8$ across 25 per
 > - **Global Reachability**: Across the 95% unperturbed nodes, the dense background graph retains global recall $\ge 0.997$ across all configurations.
 > - **Invariant Preservation vs Recall Metric**: Zero certificate violations indicates that all local Delaunay/witness conditions are strictly satisfied; it is an invariant guarantee, not a quality metric that guarantees superior recall under every transient perturbation. Drift-moved node handling preserves in-degrees and restores self-findability to 1.000 without claiming drift repair monotonically outperforms un-repaired controls across all speeds.
 
+### 4.1 Continuous Drift Protocol Findings (Phase 5j Claims)
+
+1. **Protocol Drift Retention (Claim i)**: Under the continuous linear drift protocol on the settled graph, `no_repair` recall remains above **0.88** even at $30\times$ speed (drifting recall@10 is $0.9487$ at $10\times$, $0.9060$ at $30\times$, and $0.8627$ at $100\times$ for $ef=16$; and $>0.95$ across all speeds at $ef=32$).
+2. **Rebuild Recovery vs Cost (Claim ii)**: Rebuilding moved nodes during drift restores drifting recall to **~0.90** ($0.9013$ at $10\times$, $0.8840$ at $30\times$ for $ef=16$; $0.9827$ and $0.9693$ for $ef=32$), eliminating all certificate violations ($0.0$), but incurs search and repair distance costs ($91,753$ at $10\times$, $62,957$ at $30\times$) comparable to fresh insertion ($92,300 - 93,500$).
+3. **Valid Vanilla Headroom (Claim iii)**: On the valid vanilla pair (`no_repair` vs. full rebuild ceiling at final coordinates without `settle_hnsw` confounding):
+   - At $10\times$ drift ($ef=16$): `no_repair` is $0.8907$, `ceiling` is $0.9933$, yielding headroom of **$+0.1027$** ($+10.3\%$). At $ef=32$: headroom is **$+0.0540$**.
+   - At $30\times$ drift ($ef=16$): `no_repair` drops to $0.7413$, `ceiling` is $0.9400$, yielding headroom of **$+0.1987$** ($+19.9\%$). At $ef=32$: headroom is **$+0.1520$**.
+   - Across displacements ($n=500, d=8$): headroom exceeds $0.03$ for all displacements $\ge 2.0\times$ mean 1-NN distance, reaching $+0.3000$ (10% drift) and $+0.6689$ (30% drift) at $32\times$. At $n=2000, d=8$ (10% drift), headroom reaches **$+0.3260$** at $8\times$ and **$+0.7895$** at $32\times$ ($ef=16$).
+4. **Settle Confound (Claim iv)**: Running `settle_hnsw` on freshly built HNSWIndex at $t=0$ alters degree distribution from **10.26** to **6.97** level-0 edges per node (a $32.1\%$ reduction from $5,131$ to $3,483$ edges) by dropping construction-time Delaunay violations.
+5. **Scheduler/Ablation Switches (Claim v)**: All prospective scheduler prioritization, batching, and candidate filtering switches not yet implemented in `src/khnsw` are marked **specified-not-built**.
+
 ---
 
 ## 5. Event Stream Reconstructibility Analysis: Frontend Capabilities & Gaps

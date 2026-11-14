@@ -398,10 +398,10 @@ Evaluation on `HNSWIndex` ($n=500, M=8, d=8$, $T=0.30$ in 10 steps, 10% drifting
 | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **10x** | No-Repair Control | 0.9487 | 0.9867 | 0.9613 | 0.9933 | 1.000 | 6.88 | 419.3 | 0 |
 | | Ours (before drift-moved fix) | 0.8880 | 0.9653 | 0.9667 | 0.9960 | 0.993 | 6.24 | **0.0** | 37,585 |
-| | **Ours (after drift-moved fix)** | **0.9013** | **0.9827** | **0.9633** | **0.9950** | **1.000** | **6.42** | **0.0** | 201,997 |
+| | **Ours (after drift-moved fix)** | **0.9013** | **0.9827** | **0.9633** | **0.9950** | **1.000** | **6.42** | **0.0** | **91,753** |
 | **30x** | No-Repair Control | 0.9060 | 0.9713 | 0.9613 | 0.9933 | 1.000 | 6.88 | 460.3 | 0 |
 | | Ours (before drift-moved fix) | 0.8313 | 0.9253 | 0.9683 | 0.9963 | 0.960 | 6.19 | **0.0** | 34,048 |
-| | **Ours (after drift-moved fix)** | **0.8840** | **0.9693** | **0.9667** | **0.9963** | **1.000** | **6.39** | **0.0** | 127,038 |
+| | **Ours (after drift-moved fix)** | **0.8840** | **0.9693** | **0.9667** | **0.9963** | **1.000** | **6.39** | **0.0** | **62,957** |
 | **100x**| No-Repair Control | 0.8627 | 0.9520 | 0.9613 | 0.9933 | 1.000 | 6.88 | 477.3 | 0 |
 | | Ours (before drift-moved fix) | 0.7733 | 0.8780 | 0.9703 | 0.9963 | 0.960 | 6.23 | **0.0** | 31,050 |
 | | **Ours (after drift-moved fix)** | **0.8813** | **0.9627** | **0.9703** | **0.9963** | **1.000** | **6.39** | **0.0** | 85,713 |
@@ -412,6 +412,38 @@ Under 100% drifting nodes at $30\times$ speed:
 
 > [!NOTE]
 > Zero violations is an empty-ellipse topological invariant rather than a recall booster. While no-repair retains obsolete shortcut edges across void regions that yield high recall on static query sets, K-HNSW eliminates invalid certificates (achieving exactly 0 violations) while drift-moved rebuild restores self-findability to 1.000 and recovers in-degrees without leaving isolated nodes.
+
+---
+
+### 8.7 Baseline Confound and Headroom Analysis (Phase 5j Findings)
+
+Comprehensive investigation across `docs/data/reconcile_benchmark.json` and `docs/data/vanilla_headroom.json` established the following verified algorithmic findings:
+
+1. **Protocol Drift Retention (Claim i)**:
+   Under the current linear drift protocol on the settled benchmark index, `no_repair` recall remains above **0.88** even at $30\times$ drift speed (specifically, drifting recall@10 is $0.9487$ at $10\times$, $0.9060$ at $30\times$, and $0.8627$ at $100\times$ for $ef=16$; and above $0.95$ across all speeds at $ef=32$).
+
+2. **Rebuild Recovery and Cost Trade-off (Claim ii)**:
+   Rebuilding moved nodes in the drift path (`ours_after`) restores drifting recall to **~0.90** ($0.9013$ at $10\times$ and $0.8840$ at $30\times$ for $ef=16$; $0.9827$ and $0.9693$ for $ef=32$), eliminating all certificate violations ($0.0$). However, it incurs total distance computation costs ($91,753$ at $10\times$, $62,957$ at $30\times$) comparable to fresh insertion search distance cost ($92,300 - 93,500$).
+
+3. **Valid Vanilla Pair Headroom (Claim iii)**:
+   When evaluated on an un-settled vanilla HNSW pair (`no_repair` vs. full rebuild ceiling at final coordinates without `settle_hnsw` confounding):
+   - At $10\times$ drift ($ef=16$): `no_repair` is $0.8907$, `ceiling` is $0.9933$, yielding headroom $(\text{ceiling} - \text{no\_repair})$ of **$+0.1027$** ($+10.3\%$). At $ef=32$: headroom is **$+0.0540$**.
+   - At $30\times$ drift ($ef=16$): `no_repair` drops to $0.7413$, `ceiling` is $0.9400$, yielding headroom of **$+0.1987$** ($+19.9\%$). At $ef=32$: headroom is **$+0.1520$**.
+   - Across displacement multiples of mean 1-NN distance ($n=500, d=8$):
+     - At $0.5\times$ displacement: headroom is negligible ($\le 0.0084$).
+     - At $2.0\times$ displacement: headroom reaches **$+0.0573$** (10% drift) and **$+0.1113$** (30% drift) at $ef=16$.
+     - At $8.0\times$ displacement: headroom reaches **$+0.1833$** (10% drift) and **$+0.4042$** (30% drift) at $ef=16$.
+     - At $32.0\times$ displacement: headroom reaches **$+0.3000$** (10% drift) and **$+0.6689$** (30% drift) at $ef=16$.
+   - At $n=2000, d=8$ (10% drift, seed 42):
+     - At $8.0\times$ displacement: headroom reaches **$+0.3260$** ($ef=16$: $0.5455$ vs $0.8715$) and **$+0.3325$** ($ef=32$).
+     - At $32.0\times$ displacement: headroom reaches **$+0.7895$** ($ef=16$: $0.1285$ vs $0.9180$) and **$+0.7860$** ($ef=32$).
+   - Headroom exceeds $0.03$ for all conditions with displacement $\ge 2.0\times$ mean 1-NN distance.
+
+4. **Construction Settle Confound (Claim iv)**:
+   Running `settle_hnsw` on a freshly constructed HNSWIndex at $t=0$ alters the graph's degree distribution: mean level-0 out-degree drops from **10.26** to **6.97**, total level-0 edges decrease from **5,131** to **3,483** (a $32.1\%$ reduction), and total graph edges drop from **5,441** to **3,724** (means across seeds 42-44), because initial certificate pruning eliminates construction-time Delaunay violations without reciprocal replenishment.
+
+5. **Ablation & Scheduler Status (Claim v)**:
+   Prospective scheduler prioritization switches, alternative candidate filtering flags, and batching heuristics not currently present in `src/khnsw` are cataloged as **specified-not-built**.
 
 
 

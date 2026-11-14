@@ -242,7 +242,6 @@ def run_seed(seed: int) -> dict[str, Any]:
         "runs": [],
         "static_tracing": {},
         "in_degree": {},
-        "static_edge_audit": {},
         "headroom": run_headroom(seed),
     }
 
@@ -416,8 +415,6 @@ def run_seed(seed: int) -> dict[str, Any]:
             },
         }
 
-        idx_fresh_ref: HNSWIndex | None = None
-
         # Evaluate each arm
         for arm in arms:
             arm_categories: dict[str, int] = {
@@ -446,8 +443,6 @@ def run_seed(seed: int) -> dict[str, Any]:
                 idx_arm.add(drift_arr, pos_t_final[drift_arr])
                 total_cost = idx_arm.distance_computations - before_add
                 arm_categories["search"] = total_cost
-                if speed == 30.0:
-                    idx_fresh_ref = idx_arm
             elif arm == "arm_inplace_reinsert":
                 idx_arm = copy.deepcopy(base_index)
                 for nid in range(n):
@@ -726,52 +721,6 @@ def run_seed(seed: int) -> dict[str, Any]:
                 }
             )
 
-        # Audit static node edges at 30x drift
-        if speed == 30.0:
-            top_16_dict: dict[int, set[int]] = {}
-            for s in static_nodes:
-                diffs = pos_t_final - pos_t_final[s]
-                dists = np.sum(diffs**2, axis=1)
-                order = np.argsort(dists)
-                top_16 = [int(u) for u in order if u != s][:16]
-                top_16_dict[s] = set(top_16)
-
-            def audit_edges(
-                idx_to_audit: HNSWIndex | None,
-                _top16: dict[int, set[int]] = top_16_dict,
-                _drifting: set[int] = drifting_set,
-                _static: list[int] = static_nodes,
-            ) -> dict[str, float]:
-                if idx_to_audit is None:
-                    return {"mean_out_deg": 0.0, "frac_out_to_drift": 0.0, "frac_stale": 0.0}
-                out_degs = []
-                edges_to_drift = 0
-                stale_edges = 0
-                total_edges = 0
-                for s in _static:
-                    nbrs = idx_to_audit.neighbors(s, 0)
-                    out_degs.append(len(nbrs))
-                    total_edges += len(nbrs)
-                    for nb in nbrs:
-                        if nb in _drifting:
-                            edges_to_drift += 1
-                            if nb not in _top16[s]:
-                                stale_edges += 1
-                mean_deg = float(np.mean(out_degs))
-                frac_drift = edges_to_drift / total_edges if total_edges > 0 else 0.0
-                frac_stale = stale_edges / edges_to_drift if edges_to_drift > 0 else 0.0
-                return {
-                    "mean_out_deg": mean_deg,
-                    "frac_out_to_drift": frac_drift,
-                    "frac_stale": frac_stale,
-                }
-
-            results["static_edge_audit"] = {
-                "no_repair": audit_edges(idx_no_rep),
-                "ours_after": audit_edges(idx_ours),
-                "fresh_insert_ref": audit_edges(idx_fresh_ref),
-            }
-
     return results
 
 
@@ -833,14 +782,6 @@ def main() -> None:
         for d in loaded_data:
             headroom_runs.extend(d.get("headroom", []))
 
-        static_edge_audit_per_seed = []
-        for d in loaded_data:
-            sea = d["static_edge_audit"]
-            if "mean" in sea:
-                static_edge_audit_per_seed.append(sea["mean"])
-            else:
-                static_edge_audit_per_seed.append(sea)
-
         final_data = {
             "runs": combined_runs,
             "static_tracing": {
@@ -883,25 +824,6 @@ def main() -> None:
                     for cond in ["no_repair", "ours_after"]
                 }
                 for spd in ["10x", "30x"]
-            },
-            "static_edge_audit": {
-                "per_seed": static_edge_audit_per_seed,
-                "mean": {
-                    cond: {
-                        "mean_out_deg": float(
-                            np.mean([s[cond]["mean_out_deg"] for s in static_edge_audit_per_seed])
-                        ),
-                        "frac_out_to_drift": float(
-                            np.mean(
-                                [s[cond]["frac_out_to_drift"] for s in static_edge_audit_per_seed]
-                            )
-                        ),
-                        "frac_stale": float(
-                            np.mean([s[cond]["frac_stale"] for s in static_edge_audit_per_seed])
-                        ),
-                    }
-                    for cond in ["no_repair", "ours_after", "fresh_insert_ref"]
-                },
             },
             "headroom": headroom_runs,
         }
@@ -963,32 +885,6 @@ def main() -> None:
                     for cond in ["no_repair", "ours_after"]
                 }
                 for spd in ["10x", "30x"]
-            },
-            "static_edge_audit": {
-                "per_seed": [r["static_edge_audit"] for r in loaded_res],
-                "mean": {
-                    cond: {
-                        "mean_out_deg": float(
-                            np.mean(
-                                [r["static_edge_audit"][cond]["mean_out_deg"] for r in loaded_res]
-                            )
-                        ),
-                        "frac_out_to_drift": float(
-                            np.mean(
-                                [
-                                    r["static_edge_audit"][cond]["frac_out_to_drift"]
-                                    for r in loaded_res
-                                ]
-                            )
-                        ),
-                        "frac_stale": float(
-                            np.mean(
-                                [r["static_edge_audit"][cond]["frac_stale"] for r in loaded_res]
-                            )
-                        ),
-                    }
-                    for cond in ["no_repair", "ours_after", "fresh_insert_ref"]
-                },
             },
             "headroom": headroom_runs,
         }
