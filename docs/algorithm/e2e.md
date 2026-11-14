@@ -42,7 +42,8 @@ The simulation executes three consecutive continuous and discrete motion phases 
 - Time advances across steps $t \in \{0.05, 0.10, 0.15\}$.
 - Points drift continuously with constant velocities ($p_i(t) = a_i + b_i \cdot t$).
 - `KineticDetector.advance(t)` pops due certificate invalidation events from the `KineticEventHeap` and confirms true Delaunay empty-ellipse violations via float32 rechecking.
-- `KHNSWRepairEngine.run_repairs` schedules localized graph rewrites, pruning invalid certificates and maintaining local Delaunay empty-ellipse invariants.
+- `KHNSWRepairEngine.run_repairs` extracts drifting nodes from confirmed failures via velocity checking (`trajectory_of(u)[1] != 0`), executing both out-link rebuild and reciprocal reverse-link synthesis for moving nodes to maintain degree bounds and prevent in-degree collapse.
+- Zero certificate violations achieved after each step represents adherence to local Delaunay topological invariants rather than an empirical claim of monotonically superior recall over un-repaired controls.
 
 ### Phase 2: Trajectory Modification under Drift
 - At $t=0.20$, specific nodes ($\{10, 25, 50, 100, 200\}$) undergo trajectory changes (abrupt changes in velocity directions scaled by nearest-neighbor distance).
@@ -101,6 +102,33 @@ Routing fidelity and recall@10 were evaluated on $n=500, M=8, d=8$ across 25 per
 > - **Moved Node Ingress**: Without reciprocal reverse links, rebuilding only out-links severely isolates moved nodes. Even though the moved node has outgoing edges, incoming edges from its origin neighborhood are dropped by certificate repair and no new in-edges are formed from the destination cluster. Consequently, queries targeting moved nodes lose routing ingress (self-findability drops to $0.120 - 0.160$ and recall drops to $0.769 - 0.812$, below the control).
 > - **Restoration via Reverse Links**: Synthesizing reciprocal $w \to m$ edges directly restores routing ingress: self-findability reaches **$1.000$** (matching delete+reinsert), true 10-NN in-edge incidence reaches **$100\%$**, and recall@10 at moved nodes reaches **$0.991$** at $12\times$ and **$0.988$** at $30\times$, outperforming the control ($0.891$ and $0.847$).
 > - **Global Reachability**: Across the 95% unperturbed nodes, the dense background graph retains global recall $\ge 0.997$ across all configurations.
+> - **Invariant Preservation vs Recall Metric**: Zero certificate violations indicates that all local Delaunay/witness conditions are strictly satisfied; it is an invariant guarantee, not a quality metric that guarantees superior recall under every transient perturbation. Drift-moved node handling preserves in-degrees and restores self-findability to 1.000 without claiming drift repair monotonically outperforms un-repaired controls across all speeds.
+
+### 4.1 Kinetic Drift Protocol Findings (Phase 5k Settled & Vanilla Analysis)
+
+> [!WARNING]
+> **RADIAL-DRIFT PROTOCOL: does not generalise.**
+> The claims below were generated under nominal `default_rng(seed)` + `LinearDrift(seed)` (`docs/data/reconcile_benchmark.json` and `docs/data/vanilla_arms_benchmark.json`). As audited in Phase 5n Item A, this protocol generates **pure radial drift** ($\cos(v, X_0) \equiv 1.0000$) due to NumPy `SeedSequence` collision. The finding that "all repair arms score strictly below no_repair at ef=16" holds strictly under radial drift, where search beams travel outward along coordinate rays, artificially preserving high recall. Under true isotropic drift (`indep_dir` / `RandomState`, see `docs/algorithm/repair.md` Section 8.9), no-repair degrades to $0.65$ and staggered reinsertion provides significant recall recovery ($0.924 - 0.935$).
+
+1. **Settled Graph Performance Relative to No-Repair (Claim i)**:
+   On the settled graph, all repair variants—including K-HNSW at $ef=16$ rebuild (drifting recall $0.8927$ at $10\times$, $0.8687$ at $30\times$), K-HNSW at $ef=64$ rebuild ($0.9007$ at $10\times$, $0.8833$ at $30\times$), in-place reinsertion ($0.8813$ at $10\times$, $0.8673$ at $30\times$), and oracle reinsertion arms ($0.8733 - 0.8873$ at $10\times$, $0.8520 - 0.8607$ at $30\times$)—score strictly below `no_repair` ($0.9487$ at $10\times$, $0.9060$ at $30\times$) at evaluation $ef=16$. At evaluation $ef=32$, repair arms perform within $0.01$ of `no_repair` ($0.9867$ at $10\times$, $0.9713$ at $30\times$). Rebuild does not restore recall above the un-repaired baseline at $ef=16$.
+
+2. **Certificate Invariants vs. Search Recall (Claim ii)**:
+   Achieving zero violated certificates confirms adherence to empty-ellipse Delaunay invariants; it does not imply superior search recall. In fact, un-repaired graphs retain topologically invalid shortcut edges that yield higher recall at lower search queue capacities ($ef=16$).
+
+3. **Construction Settle Confound (Claim iii)**:
+   Running `settle_hnsw` on a freshly constructed HNSWIndex at $t=0$ removes $32.1\%$ of level-0 edges (dropping level-0 edges from $5,131$ to $3,483$ and mean level-0 out-degree from $10.26$ to $6.97$, means across seeds 42–44). Consequently, the settled baseline is structurally distinct and significantly thinned compared to a standard vanilla HNSW graph.
+
+4. **In-Neighbour Pre-Repair (Claim v)**:
+   Re-selecting static in-neighbour lists using the standard heuristic prior to reinsertion improved in-place reinsertion recall by $\approx 0.04$ at $10\times$ (from $0.8813$ to $0.9207$) and $\approx 0.02$ at $30\times$ (from $0.8673$ to $0.8893$) at $ef=16$ on the settled graph. However, performance remained below the `no_repair` baseline ($0.9487$ at $10\times$, $0.9060$ at $30\times$).
+
+5. **Vanilla Graph Benchmark & Decision Analysis (Claim iv)**:
+   - On the vanilla graph (`settle=False`, output `docs/data/vanilla_arms_benchmark.json`), `no_repair` drifting recall@10 ($ef=16$) is **0.9693** at $10\times$ (cost 0) and **0.9400** at $30\times$ (cost 0), matching or exceeding the full rebuild ceiling (**0.9673** at $10\times$, cost 124,964; and **0.9393** at $30\times$, cost 124,496).
+   - Only `no_repair` satisfies the criterion of reaching within $0.01$ of ceiling drifting recall at $<50\%$ of ceiling cost. All active repair arms (reinsert once, periodic reinsert, and K-HNSW engine) score below `no_repair` at $ef=16$ ($0.8767 - 0.9193$).
+   - *Harness Discrepancy Note*: Two harnesses disagree on `no_repair` and `ceiling` recall for the same nominal setting ($n=500, d=8, M=8, 10\%\text{ drift}, T=0.30$): Phase 5j reported `no_repair`/`ceiling` at **0.8907**/**0.9933** at $10\times$, whereas Phase 5k reported **0.9693**/**0.9673**. In a controlled side-by-side test with identical inputs (Item A), both code paths produce identical outputs (`no_repair` 0.8720, `ceiling` 0.9960 on 5j inputs; `no_repair` 0.9740, `ceiling` 0.9600 on 5k inputs). However, their displacement curves across $\{1, 3, 9, 27\}\times$ mean 1-NN distance do not coincide (Item B: 5j collapses to $0.6520$ at $27\times$ vs 5k at $0.9087$). Headroom exists specifically in high-displacement and high-drift regimes as measured in `docs/data/harness_conflict_benchmark.json`.
+
+6. **Scheduler/Ablation Switches (Claim vi)**:
+   All prospective scheduler prioritization, batching, and candidate filtering switches not implemented in `src/khnsw` are marked **specified-not-built**.
 
 ---
 

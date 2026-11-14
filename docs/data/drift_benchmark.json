@@ -1,0 +1,1587 @@
+{
+  "sweep_10pct": [
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "condition": "no_repair",
+      "rec16_global": 0.9620000000000002,
+      "rec32_global": 0.9940000000000001,
+      "rec16_drift": 0.9460000000000001,
+      "rec32_drift": 0.9840000000000001,
+      "rec16_static": 0.9830000000000001,
+      "rec32_static": 0.997,
+      "violated": 400,
+      "self_find": 1.0,
+      "mean_in_deg": 6.882,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "condition": "ours_before",
+      "rec16_global": 0.966,
+      "rec32_global": 0.996,
+      "rec16_drift": 0.892,
+      "rec32_drift": 0.9660000000000001,
+      "rec16_static": 0.985,
+      "rec32_static": 0.9980000000000001,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.272,
+      "cost": {
+        "detector": 10317,
+        "search": 0,
+        "planning": 17631,
+        "store": 8295,
+        "reverse_link": 0,
+        "total": 36243
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "condition": "ours_after",
+      "rec16_global": 0.9590000000000001,
+      "rec32_global": 0.996,
+      "rec16_drift": 0.9,
+      "rec32_drift": 0.9780000000000001,
+      "rec16_static": 0.9830000000000001,
+      "rec32_static": 0.996,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.424,
+      "cost": {
+        "detector": 11517,
+        "search": 74314,
+        "planning": 83089,
+        "store": 24371,
+        "reverse_link": 38,
+        "total": 193329
+      },
+      "moved_in_drift": 308
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "condition": "ours_after_no_drop",
+      "rec16_global": 0.9620000000000002,
+      "rec32_global": 0.9940000000000001,
+      "rec16_drift": 0.894,
+      "rec32_drift": 0.978,
+      "rec16_static": 0.9830000000000001,
+      "rec32_static": 0.997,
+      "violated": 270,
+      "self_find": 1.0,
+      "mean_in_deg": 6.904,
+      "cost": {
+        "detector": 12607,
+        "search": 75332,
+        "planning": 51736,
+        "store": 10283,
+        "reverse_link": 0,
+        "total": 149958
+      },
+      "moved_in_drift": 307
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "condition": "no_repair",
+      "rec16_global": 0.9590000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.954,
+      "rec32_drift": 0.992,
+      "rec16_static": 0.9700000000000002,
+      "rec32_static": 0.992,
+      "violated": 423,
+      "self_find": 1.0,
+      "mean_in_deg": 6.908,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "condition": "ours_before",
+      "rec16_global": 0.9640000000000001,
+      "rec32_global": 0.9940000000000001,
+      "rec16_drift": 0.88,
+      "rec32_drift": 0.9640000000000001,
+      "rec16_static": 0.9730000000000001,
+      "rec32_static": 0.9930000000000001,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.264,
+      "cost": {
+        "detector": 10453,
+        "search": 0,
+        "planning": 18401,
+        "store": 8361,
+        "reverse_link": 0,
+        "total": 37215
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "condition": "ours_after",
+      "rec16_global": 0.9630000000000001,
+      "rec32_global": 0.995,
+      "rec16_drift": 0.9,
+      "rec32_drift": 0.99,
+      "rec16_static": 0.9730000000000001,
+      "rec32_static": 0.9940000000000001,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.44,
+      "cost": {
+        "detector": 12030,
+        "search": 79130,
+        "planning": 87355,
+        "store": 27031,
+        "reverse_link": 0,
+        "total": 205546
+      },
+      "moved_in_drift": 334
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "condition": "ours_after_no_drop",
+      "rec16_global": 0.9590000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.9019999999999999,
+      "rec32_drift": 0.9840000000000001,
+      "rec16_static": 0.9700000000000002,
+      "rec32_static": 0.992,
+      "violated": 301,
+      "self_find": 1.0,
+      "mean_in_deg": 6.966,
+      "cost": {
+        "detector": 12972,
+        "search": 78361,
+        "planning": 52016,
+        "store": 10885,
+        "reverse_link": 0,
+        "total": 154234
+      },
+      "moved_in_drift": 324
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "condition": "no_repair",
+      "rec16_global": 0.9630000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.946,
+      "rec32_drift": 0.9840000000000001,
+      "rec16_static": 0.9650000000000002,
+      "rec32_static": 0.9990000000000001,
+      "violated": 435,
+      "self_find": 1.0,
+      "mean_in_deg": 6.86,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "condition": "ours_before",
+      "rec16_global": 0.97,
+      "rec32_global": 0.998,
+      "rec16_drift": 0.892,
+      "rec32_drift": 0.966,
+      "rec16_static": 0.9720000000000002,
+      "rec32_static": 0.9990000000000001,
+      "violated": 0,
+      "self_find": 0.98,
+      "mean_in_deg": 6.186,
+      "cost": {
+        "detector": 10839,
+        "search": 0,
+        "planning": 19734,
+        "store": 8725,
+        "reverse_link": 0,
+        "total": 39298
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "condition": "ours_after",
+      "rec16_global": 0.9680000000000001,
+      "rec32_global": 0.9940000000000001,
+      "rec16_drift": 0.9039999999999999,
+      "rec32_drift": 0.98,
+      "rec16_static": 0.9720000000000002,
+      "rec32_static": 0.9990000000000001,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.406,
+      "cost": {
+        "detector": 12516,
+        "search": 78226,
+        "planning": 87109,
+        "store": 29265,
+        "reverse_link": 0,
+        "total": 207116
+      },
+      "moved_in_drift": 329
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "condition": "ours_after_no_drop",
+      "rec16_global": 0.9630000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.9100000000000001,
+      "rec32_drift": 0.97,
+      "rec16_static": 0.9650000000000002,
+      "rec32_static": 0.9990000000000001,
+      "violated": 296,
+      "self_find": 1.0,
+      "mean_in_deg": 6.94,
+      "cost": {
+        "detector": 13171,
+        "search": 80156,
+        "planning": 51521,
+        "store": 12474,
+        "reverse_link": 0,
+        "total": 157322
+      },
+      "moved_in_drift": 331
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "condition": "no_repair",
+      "rec16_global": 0.9620000000000002,
+      "rec32_global": 0.9940000000000001,
+      "rec16_drift": 0.9039999999999999,
+      "rec32_drift": 0.968,
+      "rec16_static": 0.9830000000000001,
+      "rec32_static": 0.997,
+      "violated": 440,
+      "self_find": 1.0,
+      "mean_in_deg": 6.882,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "condition": "ours_before",
+      "rec16_global": 0.9670000000000002,
+      "rec32_global": 0.996,
+      "rec16_drift": 0.8420000000000001,
+      "rec32_drift": 0.9239999999999999,
+      "rec16_static": 0.9860000000000001,
+      "rec32_static": 0.9980000000000001,
+      "violated": 0,
+      "self_find": 0.98,
+      "mean_in_deg": 6.218,
+      "cost": {
+        "detector": 9574,
+        "search": 0,
+        "planning": 15714,
+        "store": 7352,
+        "reverse_link": 0,
+        "total": 32640
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "condition": "ours_after",
+      "rec16_global": 0.9630000000000001,
+      "rec32_global": 0.996,
+      "rec16_drift": 0.892,
+      "rec32_drift": 0.97,
+      "rec16_static": 0.9860000000000001,
+      "rec32_static": 0.9980000000000001,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.378,
+      "cost": {
+        "detector": 10123,
+        "search": 44585,
+        "planning": 51192,
+        "store": 12741,
+        "reverse_link": 0,
+        "total": 118641
+      },
+      "moved_in_drift": 194
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "condition": "ours_after_no_drop",
+      "rec16_global": 0.9620000000000002,
+      "rec32_global": 0.9940000000000001,
+      "rec16_drift": 0.89,
+      "rec32_drift": 0.9740000000000001,
+      "rec16_static": 0.9830000000000001,
+      "rec32_static": 0.997,
+      "violated": 225,
+      "self_find": 1.0,
+      "mean_in_deg": 6.694,
+      "cost": {
+        "detector": 10919,
+        "search": 46708,
+        "planning": 32862,
+        "store": 4043,
+        "reverse_link": 0,
+        "total": 94532
+      },
+      "moved_in_drift": 201
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "condition": "no_repair",
+      "rec16_global": 0.9590000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.924,
+      "rec32_drift": 0.986,
+      "rec16_static": 0.9700000000000002,
+      "rec32_static": 0.992,
+      "violated": 465,
+      "self_find": 1.0,
+      "mean_in_deg": 6.908,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "condition": "ours_before",
+      "rec16_global": 0.965,
+      "rec32_global": 0.995,
+      "rec16_drift": 0.8320000000000001,
+      "rec32_drift": 0.9239999999999999,
+      "rec16_static": 0.9750000000000001,
+      "rec32_static": 0.9940000000000001,
+      "violated": 0,
+      "self_find": 0.92,
+      "mean_in_deg": 6.208,
+      "cost": {
+        "detector": 10216,
+        "search": 0,
+        "planning": 16989,
+        "store": 7842,
+        "reverse_link": 0,
+        "total": 35047
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "condition": "ours_after",
+      "rec16_global": 0.9670000000000001,
+      "rec32_global": 0.995,
+      "rec16_drift": 0.8819999999999999,
+      "rec32_drift": 0.97,
+      "rec16_static": 0.9770000000000002,
+      "rec32_static": 0.995,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.404,
+      "cost": {
+        "detector": 11052,
+        "search": 49837,
+        "planning": 56545,
+        "store": 14911,
+        "reverse_link": 0,
+        "total": 132345
+      },
+      "moved_in_drift": 220
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "condition": "ours_after_no_drop",
+      "rec16_global": 0.9590000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.882,
+      "rec32_drift": 0.972,
+      "rec16_static": 0.9700000000000002,
+      "rec32_static": 0.992,
+      "violated": 265,
+      "self_find": 1.0,
+      "mean_in_deg": 6.79,
+      "cost": {
+        "detector": 11914,
+        "search": 52399,
+        "planning": 35298,
+        "store": 5103,
+        "reverse_link": 0,
+        "total": 104714
+      },
+      "moved_in_drift": 228
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "condition": "no_repair",
+      "rec16_global": 0.9630000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.89,
+      "rec32_drift": 0.96,
+      "rec16_static": 0.9650000000000002,
+      "rec32_static": 0.9990000000000001,
+      "violated": 476,
+      "self_find": 1.0,
+      "mean_in_deg": 6.86,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "condition": "ours_before",
+      "rec16_global": 0.9730000000000003,
+      "rec32_global": 0.998,
+      "rec16_drift": 0.82,
+      "rec32_drift": 0.9279999999999999,
+      "rec16_static": 0.9760000000000002,
+      "rec32_static": 0.9990000000000001,
+      "violated": 0,
+      "self_find": 0.98,
+      "mean_in_deg": 6.156,
+      "cost": {
+        "detector": 9896,
+        "search": 0,
+        "planning": 16908,
+        "store": 7653,
+        "reverse_link": 0,
+        "total": 34457
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "condition": "ours_after",
+      "rec16_global": 0.9700000000000003,
+      "rec32_global": 0.998,
+      "rec16_drift": 0.878,
+      "rec32_drift": 0.968,
+      "rec16_static": 0.9750000000000003,
+      "rec32_static": 0.9990000000000001,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.382,
+      "cost": {
+        "detector": 10960,
+        "search": 49107,
+        "planning": 55071,
+        "store": 14989,
+        "reverse_link": 0,
+        "total": 130127
+      },
+      "moved_in_drift": 216
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "condition": "ours_after_no_drop",
+      "rec16_global": 0.9630000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.89,
+      "rec32_drift": 0.972,
+      "rec16_static": 0.9650000000000002,
+      "rec32_static": 0.9990000000000001,
+      "violated": 248,
+      "self_find": 1.0,
+      "mean_in_deg": 6.71,
+      "cost": {
+        "detector": 11082,
+        "search": 48620,
+        "planning": 31781,
+        "store": 4998,
+        "reverse_link": 0,
+        "total": 96481
+      },
+      "moved_in_drift": 211
+    },
+    {
+      "speed": 100.0,
+      "seed": 42,
+      "condition": "no_repair",
+      "rec16_global": 0.9620000000000002,
+      "rec32_global": 0.9940000000000001,
+      "rec16_drift": 0.8839999999999999,
+      "rec32_drift": 0.958,
+      "rec16_static": 0.9830000000000001,
+      "rec32_static": 0.997,
+      "violated": 458,
+      "self_find": 1.0,
+      "mean_in_deg": 6.882,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 100.0,
+      "seed": 42,
+      "condition": "ours_before",
+      "rec16_global": 0.9700000000000002,
+      "rec32_global": 0.9969999999999999,
+      "rec16_drift": 0.8039999999999999,
+      "rec32_drift": 0.888,
+      "rec16_static": 0.9880000000000001,
+      "rec32_static": 0.9980000000000001,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.238,
+      "cost": {
+        "detector": 8670,
+        "search": 0,
+        "planning": 15141,
+        "store": 6471,
+        "reverse_link": 0,
+        "total": 30282
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 100.0,
+      "seed": 42,
+      "condition": "ours_after",
+      "rec16_global": 0.9700000000000002,
+      "rec32_global": 0.9969999999999999,
+      "rec16_drift": 0.88,
+      "rec32_drift": 0.956,
+      "rec16_static": 0.9880000000000001,
+      "rec32_static": 0.9980000000000001,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.362,
+      "cost": {
+        "detector": 8774,
+        "search": 29688,
+        "planning": 40263,
+        "store": 8617,
+        "reverse_link": 0,
+        "total": 87342
+      },
+      "moved_in_drift": 135
+    },
+    {
+      "speed": 100.0,
+      "seed": 42,
+      "condition": "ours_after_no_drop",
+      "rec16_global": 0.9620000000000002,
+      "rec32_global": 0.9940000000000001,
+      "rec16_drift": 0.8960000000000001,
+      "rec32_drift": 0.9640000000000001,
+      "rec16_static": 0.9830000000000001,
+      "rec32_static": 0.997,
+      "violated": 215,
+      "self_find": 1.0,
+      "mean_in_deg": 6.606,
+      "cost": {
+        "detector": 9150,
+        "search": 30485,
+        "planning": 24552,
+        "store": 2060,
+        "reverse_link": 0,
+        "total": 66247
+      },
+      "moved_in_drift": 137
+    },
+    {
+      "speed": 100.0,
+      "seed": 43,
+      "condition": "no_repair",
+      "rec16_global": 0.9590000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.8720000000000002,
+      "rec32_drift": 0.9580000000000001,
+      "rec16_static": 0.9700000000000002,
+      "rec32_static": 0.992,
+      "violated": 481,
+      "self_find": 1.0,
+      "mean_in_deg": 6.908,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 100.0,
+      "seed": 43,
+      "condition": "ours_before",
+      "rec16_global": 0.965,
+      "rec32_global": 0.995,
+      "rec16_drift": 0.7699999999999999,
+      "rec32_drift": 0.8619999999999999,
+      "rec16_static": 0.9760000000000001,
+      "rec32_static": 0.996,
+      "violated": 0,
+      "self_find": 0.88,
+      "mean_in_deg": 6.222,
+      "cost": {
+        "detector": 9113,
+        "search": 0,
+        "planning": 15660,
+        "store": 6720,
+        "reverse_link": 0,
+        "total": 31493
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 100.0,
+      "seed": 43,
+      "condition": "ours_after",
+      "rec16_global": 0.965,
+      "rec32_global": 0.995,
+      "rec16_drift": 0.8980000000000001,
+      "rec32_drift": 0.97,
+      "rec16_static": 0.9760000000000001,
+      "rec32_static": 0.996,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.412,
+      "cost": {
+        "detector": 9292,
+        "search": 28569,
+        "planning": 39327,
+        "store": 8912,
+        "reverse_link": 0,
+        "total": 86100
+      },
+      "moved_in_drift": 131
+    },
+    {
+      "speed": 100.0,
+      "seed": 43,
+      "condition": "ours_after_no_drop",
+      "rec16_global": 0.9590000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.9019999999999999,
+      "rec32_drift": 0.976,
+      "rec16_static": 0.9700000000000002,
+      "rec32_static": 0.992,
+      "violated": 235,
+      "self_find": 1.0,
+      "mean_in_deg": 6.676,
+      "cost": {
+        "detector": 9461,
+        "search": 28702,
+        "planning": 22250,
+        "store": 2150,
+        "reverse_link": 0,
+        "total": 62563
+      },
+      "moved_in_drift": 130
+    },
+    {
+      "speed": 100.0,
+      "seed": 44,
+      "condition": "no_repair",
+      "rec16_global": 0.9630000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.8319999999999999,
+      "rec32_drift": 0.94,
+      "rec16_static": 0.9650000000000002,
+      "rec32_static": 0.9990000000000001,
+      "violated": 493,
+      "self_find": 1.0,
+      "mean_in_deg": 6.86,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 100.0,
+      "seed": 44,
+      "condition": "ours_before",
+      "rec16_global": 0.9760000000000002,
+      "rec32_global": 0.997,
+      "rec16_drift": 0.746,
+      "rec32_drift": 0.884,
+      "rec16_static": 0.9770000000000002,
+      "rec32_static": 0.9990000000000001,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.22,
+      "cost": {
+        "detector": 8769,
+        "search": 0,
+        "planning": 15845,
+        "store": 6761,
+        "reverse_link": 0,
+        "total": 31375
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "speed": 100.0,
+      "seed": 44,
+      "condition": "ours_after",
+      "rec16_global": 0.9760000000000002,
+      "rec32_global": 0.997,
+      "rec16_drift": 0.866,
+      "rec32_drift": 0.9620000000000001,
+      "rec16_static": 0.9770000000000002,
+      "rec32_static": 0.9990000000000001,
+      "violated": 0,
+      "self_find": 1.0,
+      "mean_in_deg": 6.41,
+      "cost": {
+        "detector": 8882,
+        "search": 27850,
+        "planning": 38159,
+        "store": 8806,
+        "reverse_link": 0,
+        "total": 83697
+      },
+      "moved_in_drift": 127
+    },
+    {
+      "speed": 100.0,
+      "seed": 44,
+      "condition": "ours_after_no_drop",
+      "rec16_global": 0.9630000000000001,
+      "rec32_global": 0.9930000000000001,
+      "rec16_drift": 0.866,
+      "rec32_drift": 0.9680000000000001,
+      "rec16_static": 0.9650000000000002,
+      "rec32_static": 0.9990000000000001,
+      "violated": 219,
+      "self_find": 1.0,
+      "mean_in_deg": 6.586,
+      "cost": {
+        "detector": 9026,
+        "search": 29293,
+        "planning": 22111,
+        "store": 2202,
+        "reverse_link": 0,
+        "total": 62632
+      },
+      "moved_in_drift": 133
+    }
+  ],
+  "miss_classification": {
+    "10.0x": {
+      "a_unreachable": 0,
+      "b_reverse_pruned": 0,
+      "c_dropped_by_rebuild": 53,
+      "d_other_beam_search": 41
+    },
+    "30.0x": {
+      "a_unreachable": 0,
+      "b_reverse_pruned": 0,
+      "c_dropped_by_rebuild": 46,
+      "d_other_beam_search": 56
+    }
+  },
+  "miss_examples_d": [
+    {
+      "seed": 42,
+      "speed": 10.0,
+      "query_node": 45,
+      "missed_target": 303,
+      "target_is_static": true,
+      "target_in_no_repair_out": false,
+      "target_in_no_repair_in": false,
+      "target_in_ours_out": false,
+      "target_in_ours_in": false,
+      "found_at_ef64": true
+    },
+    {
+      "seed": 42,
+      "speed": 10.0,
+      "query_node": 68,
+      "missed_target": 112,
+      "target_is_static": true,
+      "target_in_no_repair_out": false,
+      "target_in_no_repair_in": false,
+      "target_in_ours_out": false,
+      "target_in_ours_in": true,
+      "found_at_ef64": true
+    },
+    {
+      "seed": 42,
+      "speed": 10.0,
+      "query_node": 68,
+      "missed_target": 344,
+      "target_is_static": true,
+      "target_in_no_repair_out": false,
+      "target_in_no_repair_in": false,
+      "target_in_ours_out": false,
+      "target_in_ours_in": true,
+      "found_at_ef64": true
+    },
+    {
+      "seed": 42,
+      "speed": 10.0,
+      "query_node": 143,
+      "missed_target": 303,
+      "target_is_static": true,
+      "target_in_no_repair_out": false,
+      "target_in_no_repair_in": false,
+      "target_in_ours_out": false,
+      "target_in_ours_in": false,
+      "found_at_ef64": true
+    },
+    {
+      "seed": 42,
+      "speed": 10.0,
+      "query_node": 153,
+      "missed_target": 259,
+      "target_is_static": true,
+      "target_in_no_repair_out": false,
+      "target_in_no_repair_in": false,
+      "target_in_ours_out": false,
+      "target_in_ours_in": false,
+      "found_at_ef64": true
+    }
+  ],
+  "all_drift_30x": [
+    {
+      "seed": 42,
+      "condition": "no_repair",
+      "rec16_norm": 0.9800000000000003,
+      "rec32_norm": 0.998,
+      "rec16_drift_queries": 0.9670000000000001,
+      "rec32_drift_queries": 0.998,
+      "violated": 715,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "seed": 42,
+      "condition": "ours_after",
+      "rec16_norm": 0.8360000000000002,
+      "rec32_norm": 0.9440000000000001,
+      "rec16_drift_queries": 0.992,
+      "rec32_drift_queries": 1.0,
+      "violated": 0,
+      "cost": {
+        "detector": 41721,
+        "search": 509387,
+        "planning": 969415,
+        "store": 476613,
+        "reverse_link": 161,
+        "total": 1997297
+      },
+      "moved_in_drift": 2091
+    },
+    {
+      "seed": 43,
+      "condition": "no_repair",
+      "rec16_norm": 0.981,
+      "rec32_norm": 0.998,
+      "rec16_drift_queries": 0.9780000000000001,
+      "rec32_drift_queries": 0.9940000000000001,
+      "violated": 715,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "seed": 43,
+      "condition": "ours_after",
+      "rec16_norm": 0.857,
+      "rec32_norm": 0.961,
+      "rec16_drift_queries": 0.9969999999999999,
+      "rec32_drift_queries": 1.0,
+      "violated": 0,
+      "cost": {
+        "detector": 41932,
+        "search": 514333,
+        "planning": 981640,
+        "store": 477571,
+        "reverse_link": 273,
+        "total": 2015749
+      },
+      "moved_in_drift": 2096
+    },
+    {
+      "seed": 44,
+      "condition": "no_repair",
+      "rec16_norm": 0.9830000000000001,
+      "rec32_norm": 0.9990000000000001,
+      "rec16_drift_queries": 0.9800000000000001,
+      "rec32_drift_queries": 0.995,
+      "violated": 707,
+      "cost": {
+        "detector": 0,
+        "search": 0,
+        "planning": 0,
+        "store": 0,
+        "reverse_link": 0,
+        "total": 0
+      },
+      "moved_in_drift": 0
+    },
+    {
+      "seed": 44,
+      "condition": "ours_after",
+      "rec16_norm": 0.8410000000000001,
+      "rec32_norm": 0.95,
+      "rec16_drift_queries": 0.996,
+      "rec32_drift_queries": 1.0,
+      "violated": 0,
+      "cost": {
+        "detector": 39926,
+        "search": 497116,
+        "planning": 962078,
+        "store": 475565,
+        "reverse_link": 412,
+        "total": 1975097
+      },
+      "moved_in_drift": 2029
+    }
+  ],
+  "insert_cost_scale": {
+    "per_seed": [
+      473,
+      457,
+      456
+    ],
+    "mean": 462.0
+  },
+  "step1": [
+    {
+      "seed": 42,
+      "condition": "no_repair",
+      "mean_in_deg_drifting": 7.76,
+      "mean_in_deg_all": 6.882,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 0.88
+    },
+    {
+      "seed": 42,
+      "condition": "ours-before",
+      "mean_in_deg_drifting": 2.84,
+      "mean_in_deg_all": 6.044,
+      "self_findability": 0.94,
+      "frac_true_10nn_in_edge": 0.82
+    },
+    {
+      "seed": 42,
+      "condition": "ours-after",
+      "mean_in_deg_drifting": 4.16,
+      "mean_in_deg_all": 6.172,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 1.0
+    },
+    {
+      "seed": 43,
+      "condition": "no_repair",
+      "mean_in_deg_drifting": 7.86,
+      "mean_in_deg_all": 6.908,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 0.96
+    },
+    {
+      "seed": 43,
+      "condition": "ours-before",
+      "mean_in_deg_drifting": 3.18,
+      "mean_in_deg_all": 6.148,
+      "self_findability": 0.94,
+      "frac_true_10nn_in_edge": 0.94
+    },
+    {
+      "seed": 43,
+      "condition": "ours-after",
+      "mean_in_deg_drifting": 4.62,
+      "mean_in_deg_all": 6.284,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 1.0
+    },
+    {
+      "seed": 44,
+      "condition": "no_repair",
+      "mean_in_deg_drifting": 7.42,
+      "mean_in_deg_all": 6.86,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 0.94
+    },
+    {
+      "seed": 44,
+      "condition": "ours-before",
+      "mean_in_deg_drifting": 3.08,
+      "mean_in_deg_all": 6.154,
+      "self_findability": 0.96,
+      "frac_true_10nn_in_edge": 0.9
+    },
+    {
+      "seed": 44,
+      "condition": "ours-after",
+      "mean_in_deg_drifting": 4.84,
+      "mean_in_deg_all": 6.326,
+      "self_findability": 1.0,
+      "frac_true_10nn_in_edge": 1.0
+    }
+  ],
+  "static_recall": {
+    "no_repair_10x": {
+      "per_seed": [
+        0.985,
+        0.9830000000000001,
+        0.9840000000000001
+      ],
+      "mean": 0.984
+    },
+    "no_repair_30x": {
+      "per_seed": [
+        0.985,
+        0.9830000000000001,
+        0.9840000000000001
+      ],
+      "mean": 0.984
+    },
+    "drifting_removed": {
+      "per_seed": [
+        0.9940000000000001,
+        0.9969999999999999,
+        0.996
+      ],
+      "mean": 0.9956666666666667
+    },
+    "speed_0_all": {
+      "per_seed": [
+        0.9940000000000001,
+        0.9940000000000001,
+        0.995
+      ],
+      "mean": 0.9943333333333334
+    }
+  },
+  "dynamics": {
+    "10x": {
+      "per_step_failures_mean": [
+        397.3333333333333,
+        82.0,
+        25.666666666666668,
+        15.0,
+        7.333333333333333,
+        6.0,
+        6.0,
+        4.666666666666667,
+        2.3333333333333335,
+        1.6666666666666667
+      ],
+      "per_step_moved_in_drift_mean": [
+        50.0,
+        38.333333333333336,
+        23.0,
+        16.0,
+        8.333333333333334,
+        7.666666666666667,
+        7.666666666666667,
+        6.333333333333333,
+        3.3333333333333335,
+        3.0
+      ],
+      "per_step_cost_mean": [
+        28298.333333333332,
+        10720.333333333334,
+        5610.333333333333,
+        3644.6666666666665,
+        1776.0,
+        1625.3333333333333,
+        1581.0,
+        1301.6666666666667,
+        775.3333333333334,
+        575.3333333333334
+      ],
+      "total_cost_per_seed": [
+        56886,
+        54696,
+        56143
+      ],
+      "total_cost_mean": 55908.333333333336
+    },
+    "100x": {
+      "per_step_failures_mean": [
+        505.0,
+        12.666666666666666,
+        5.666666666666667,
+        2.0,
+        1.6666666666666667,
+        1.0,
+        0.0,
+        0.3333333333333333,
+        0.3333333333333333,
+        0.6666666666666666
+      ],
+      "per_step_moved_in_drift_mean": [
+        50.0,
+        14.333333333333334,
+        7.333333333333333,
+        2.6666666666666665,
+        2.0,
+        1.3333333333333333,
+        0.0,
+        0.6666666666666666,
+        1.0,
+        1.3333333333333333
+      ],
+      "per_step_cost_mean": [
+        36420.333333333336,
+        3162.6666666666665,
+        1610.3333333333333,
+        482.0,
+        429.6666666666667,
+        255.0,
+        0.0,
+        109.0,
+        162.66666666666666,
+        231.33333333333334
+      ],
+      "total_cost_per_seed": [
+        43866,
+        42887,
+        41836
+      ],
+      "total_cost_mean": 42863.0
+    }
+  },
+  "arms": [
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.8240000000000001,
+      "drift_rec32": 0.944,
+      "static_rec16": 0.9770000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 56886,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.8240000000000001,
+      "drift_rec32": 0.944,
+      "static_rec16": 0.9770000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 56886,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.8599999999999999,
+      "drift_rec32": 0.958,
+      "static_rec16": 0.9770000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 103191,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.8,
+      "drift_rec32": 0.916,
+      "static_rec16": 0.9770000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 40214,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 42,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.7799999999999998,
+      "drift_rec32": 0.8939999999999999,
+      "static_rec16": 0.9690000000000001,
+      "static_rec32": 0.9930000000000001,
+      "violated": 8,
+      "cost": 50918,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.8420000000000001,
+      "drift_rec32": 0.948,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.997,
+      "violated": 0,
+      "cost": 54696,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.8420000000000001,
+      "drift_rec32": 0.948,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.997,
+      "violated": 0,
+      "cost": 54696,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.86,
+      "drift_rec32": 0.9560000000000001,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.997,
+      "violated": 0,
+      "cost": 98454,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.8320000000000002,
+      "drift_rec32": 0.94,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.997,
+      "violated": 0,
+      "cost": 36665,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 43,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.828,
+      "drift_rec32": 0.9279999999999999,
+      "static_rec16": 0.972,
+      "static_rec32": 0.9940000000000001,
+      "violated": 6,
+      "cost": 52688,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.8639999999999999,
+      "drift_rec32": 0.9739999999999999,
+      "static_rec16": 0.977,
+      "static_rec32": 0.995,
+      "violated": 0,
+      "cost": 56143,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.8639999999999999,
+      "drift_rec32": 0.9739999999999999,
+      "static_rec16": 0.977,
+      "static_rec32": 0.995,
+      "violated": 0,
+      "cost": 56143,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.89,
+      "drift_rec32": 0.9839999999999999,
+      "static_rec16": 0.977,
+      "static_rec32": 0.995,
+      "violated": 0,
+      "cost": 105155,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.8579999999999999,
+      "drift_rec32": 0.958,
+      "static_rec16": 0.977,
+      "static_rec32": 0.995,
+      "violated": 0,
+      "cost": 36653,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 10.0,
+      "seed": 44,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.84,
+      "drift_rec32": 0.954,
+      "static_rec16": 0.9680000000000001,
+      "static_rec32": 0.9910000000000001,
+      "violated": 5,
+      "cost": 47627,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.7919999999999999,
+      "drift_rec32": 0.9019999999999999,
+      "static_rec16": 0.9760000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 48579,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.7919999999999999,
+      "drift_rec32": 0.9019999999999999,
+      "static_rec16": 0.9760000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 48579,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.8239999999999997,
+      "drift_rec32": 0.9319999999999999,
+      "static_rec16": 0.9760000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 79130,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.7779999999999998,
+      "drift_rec32": 0.89,
+      "static_rec16": 0.9760000000000002,
+      "static_rec32": 0.9969999999999999,
+      "violated": 0,
+      "cost": 37761,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 42,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.7699999999999999,
+      "drift_rec32": 0.9179999999999999,
+      "static_rec16": 0.9690000000000001,
+      "static_rec32": 0.9930000000000001,
+      "violated": 7,
+      "cost": 32146,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.8700000000000001,
+      "drift_rec32": 0.9480000000000001,
+      "static_rec16": 0.9810000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 44373,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.8700000000000001,
+      "drift_rec32": 0.9480000000000001,
+      "static_rec16": 0.9810000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 44373,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.88,
+      "drift_rec32": 0.9560000000000001,
+      "static_rec16": 0.9810000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 75212,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.862,
+      "drift_rec32": 0.9380000000000002,
+      "static_rec16": 0.9810000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 34800,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 43,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.796,
+      "drift_rec32": 0.9159999999999999,
+      "static_rec16": 0.972,
+      "static_rec32": 0.9940000000000001,
+      "violated": 3,
+      "cost": 33138,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm1_ours_after",
+      "drift_rec16": 0.8419999999999999,
+      "drift_rec32": 0.9440000000000001,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 47584,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm2_rebuild_union_old",
+      "drift_rec16": 0.8419999999999999,
+      "drift_rec32": 0.9440000000000001,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 47584,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm3_rebuild_ef_construction_64",
+      "drift_rec16": 0.8699999999999999,
+      "drift_rec32": 0.9579999999999999,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 84135,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm4_rebuild_exact_top_m",
+      "drift_rec16": 0.8539999999999999,
+      "drift_rec32": 0.9440000000000001,
+      "static_rec16": 0.9790000000000001,
+      "static_rec32": 0.996,
+      "violated": 0,
+      "cost": 33919,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    },
+    {
+      "speed": 30.0,
+      "seed": 44,
+      "arm": "arm5_oracle_reinsert",
+      "drift_rec16": 0.8220000000000001,
+      "drift_rec32": 0.9300000000000002,
+      "static_rec16": 0.9680000000000001,
+      "static_rec32": 0.9910000000000001,
+      "violated": 5,
+      "cost": 32319,
+      "status": "SUPERSEDED_BY_docs/data/reconcile_benchmark.json"
+    }
+  ],
+  "arms_superseded_by": "docs/data/reconcile_benchmark.json"
+}

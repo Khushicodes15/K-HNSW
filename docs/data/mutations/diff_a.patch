@@ -1,0 +1,13 @@
+diff --git a/src/khnsw/core/repair/engine.py b/src/khnsw/core/repair/engine.py
+index e29a3c1..48571e6 100644
+--- a/src/khnsw/core/repair/engine.py
++++ b/src/khnsw/core/repair/engine.py
+@@ -150,7 +150,7 @@ class KHNSWRepairEngine:
+                             drift_set.add(int(nid))
+                     except Exception:
+                         pass
+-                drift_moved_nodes = sorted(drift_set)
++                drift_moved_nodes = []
+ 
+         # Check if there is anything to do
+         has_pending = bool(self._pending_moves)

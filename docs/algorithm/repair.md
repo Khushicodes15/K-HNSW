@@ -134,12 +134,13 @@ The iterative repair loop and baseline emulations were evaluated using `scripts/
   Measurement overhead (from-scratch store validation and recall evaluation) is strictly excluded from `Total Dist`.
 - **Violations**: The global count of directed edges $(u, v, l)$ failing the Delaunay/witness certificate condition in a fresh `CertificateStore` built from scratch across the entire graph at measurement time. The pre-move baseline is 0 across all configurations (settle pass settled).
 - **No-Repair Control**: Evaluates the index after spatial displacement with zero repair applied.
-- **Note on Recall**: For small displacements in dense graphs, the no-repair control achieves recall $\approx 1.0000$ because minor coordinate perturbations do not immediately disrupt global routing connectivity. The primary purpose of repair is actively preserving the empty-ellipse Delaunay/certificate invariant to prevent structural degradation over extended trajectories.
+- **Zero Violations as an Invariant (Not a Quality Metric)**:
+  Achieving zero certificate violations confirms that every directed edge satisfies the local empty-ellipse Delaunay condition. Zero violations is a structural invariant and correctness contract of the graph, not a proxy metric for nearest-neighbor search recall. Repair does not claim to monotonically improve recall over an un-repaired control at individual snapshots; rather, it maintains bounded out-degrees, eliminates topologically invalid edges, and preserves certificate consistency across extended kinetic drift.
 
 ### 6.2 Empirical Measurements
 
 > [!NOTE]
-> The Discrete Moves benchmarks below have been regenerated with reciprocal reverse-link synthesis enabled (PR #17). Adding incoming links from destination neighbors rewrites those neighbors and re-evaluates their certificates, updating "Repaired" unique nodes from 0-1 to 5-8 (at $n=200$) and 27-46 (at $n=1000$) while maintaining 0 violations and 1.0000 recall. Continuous LinearDrift (Section 6.3) is identical to prior benchmarks because smooth drift routes failures purely through kinetic certificates without passing `moved_node`.
+> The Discrete Moves benchmarks below incorporate reciprocal reverse-link synthesis (PR #17). Adding incoming links from destination neighbors rewrites those neighbors and re-evaluates their certificates, updating "Repaired" unique nodes from 0-1 to 5-8 (at $n=200$) and 27-46 (at $n=1000$) while maintaining 0 violations and 1.0000 recall. Section 8.6 provides empirical measurements for continuous drift under drift-moved node handling.
 
 #### Discrete Moves ($n=200, M=8, d=2, \text{seed}=44$)
 
@@ -273,6 +274,8 @@ Three distinct repair engines implement the `Repairer` interface:
   Fulfills the strict call order of the `Repairer` contract (`read old vector -> index.move -> repairer.on_move`). Internally registers the node via `notify_moved` and synchronizes certificate status.
 - **`run_repairs(index, budget, sink) -> dict[str, Any]`**:
   Executes repair passes for all accumulated moved nodes and/or confirmed detector failures. Upon completion, the worklist of pending moves is cleared. If called when no work is pending, immediately returns zero metrics with `stopped_reason = "nothing_to_do"`.
+- **Drift-Moved Node Extraction**:
+  During continuous kinetic drift where no discrete `notify_moved` calls occur, `KHNSWRepairEngine` inspects confirmed certificate failure edges from `detector.advance(t_curr)` and their canonical witnesses. It queries the detector's kinematic model via `trajectory_of(node_id)` and identifies nodes with non-zero velocity ($\vec{v} \ne \mathbf{0}$). For each unique drifting node, the engine executes `repair_loop(..., moved_node=node_id, t=t_curr)`, ensuring out-link beam search reconstruction (`_rebuild_moved_out_links`) and reciprocal reverse-link synthesis are performed at the new timestamp. Drifting nodes repaired in this pass are tracked in `result["moved_in_drift"]`.
 
 ### 7.3 Budget Accounting and Safe Halting
 
@@ -374,7 +377,7 @@ The table below presents empirical measurements on `HNSWIndex` ($n=500, M=8, d=8
 | | MN-RU-style baseline | 4.55 | 0.320 | 0.200 | 0.828 | 1.000 | 4,175 |
 | | Delete + Reinsert (Upper Bound) | 2.40 | 1.000 | 0.987 | 0.995 | 0.998 | 10,194 |
 
-### 8.5 Empirical Insights and Findings
+### 8.5 Empirical Insights and Findings (Discrete Moves)
 
 1. **Elimination of Moved Node Blind Spots**:
    Under large displacements ($12\times$ and $30\times$ NN), reverse links increase self-findability from $12\% - 16\%$ to **$100.0\%$**, matching the full delete+reinsert upper bound.
@@ -382,8 +385,228 @@ The table below presents empirical measurements on `HNSWIndex` ($n=500, M=8, d=8
    $100\%$ of moved nodes establish at least one incoming edge from their true 10-nearest neighbors in their destination cluster (compared to $17.3\%$ in control and $24\% - 28\%$ before reverse links).
 3. **Recall Superiority**:
    Recall@10 evaluated at moved nodes reaches **$0.991$** (at $12\times$) and **$0.988$** (at $30\times$), decisively outperforming the un-repaired control ($0.891$ and $0.847$), Hnswlib-style emulation ($0.889$ and $0.849$), and MN-RU-style emulation ($0.879$ and $0.828$).
-5. **Delete + Reinsert Distance Accounting Note**:
+4. **Delete + Reinsert Distance Accounting Note**:
    In the table above, the "Delete + Reinsert" upper bound cost reflects `index.add` distance computations tracked via `idx.distance_computations` (which meters `search_layer` evaluations during entry-point navigation). `index.delete` is purely topological (0 distance computations). When internal heuristic candidate evaluations inside `select_neighbors_heuristic` during `index.add` are also metered, total delete+reinsert work is ~2.0x–2.3x higher: 25,825 (0.2x), 24,768 (1.0x), 21,564 (3.0x), 21,675 (12.0x), and 22,013 (30.0x). Under either accounting, K-HNSW achieves comparable self-findability (100%) and recall without incurring full reinsertion churn.
+
+### 8.6 Continuous Kinetic Drift with Drift-Moved Node Handling (Phase 5c / PR #18)
+
+> [!WARNING]
+> **RADIAL-DRIFT PROTOCOL: does not generalise.**
+> The benchmark sweep below (`docs/data/drift_benchmark.json`) was generated under `default_rng(seed)` initial coordinates coupled with `LinearDrift(X0, seed=seed)`. As proven in Phase 5n Item A, this protocol generates **pure radial drift** ($\cos(v, X_0) \equiv 1.0000$) due to NumPy `SeedSequence` PRNG stream collision. Claims that un-repaired controls retain high recall ($>0.90$) hold under radial drift only, where query routing beams travel along coordinate rays outward from the origin. Under true isotropic drift (Section 8.9), un-repaired recall decays to $0.65$.
+
+Under continuous kinetic drift without explicit movement notifications, moving nodes cause certificate failures on incident edges. By identifying moving nodes via non-zero velocity filtering on confirmed failure candidates (`_trajectory_of(nid)`), `KHNSWRepairEngine` routes drifting nodes through out-link rebuild and reverse-link synthesis.
+
+Evaluation on `HNSWIndex` ($n=500, M=8, d=8$, $T=0.30$ in 10 steps, 10% drifting nodes, seeds $\{42, 43, 44\}$; benchmark script `scripts/measure_drift.py` and output `docs/data/drift_benchmark.json`):
+
+| Speed | Variant | Drift Recall@10 ($ef=16$) | Drift Recall@10 ($ef=32$) | Global Recall@10 ($ef=16$) | Global Recall@10 ($ef=32$) | Self-Find ($ef=64$) | Mean In-Deg | Violations | Total Cost |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **10x** | No-Repair Control | 0.9487 | 0.9867 | 0.9613 | 0.9933 | 1.000 | 6.88 | 419.3 | 0 |
+| | Ours (before drift-moved fix) | 0.8880 | 0.9653 | 0.9667 | 0.9960 | 0.993 | 6.24 | **0.0** | 37,585 |
+| | **Ours (after drift-moved fix)** | **0.9013** | **0.9827** | **0.9633** | **0.9950** | **1.000** | **6.42** | **0.0** | **91,753** |
+| **30x** | No-Repair Control | 0.9060 | 0.9713 | 0.9613 | 0.9933 | 1.000 | 6.88 | 460.3 | 0 |
+| | Ours (before drift-moved fix) | 0.8313 | 0.9253 | 0.9683 | 0.9963 | 0.960 | 6.19 | **0.0** | 34,048 |
+| | **Ours (after drift-moved fix)** | **0.8840** | **0.9693** | **0.9667** | **0.9963** | **1.000** | **6.39** | **0.0** | **62,957** |
+| **100x**| No-Repair Control | 0.8627 | 0.9520 | 0.9613 | 0.9933 | 1.000 | 6.88 | 477.3 | 0 |
+| | Ours (before drift-moved fix) | 0.7733 | 0.8780 | 0.9703 | 0.9963 | 0.960 | 6.23 | **0.0** | 31,050 |
+| | **Ours (after drift-moved fix)** | **0.8813** | **0.9627** | **0.9703** | **0.9963** | **1.000** | **6.39** | **0.0** | 85,713 |
+
+Under 100% drifting nodes at $30\times$ speed:
+- **No-Repair Control**: Drift Recall@10 $ef=16$: 0.9750 ($ef=32$: 0.9957), Global Recall $\mathcal{N}(0, I)$ $ef=16$: 0.9813 ($ef=32$: 0.9983), Violations: 712.3, In-Degree: 7.74.
+- **Ours (after drift-moved fix)**: Drift Recall@10 $ef=16$: **0.9950** ($ef=32$: **1.0000**), Global Recall $\mathcal{N}(0, I)$ $ef=16$: 0.8447 ($ef=32$: 0.9517), Violations: **0.0**, Self-Find: **1.000**, In-Degree: 7.72.
+
+> [!NOTE]
+> Zero violations is an empty-ellipse topological invariant rather than a recall booster. While no-repair retains obsolete shortcut edges across void regions that yield high recall on static query sets, K-HNSW eliminates invalid certificates (achieving exactly 0 violations) while drift-moved rebuild restores self-findability to 1.000 and recovers in-degrees without leaving isolated nodes.
+
+---
+
+### 8.7 Settled Graph Benchmark Findings (Phase 5h–5k Claims)
+
+> [!WARNING]
+> **RADIAL-DRIFT PROTOCOL: does not generalise.**
+> The benchmark tables in this section (`docs/data/reconcile_benchmark.json`) were generated under nominal `default_rng(seed)` + `LinearDrift(seed)` (radial drift, $\cos \equiv 1.0000$). Claims that "ours scores below no_repair at ef=16" or "rebuild does not restore recall above the un-repaired baseline" hold strictly under radial drift only, where no-repair is artificially shielded from topological disconnectivity.
+
+Comprehensive reconciliation across `docs/data/reconcile_benchmark.json` and `docs/data/vanilla_arms_benchmark.json` established the following verified algorithmic findings on the settled graph:
+
+1. **Recall Relative to No-Repair (Claim i)**:
+   On the settled benchmark graph, all repair methods—including K-HNSW at $ef=16$ rebuild (drifting recall $0.8927$ at $10\times$, $0.8687$ at $30\times$), K-HNSW at $ef=64$ rebuild ($0.9007$ at $10\times$, $0.8833$ at $30\times$), in-place reinsertion ($0.8813$ at $10\times$, $0.8673$ at $30\times$), and oracle reinsertion arms ($0.8733 - 0.8873$ at $10\times$, $0.8520 - 0.8607$ at $30\times$)—score strictly below `no_repair` ($0.9487$ at $10\times$, $0.9060$ at $30\times$) at evaluation $ef=16$. At evaluation $ef=32$, repair arms perform within $0.01$ of `no_repair` ($0.9867$ at $10\times$, $0.9713$ at $30\times$). Rebuild does not restore recall above the un-repaired baseline at $ef=16$.
+
+2. **Certificate Invariants vs. Search Recall (Claim ii)**:
+   Achieving zero violated certificates confirms adherence to empty-ellipse Delaunay invariants; it does not imply superior search recall. In fact, un-repaired graphs retain topologically invalid shortcut edges that yield higher recall at lower search queue capacities ($ef=16$).
+
+3. **Construction Settle Confound (Claim iii)**:
+   Running `settle_hnsw` on a freshly constructed HNSWIndex at $t=0$ removes $32.1\%$ of level-0 edges (dropping level-0 edges from $5,131$ to $3,483$ and mean level-0 out-degree from $10.26$ to $6.97$, means across seeds 42–44). Consequently, the settled baseline is structurally distinct and significantly thinned compared to a standard vanilla HNSW graph.
+
+4. **In-Neighbour Pre-Repair (Claim v)**:
+   Re-selecting static in-neighbour lists using the standard heuristic prior to reinsertion improved in-place reinsertion recall by $\approx 0.04$ at $10\times$ (from $0.8813$ to $0.9207$) and $\approx 0.02$ at $30\times$ (from $0.8673$ to $0.8893$) at $ef=16$ on the settled graph. However, performance remained below the `no_repair` baseline ($0.9487$ at $10\times$, $0.9060$ at $30\times$).
+
+5. **Scheduler and Ablation Switches (Claim vi)**:
+   Prospective scheduler prioritization policies, batching mechanisms, and alternative candidate filtering switches not implemented in `src/khnsw` are cataloged as **specified-not-built**.
+
+---
+
+### 8.8 Vanilla Graph Benchmark Findings and Decision Analysis (Phase 5k)
+
+> [!WARNING]
+> **RADIAL-DRIFT PROTOCOL: does not generalise.**
+> The decision table below (`docs/data/vanilla_arms_benchmark.json`) was generated under `default_rng(seed)` + `LinearDrift(seed)` (radial drift, $\cos \equiv 1.0000$). The claim that "only no_repair satisfies the criterion of reaching within 0.01 of ceiling recall" holds strictly under radial drift. Under isotropic drift (Section 8.9), no-repair degrades to $0.74$ ($ef=16$), where active maintenance restores recall to $0.93 - 0.94$.
+
+Evaluating repair strategies on the un-settled vanilla graph (`settle=False`, output `docs/data/vanilla_arms_benchmark.json`) yielded the following findings:
+
+#### 1. Harness Configuration & Discrepancy Note (Claim iv)
+- Two harnesses disagree on `no_repair` and `ceiling` recall for the same nominal setting ($n=500, d=8, M=8, 10\%\text{ drift}, T=0.30$):
+  - In Phase 5j (`scripts/measure_vanilla_headroom.py`), `no_repair` / `ceiling` drifting recall@10 ($ef=16$) was **0.8907** / **0.9933** at $10\times$ (mean across seeds 42–44).
+  - In Phase 5k (`scripts/measure_vanilla_arms.py`), `no_repair` / `ceiling` drifting recall@10 ($ef=16$) was **0.9693** / **0.9673** at $10\times$ (mean across seeds 42–44).
+- **Result of Item A Controlled Test**: When fed identical inputs ($X_0$, `drifting_nodes`, and `LinearDrift` generated once at seed 42), both code paths yield mathematically identical outputs (`no_repair` 0.8720, `ceiling` 0.9960 under the 5j inputs; `no_repair` 0.9740, `ceiling` 0.9600 under the 5k inputs). The protocols evaluate identical definitions of recall, ground truth, displacement ($3.0\times$ mean 1-NN at $10\times$), and ceiling level allocation.
+- **Displacement Curves (Item B)**: Sweeping displacement multiples $\{1, 3, 9, 27\}\times$ mean 1-NN distance reveals that the two curves do not coincide: the 5j generator collapses sharply ($0.9833 \to 0.8907 \to 0.7413 \to 0.6520$) creating large headroom, whereas the 5k generator degrades much more slowly ($0.9853 \to 0.9693 \to 0.9400 \to 0.9087$). Neither curve is asserted as universally normative beyond the empirical sweep data in `docs/data/harness_conflict_benchmark.json`.
+- Total drifting displacement corresponds to $3.0\times$ mean 1-NN distance at $10\times$ speed and $9.0\times$ mean 1-NN distance at $30\times$ speed ($T=0.30$).
+
+#### 2. Decision Table on the Vanilla Graph (Claim iv continued)
+Evaluated across seeds $\{42, 43, 44\}$ on the vanilla graph (eval $ef=16/32$, 10% drift):
+
+| Speed | Arm | Drift Rec@10 ($ef=16$) | Drift Rec@10 ($ef=32$) | Static Rec@10 ($ef=16$) | Violated | Drift Cost | Setup Cost | Reaches $\ge \text{ceil}-0.01$ at $< 50\%$ Cost? |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **10x** | 1 no repair | 0.9693 | 0.9933 | 0.9890 | 2482.7 | 0 | 0 | **YES** |
+| **10x** | 2 ceiling (rebuild all 500) | 0.9673 | 0.9953 | 0.9980 | 2165.3 | 124,964 | 0 | No |
+| **10x** | 3 inplace reinsert once | 0.9120 | 0.9760 | 0.9890 | 1757.3 | 22,166 | 0 | No |
+| **10x** | 4 inplace reinsert + prerepair once | 0.9127 | 0.9787 | 0.9887 | 679.7 | 34,646 | 0 | No |
+| **10x** | 5a reinsert every step (no prerepair) | 0.9100 | 0.9760 | 0.9887 | 1731.0 | 221,283 | 0 | No |
+| **10x** | 5b reinsert every step (+ prerepair) | 0.9187 | 0.9800 | 0.9867 | 432.7 | 253,831 | 0 | No |
+| **10x** | 6a periodic k=2 (+ prerepair) | 0.9193 | 0.9827 | 0.9873 | 491.7 | 131,640 | 0 | No |
+| **10x** | 6b periodic k=5 (+ prerepair) | 0.9180 | 0.9813 | 0.9877 | 605.7 | 58,326 | 0 | No |
+| **10x** | 7a ours t0 repaired (ef=16) | 0.8927 | 0.9813 | 0.9767 | 0.0 | 91,753 | 80,061 | No |
+| **10x** | 7a ours t0 repaired (ef=64) | 0.9013 | 0.9827 | 0.9767 | 0.0 | 201,997 | 80,061 | No |
+| **10x** | 7b ours t0 exempted (ef=16) | 0.9033 | 0.9833 | 0.9893 | 1255.0 | 126,311 | 0 | No |
+| **10x** | 7b ours t0 exempted (ef=64) | 0.8973 | 0.9800 | 0.9877 | 1017.3 | 241,781 | 0 | No |
+| **30x** | 1 no repair | 0.9400 | 0.9867 | 0.9890 | 2506.3 | 0 | 0 | **YES** |
+| **30x** | 2 ceiling (rebuild all 500) | 0.9393 | 0.9880 | 0.9987 | 2129.3 | 124,496 | 0 | No |
+| **30x** | 3 inplace reinsert once | 0.9000 | 0.9773 | 0.9890 | 1746.3 | 22,028 | 0 | No |
+| **30x** | 4 inplace reinsert + prerepair once | 0.8887 | 0.9700 | 0.9890 | 676.0 | 33,686 | 0 | No |
+| **30x** | 5a reinsert every step (no prerepair) | 0.9007 | 0.9773 | 0.9887 | 1737.3 | 217,168 | 0 | No |
+| **30x** | 5b reinsert every step (+ prerepair) | 0.8767 | 0.9620 | 0.9863 | 510.3 | 231,106 | 0 | No |
+| **30x** | 6a periodic k=2 (+ prerepair) | 0.8787 | 0.9620 | 0.9877 | 576.7 | 120,517 | 0 | No |
+| **30x** | 6b periodic k=5 (+ prerepair) | 0.8873 | 0.9673 | 0.9880 | 629.3 | 55,652 | 0 | No |
+| **30x** | 7a ours t0 repaired (ef=16) | 0.8687 | 0.9633 | 0.9780 | 0.0 | 62,957 | 80,061 | No |
+| **30x** | 7a ours t0 repaired (ef=64) | 0.8840 | 0.9693 | 0.9783 | 0.0 | 127,038 | 80,061 | No |
+| **30x** | 7b ours t0 exempted (ef=16) | 0.9007 | 0.9740 | 0.9897 | 1298.3 | 94,427 | 0 | No |
+| **30x** | 7b ours t0 exempted (ef=64) | 0.9120 | 0.9780 | 0.9883 | 1213.7 | 166,113 | 0 | No |
+
+*Note*: Only `no_repair` satisfies the criterion of reaching within $0.01$ of the ceiling's drifting recall at less than half the ceiling's cost. All active repair arms score below `no_repair` at $ef=16$.
+
+---
+
+### 8.9 Node-Level Displacement Tracking & Lazy Reinsertion (Phase 5m & 5n)
+
+#### 1. Staleness Rule and Kinematic Trigger Mechanics
+The `NodeDisplacementTracker` component (`src/khnsw/core/scheduling/tracker.py`) replaces global continuous edge-certificate monitoring with localized node-level displacement checks:
+- **Anchor and Neighborhood Radius**: For each node $i$, upon registration or reinsertion, the tracker stores anchor $p_i \in \mathbb{R}^d$ and level-0 neighborhood radius:
+  $$r_i = \max_{j \in N_0(i)} \|p_i - x_j\|_2$$
+- **Staleness Condition**: Evaluated exclusively for nodes with non-zero velocity at simulation timestamp $t$:
+  $$\text{stale}(i, t) \iff \|x_i(t) - p_i\|_2 > \theta \cdot r_i$$
+  Incurs exactly $1$ distance computation per moving node per step (`stale_check`).
+- **Maintenance Action**: When triggered, node $i$ is reinserted via `delete` and `_insert_one` preserving its original hierarchy level. Following reinsertion, anchor $p_i \leftarrow x_i(t)$ and radius $r_i$ are refreshed from the newly formed level-0 neighborhood.
+
+#### 2. Budgeted Priority Policy
+The `BudgetedPriorityTracker` component (`src/khnsw/core/scheduling/tracker.py`) bounds maintenance expenditure by enforcing a fixed per-step reinsertion budget $B$:
+- At each step $t$, compute score $s_i = \|x_i(t) - p_i\|_2 / r_i$ for all moving nodes (1 check per moving node).
+- Rank moving nodes in descending order of $s_i$ and reinsert at most the top $B$ nodes.
+- Reinserted nodes refresh $p_i \leftarrow x_i(t)$, resetting their score to $0$ for subsequent steps.
+
+#### 3. Protocol Audit: Radial Drift Confound Resolution (Phase 5n Item A)
+Auditing velocity alignments $\cos(v_i, X_0[i])$ across seeds $\{42, 43, 44\}$ reveals a fundamental protocol distinction:
+- **`default_rng` Confound**: In `LinearDrift.__init__`, velocities are sampled via `rng = np.random.default_rng(np.random.SeedSequence([self._seed, 0]))`. When $X_0$ is drawn from `default_rng(seed)`, NumPy generates the identical PRNG variates for `normals` as for $X_0$. Consequently, $v_i \propto X_0[i]$, yielding **pure radial drift** ($\cos \equiv 1.0000$ for all nodes). Under radial drift, beam searches remain artificially aligned along rays, masking recall degradation even at extreme displacements.
+- **`RandomState` and `indep_dir`**: Using distinct PRNG streams for $X_0$, drifting IDs, and velocity directions (`indep_dir`) yields true isotropic drift with mean cosine $\approx 0$. Drifting nodes depart from their local graph neighborhoods, causing `no_repair` recall to drop from $0.98$ to $0.65$.
+
+| Protocol | Mean $\cos(v, X_0)$ | Min $\cos$ | Max $\cos$ | Mean $|\cos|$ | `no_repair` 1x | 3x | 9x | 27x |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **RandomState** | -0.0125 | -0.7542 | +0.8580 | 0.2799 | 0.9833 | 0.8907 | 0.7413 | 0.6520 |
+| **default_rng** *(radial)* | **+1.0000** | **+1.0000** | **+1.0000** | **1.0000** | **0.9853** | **0.9693** | **0.9400** | **0.9087** |
+| **indep_dir** *(isotropic)* | **+0.0066** | **-0.8192** | **+0.8856** | **0.3191** | **0.9840** | **0.9013** | **0.7660** | **0.6540** |
+
+#### 4. Controls and Staggering Ablation (Phase 5n Item B, $n=500, 30\%$ Drift, $8\times$, 10 Steps)
+To determine whether adaptive policies gain from per-node departure tracking or simply from temporal staggering, reinsertion counts were matched to `lazy_theta_1.0` ($C=312$ reinsertions, $B \approx 31$/step) across seeds $\{42, 43, 44\}$:
+
+| Protocol | Arm | Mean Drf@16 | Final Drf@16 | Mean St@16 | Total Cost | Total Reinserts |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **indep_dir** | `no_repair` | 0.7458 | 0.5740 | 0.9653 | 0 | 0 |
+| | `periodic_k1` | 0.9413 | 0.9164 | 0.9797 | 701,763 | 1500 |
+| | `periodic_k2` | 0.9345 | 0.9067 | 0.9715 | 346,411 | 750 |
+| | `periodic_k5` | 0.9019 | 0.9044 | 0.9599 | 136,079 | 300 |
+| | `lazy_theta_0.5` | 0.9345 | 0.9062 | 0.9738 | 232,581 | 545 |
+| | `lazy_theta_1.0` | **0.9349** | 0.9191 | 0.9694 | 135,556 | 312 |
+| | `lazy_theta_2.0` | 0.9044 | 0.9116 | 0.9655 | 68,549 | 152 |
+| | `round_robin` | **0.9269** | 0.9151 | 0.9699 | 134,049 | 312 |
+| | `fixed_distance` | 0.9293 | 0.9118 | 0.9686 | 190,108 | 450 |
+| | `random` | 0.9126 | 0.8960 | 0.9686 | 137,460 | 312 |
+| | `budgeted_priority` | **0.9280** | 0.9042 | 0.9700 | 136,336 | 312 |
+| **RandomState** | `lazy_theta_1.0` | **0.9329** | 0.9053 | 0.9673 | 135,313 | 312 |
+| | `round_robin` | **0.9236** | 0.8927 | 0.9653 | 133,810 | 312 |
+| | `budgeted_priority` | **0.9250** | 0.9007 | 0.9674 | 135,828 | 312 |
+
+**Pre-Registered Decision Rule Outcome**:
+- In `indep_dir`: `lazy_theta_1.0` exceeds `round_robin` by $+0.0080$ ($< 0.01$); `budgeted_priority` exceeds by $+0.0010$ ($< 0.01$).
+- In `RandomState`: `lazy_theta_1.0` exceeds `round_robin` by $+0.0093$ ($< 0.01$); `budgeted_priority` exceeds by $+0.0014$ ($< 0.01$).
+- **Conclusion**: The pre-registered $\ge 0.01$ threshold is not met. **The performance gain of adaptive lazy reinsertion over periodic batching is predominantly attributable to temporal staggering** (distributing reinsertions continuously over time rather than executing batch repairs).
+- **Per-Node Radius Effect**: Fixed-distance thresholding ($D = \text{median}(r_i)$) achieves $0.9293$ recall but requires $450$ reinsertions ($+44\%$), whereas adaptive radius $\theta=1.0$ achieves $0.9349$ with $312$ reinsertions. However, because both differ from blind `round_robin` ($0.9269$) by $< 0.01$, no claim is made that per-node radii provide a significant accuracy benefit over uniform staggering.
+
+#### 5. Large-Scale Evaluation (Phase 5n Item C, $n=2000, 10\%$ Drift, $8\times$, 10 Steps, `indep_dir`)
+Evaluated across seeds $\{42, 43, 44\}$ under the unconfounded `indep_dir` protocol:
+
+| Arm | Mean Drf@16 | Final Drf@16 | Mean St@16 | Total Cost | Stale Check | Pre-Repair | Reinsert | Total Reinserts |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| `no_repair` | 0.7456 | 0.5427 | 0.9757 | 0 | 0 | 0 | 0 | 0 |
+| `periodic_k1` | 0.9113 | 0.8520 | 0.9754 | 1,724,902 | 0 | 294,200 | 1,430,701 | 2000 |
+| `periodic_k5` | 0.8913 | 0.8595 | 0.9740 | 356,455 | 0 | 76,125 | 280,330 | 400 |
+| `round_robin` | **0.9242** | 0.8825 | 0.9775 | 357,631 | 0 | 0 | 357,631 | 443 |
+| `budgeted_priority` | **0.9248** | 0.8737 | 0.9789 | 360,704 | 2,000 | 0 | 358,704 | 443 |
+| `lazy_theta_1.0` | **0.9280** | 0.8727 | 0.9787 | 358,641 | 2,000 | 0 | 356,641 | 443 |
+
+#### 6. Decommissioned Repair Components: Measured Not Useful
+Rigorous measurement across Phase 5 sweeps establishes that two proposed repair mechanisms provide negative value:
+1. **Edge-Certificate Failure Detection**: Tracking kinetic Voronoi edge certificates via `KineticDetector` and `CertificateStore` adds $197,164$ ($n=500$) to $456,341$ ($n=2000$) distance calculations to the maintenance budget. In $n=2000$, `cert_triggered` achieves lower recall ($0.9089$) than simple staggered reinsertion ($0.9280$) at over $4\times$ the cost ($1,598,047$ vs $358,641$). Edge certificates are **measured not useful** for point drift maintenance.
+2. **In-Neighbor Pre-Repair (`in_neighbour_pre_repair`)**: Heuristic pruning of static in-neighbors before node reinsertion adds $25,000 - 300,000$ distance evaluations without improving drifting recall (e.g., $0.9304$ with pre-repair vs $0.9329$ without in $n=500$; $0.8767$ vs $0.9007$ in $30\times$ continuous drift). In-neighbor pre-repair is **measured not useful**.
+
+#### 7. Missing Controls: Pre-Repair Disentanglement (Phase 6 Item B)
+Because periodic arms in Section 8.9.4 employed in-neighbor pre-repair while `round_robin` did not, an additional controlled sweep (`docs/data/missing_controls_benchmark.json`) evaluated both strategies with and without pre-repair under `indep_dir` across seeds $\{42, 43, 44\}$:
+
+| Setting | Arm | Mean Drf@16 | Final Drf@16 | Mean St@16 | Total Cost | Pre-Repair | Reinsert | Total Reinserts |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **$n=500$** | `periodic_k1_no_prerepair` | 0.9338 | 0.9036 | 0.9742 | 621,384 | 0 | 621,384 | 1500 |
+| (30% drift, 8x) | `periodic_k2_no_prerepair` | 0.9360 | 0.9053 | 0.9732 | 311,571 | 0 | 311,571 | 750 |
+| | `periodic_k5_no_prerepair` | 0.9023 | 0.9073 | 0.9655 | 125,722 | 0 | 125,722 | 300 |
+| | `round_robin_no_prerepair` | **0.9275** | **0.9176** | **0.9700** | **133,945** | **0** | **133,945** | **312** |
+| | `round_robin_with_prerepair` | 0.9202 | 0.9171 | 0.9625 | 165,622 | 34,684 | 130,939 | 312 |
+| **$n=2000$** | `periodic_k1_no_prerepair` | 0.9224 | 0.8657 | 0.9791 | 1,571,353 | 0 | 1,571,353 | 2000 |
+| (10% drift, 8x) | `periodic_k2_no_prerepair` | 0.9236 | 0.8668 | 0.9810 | 788,453 | 0 | 788,453 | 1000 |
+| | `periodic_k5_no_prerepair` | 0.8972 | 0.8695 | 0.9757 | 316,203 | 0 | 316,203 | 400 |
+| | `round_robin_no_prerepair` | **0.9242** | **0.8830** | **0.9775** | **357,395** | **0** | **357,395** | **443** |
+| | `round_robin_with_prerepair` | 0.9148 | 0.8782 | 0.9751 | 441,428 | 109,962 | 331,466 | 443 |
+
+**Key Empirical Findings**:
+1. **Staggering Advantage Survives Without Pre-Repair**: At matched reinsertion budgets, unassisted `round_robin` outperforms unassisted `periodic_k5` by **$+0.0252$ in $n=500$** ($0.9275$ vs $0.9023$) and by **$+0.0270$ in $n=2000$** ($0.9242$ vs $0.8972$). Furthermore, `round_robin` matches or exceeds `periodic_k1` recall ($0.9242$ vs $0.9224$ in $n=2000$) at **$22.7\%$ of its cost** ($357\text{k}$ vs $1.57\text{M}$).
+2. **Pre-Repair Negative Value**: Adding pre-repair to `round_robin` degrades recall by $0.007 - 0.010$ while increasing maintenance cost by $+24\% - 25\%$.
+
+#### 8. Formal Withdrawal of Phase 5m "WIN" Labels
+Phase 5m preliminarily labeled lazy reinsertion ($\theta=0.5, 1.0$) as a "WIN" based on comparison against `periodic_k5`. However, in the Phase 5n controlled ablation against `round_robin` with matched reinsertion counts:
+- `lazy_theta_1.0` beat `round_robin` by **$+0.0080$** in `indep_dir`, **$+0.0093$** in `RandomState`, and **$+0.0038$** in $n=2000$.
+- Because none of these margins achieved the pre-registered $\ge 0.01$ threshold, **all Phase 5m "WIN" labels are formally withdrawn**.
+- The recall advantage of lazy reinsertion over periodic batching is predominantly attributable to **temporal staggering** of reinsertions rather than adaptive departure-bound selectivity. Uniform random reinsertion is inferior to cyclic round-robin ($0.9126$ vs $0.9269$ in $n=500$), confirming that systematic coverage of the moving set across time is the operative mechanism.
+
+---
+
+### 8.10 Member 3 Scope & Component Status Table
+
+| Scope Area | Component / Subsystem | Implementation File Path | Status | Backing Data / JSON Reference |
+| :--- | :--- | :--- | :---: | :--- |
+| **Movement Models** | `LinearDrift`, `ClusterDrift`, `DiscreteReplacement`, `TeleportAdversary` | [`src/khnsw/core/movement/`](../src/khnsw/core/movement/) | **Built** | Stream collision hazard audited in `docs/data/controls_benchmark.json` |
+| **Certificates** | `KineticDetector`, `CertificateStore`, `empty_ellipse` | [`src/khnsw/core/detection/`](../src/khnsw/core/detection/) | **Measured Not Useful** | Adds 197k–456k cost without recall benefit (`docs/data/lazy_reinsertion_benchmark.json`) |
+| **Versioned Heap** | `KineticEventHeap`, `DueEvent`, generation guards | [`src/khnsw/core/scheduling/event_heap.py`](../src/khnsw/core/scheduling/event_heap.py) | **Built** | Heap order and stale-skip verified in `tests/unit/test_event_heap.py` |
+| **Local Repair** | `repair_loop`, reverse-link synthesis, pruning | [`src/khnsw/core/repair/`](../src/khnsw/core/repair/) | **Built** | Reverse links restore ingress in discrete moves (`docs/algorithm/repair.md` Section 8.4) |
+| **In-Neighbor Pre-Repair** | `in_neighbour_pre_repair` static neighbor heuristic | [`src/khnsw/core/scheduling/tracker.py`](../src/khnsw/core/scheduling/tracker.py) | **Measured Not Useful** | Degrades recall by ~0.01, raises cost +25% (`docs/data/missing_controls_benchmark.json`) |
+| **Hierarchy-Aware Repair** | Multi-layer local repair during reinsertion | — | **Specified Not Built** | Layer-0 repair and hierarchy level preservation on reinsertion exist; cross-layer heuristic re-routing does not exist |
+| **Priority Scheduler** | `MaintenancePolicy`, `BudgetedPriorityTracker`, `NodeDisplacementTracker` | [`src/khnsw/core/scheduling/policy.py`](../src/khnsw/core/scheduling/policy.py), [`tracker.py`](../src/khnsw/core/scheduling/tracker.py) | **Built** | Staggering advantage verified in `docs/data/controls_benchmark.json` & `missing_controls_benchmark.json` |
+| **Ablation Switches** | Policy types (`periodic`, `round_robin`, `lazy`, `budgeted_priority`), `theta`, `pre_repair` | [`src/khnsw/core/scheduling/policy.py`](../src/khnsw/core/scheduling/policy.py) | **Built** | Sweep data across all switches in `docs/data/controls_benchmark.json` |
+| **Event Logging** | `EventEmitter`, `ListSink`, `JsonlSink` integration | [`src/khnsw/core/events/`](../src/khnsw/core/events/) | **Built** (Contract Bound) | Trace emission operational; `events.md` lacks `node_reinsert` event type (contract amendment requested) |
+
 
 
 

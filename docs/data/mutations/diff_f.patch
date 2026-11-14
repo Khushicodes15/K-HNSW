@@ -1,0 +1,13 @@
+diff --git a/src/khnsw/core/repair/loop.py b/src/khnsw/core/repair/loop.py
+index e69a625..3098338 100644
+--- a/src/khnsw/core/repair/loop.py
++++ b/src/khnsw/core/repair/loop.py
+@@ -528,7 +528,7 @@ def repair_loop(
+             scope.update(index.in_neighbors(r.node, r.level))
+ 
+             if detector is not None:
+-                detector.on_topology_change(r.node, r.level, t=t)
++                pass  # detector.on_topology_change(r.node, r.level, t=t)
+ 
+         # Track successfully repaired edges
+         for (u, lvl), targets in current_violated.items():

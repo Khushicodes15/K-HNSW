@@ -1,0 +1,1853 @@
+{
+  "item_a_harness_check": {
+    "default_rng": {
+      "10x": {
+        "per_seed": [
+          {
+            "seed": 42,
+            "displacement_units": 2.9999998450549574,
+            "vanilla": {
+              "drift_rec16": 0.974,
+              "drift_rec32": 0.994,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0
+            },
+            "settled": {
+              "drift_rec16": 0.946,
+              "drift_rec32": 0.984,
+              "static_rec16": 0.976,
+              "static_rec32": 0.999
+            }
+          },
+          {
+            "seed": 43,
+            "displacement_units": 2.999999904129343,
+            "vanilla": {
+              "drift_rec16": 0.972,
+              "drift_rec32": 0.996,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0
+            },
+            "settled": {
+              "drift_rec16": 0.954,
+              "drift_rec32": 0.992,
+              "static_rec16": 0.974,
+              "static_rec32": 0.997
+            }
+          },
+          {
+            "seed": 44,
+            "displacement_units": 3.000000104118422,
+            "vanilla": {
+              "drift_rec16": 0.962,
+              "drift_rec32": 0.99,
+              "static_rec16": 0.987,
+              "static_rec32": 0.999
+            },
+            "settled": {
+              "drift_rec16": 0.946,
+              "drift_rec32": 0.984,
+              "static_rec16": 0.968,
+              "static_rec32": 0.992
+            }
+          }
+        ],
+        "mean": {
+          "displacement_units": 2.9999999511009072,
+          "vanilla": {
+            "drift_rec16": 0.9693333333333333,
+            "drift_rec32": 0.9933333333333333,
+            "static_rec16": 0.989,
+            "static_rec32": 0.9996666666666667
+          },
+          "settled": {
+            "drift_rec16": 0.9486666666666667,
+            "drift_rec32": 0.9866666666666667,
+            "static_rec16": 0.9726666666666667,
+            "static_rec32": 0.996
+          }
+        }
+      },
+      "30x": {
+        "per_seed": [
+          {
+            "seed": 42,
+            "displacement_units": 9.00000109283585,
+            "vanilla": {
+              "drift_rec16": 0.944,
+              "drift_rec32": 0.986,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0
+            },
+            "settled": {
+              "drift_rec16": 0.904,
+              "drift_rec32": 0.968,
+              "static_rec16": 0.976,
+              "static_rec32": 0.999
+            }
+          },
+          {
+            "seed": 43,
+            "displacement_units": 8.999999712388028,
+            "vanilla": {
+              "drift_rec16": 0.948,
+              "drift_rec32": 0.994,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0
+            },
+            "settled": {
+              "drift_rec16": 0.924,
+              "drift_rec32": 0.986,
+              "static_rec16": 0.974,
+              "static_rec32": 0.997
+            }
+          },
+          {
+            "seed": 44,
+            "displacement_units": 9.000000312355267,
+            "vanilla": {
+              "drift_rec16": 0.928,
+              "drift_rec32": 0.98,
+              "static_rec16": 0.987,
+              "static_rec32": 0.999
+            },
+            "settled": {
+              "drift_rec16": 0.89,
+              "drift_rec32": 0.96,
+              "static_rec16": 0.968,
+              "static_rec32": 0.992
+            }
+          }
+        ],
+        "mean": {
+          "displacement_units": 9.000000372526381,
+          "vanilla": {
+            "drift_rec16": 0.94,
+            "drift_rec32": 0.9866666666666667,
+            "static_rec16": 0.989,
+            "static_rec32": 0.9996666666666667
+          },
+          "settled": {
+            "drift_rec16": 0.906,
+            "drift_rec32": 0.9713333333333333,
+            "static_rec16": 0.9726666666666667,
+            "static_rec32": 0.996
+          }
+        }
+      }
+    },
+    "RandomState": {
+      "10x": {
+        "per_seed": [
+          {
+            "seed": 42,
+            "displacement_units": 2.9999998498703633,
+            "vanilla": {
+              "drift_rec16": 0.872,
+              "drift_rec32": 0.938,
+              "static_rec16": 0.983,
+              "static_rec32": 0.995
+            },
+            "settled": {
+              "drift_rec16": 0.834,
+              "drift_rec32": 0.924,
+              "static_rec16": 0.962,
+              "static_rec32": 0.992
+            }
+          },
+          {
+            "seed": 43,
+            "displacement_units": 2.9999999208439467,
+            "vanilla": {
+              "drift_rec16": 0.884,
+              "drift_rec32": 0.938,
+              "static_rec16": 0.993,
+              "static_rec32": 0.999
+            },
+            "settled": {
+              "drift_rec16": 0.83,
+              "drift_rec32": 0.926,
+              "static_rec16": 0.974,
+              "static_rec32": 0.995
+            }
+          },
+          {
+            "seed": 44,
+            "displacement_units": 2.9999995837819946,
+            "vanilla": {
+              "drift_rec16": 0.916,
+              "drift_rec32": 0.956,
+              "static_rec16": 0.987,
+              "static_rec32": 0.994
+            },
+            "settled": {
+              "drift_rec16": 0.872,
+              "drift_rec32": 0.938,
+              "static_rec16": 0.969,
+              "static_rec32": 0.992
+            }
+          }
+        ],
+        "mean": {
+          "displacement_units": 2.999999784832102,
+          "vanilla": {
+            "drift_rec16": 0.8906666666666667,
+            "drift_rec32": 0.944,
+            "static_rec16": 0.9876666666666667,
+            "static_rec32": 0.996
+          },
+          "settled": {
+            "drift_rec16": 0.8453333333333334,
+            "drift_rec32": 0.9293333333333335,
+            "static_rec16": 0.9683333333333333,
+            "static_rec32": 0.993
+          }
+        }
+      },
+      "30x": {
+        "per_seed": [
+          {
+            "seed": 42,
+            "displacement_units": 8.99999954961109,
+            "vanilla": {
+              "drift_rec16": 0.748,
+              "drift_rec32": 0.828,
+              "static_rec16": 0.988,
+              "static_rec32": 0.999
+            },
+            "settled": {
+              "drift_rec16": 0.692,
+              "drift_rec32": 0.786,
+              "static_rec16": 0.967,
+              "static_rec32": 0.996
+            }
+          },
+          {
+            "seed": 43,
+            "displacement_units": 9.00000038193193,
+            "vanilla": {
+              "drift_rec16": 0.722,
+              "drift_rec32": 0.822,
+              "static_rec16": 0.994,
+              "static_rec32": 0.999
+            },
+            "settled": {
+              "drift_rec16": 0.684,
+              "drift_rec32": 0.784,
+              "static_rec16": 0.976,
+              "static_rec32": 0.996
+            }
+          },
+          {
+            "seed": 44,
+            "displacement_units": 8.999999066713187,
+            "vanilla": {
+              "drift_rec16": 0.754,
+              "drift_rec32": 0.838,
+              "static_rec16": 0.991,
+              "static_rec32": 0.998
+            },
+            "settled": {
+              "drift_rec16": 0.702,
+              "drift_rec32": 0.802,
+              "static_rec16": 0.973,
+              "static_rec32": 0.995
+            }
+          }
+        ],
+        "mean": {
+          "displacement_units": 8.999999666085403,
+          "vanilla": {
+            "drift_rec16": 0.7413333333333334,
+            "drift_rec32": 0.8293333333333334,
+            "static_rec16": 0.991,
+            "static_rec32": 0.9986666666666667
+          },
+          "settled": {
+            "drift_rec16": 0.6926666666666667,
+            "drift_rec32": 0.7906666666666666,
+            "static_rec16": 0.972,
+            "static_rec32": 0.9956666666666667
+          }
+        }
+      }
+    }
+  },
+  "item_b_vanilla_arms": {
+    "per_seed": [
+      {
+        "seed": 42,
+        "t0_initial_violations": 2319,
+        "speeds": {
+          "10x": {
+            "arm1_no_repair": {
+              "drift_rec16": 0.974,
+              "drift_rec32": 0.994,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 2557,
+              "total_cost": 0,
+              "categories": {
+                "search": 0,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm2_ceiling": {
+              "drift_rec16": 0.96,
+              "drift_rec32": 0.992,
+              "static_rec16": 0.998,
+              "static_rec32": 1.0,
+              "violated": 2173,
+              "total_cost": 124491,
+              "categories": {
+                "search": 124491,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm3_inplace_reinsert_once": {
+              "drift_rec16": 0.928,
+              "drift_rec32": 0.988,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 1825,
+              "total_cost": 22364,
+              "categories": {
+                "search": 22364,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm4_inplace_reinsert_with_prerepair_once": {
+              "drift_rec16": 0.924,
+              "drift_rec32": 0.978,
+              "static_rec16": 0.991,
+              "static_rec32": 1.0,
+              "violated": 660,
+              "total_cost": 34912,
+              "categories": {
+                "search": 20875,
+                "planning": 14037,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5a_reinsert_every_step_no_prerepair": {
+              "drift_rec16": 0.928,
+              "drift_rec32": 0.988,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 1811,
+              "total_cost": 223353,
+              "categories": {
+                "search": 223353,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5b_reinsert_every_step_with_prerepair": {
+              "drift_rec16": 0.92,
+              "drift_rec32": 0.974,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 401,
+              "total_cost": 253877,
+              "categories": {
+                "search": 211798,
+                "planning": 42079,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6a_periodic_k2_with_prerepair": {
+              "drift_rec16": 0.92,
+              "drift_rec32": 0.976,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 462,
+              "total_cost": 131946,
+              "categories": {
+                "search": 105803,
+                "planning": 26143,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6b_periodic_k5_with_prerepair": {
+              "drift_rec16": 0.922,
+              "drift_rec32": 0.974,
+              "static_rec16": 0.989,
+              "static_rec32": 1.0,
+              "violated": 555,
+              "total_cost": 58693,
+              "categories": {
+                "search": 42099,
+                "planning": 16594,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm7a_ours_t0_repaired_ef16": {
+              "drift_rec16": 0.89,
+              "drift_rec32": 0.976,
+              "static_rec16": 0.979,
+              "static_rec32": 0.999,
+              "violated": 0,
+              "total_cost": 87855,
+              "categories": {
+                "search": 27008,
+                "planning": 33294,
+                "store": 17270,
+                "detector": 10245,
+                "reverse_link": 38
+              },
+              "setup_cost": 81687
+            },
+            "arm7a_ours_t0_repaired_ef64": {
+              "drift_rec16": 0.9,
+              "drift_rec32": 0.978,
+              "static_rec16": 0.98,
+              "static_rec32": 0.999,
+              "violated": 0,
+              "total_cost": 193329,
+              "categories": {
+                "search": 74314,
+                "planning": 83089,
+                "store": 24371,
+                "detector": 11517,
+                "reverse_link": 38
+              },
+              "setup_cost": 81687
+            },
+            "arm7b_ours_t0_exempted_ef16": {
+              "drift_rec16": 0.91,
+              "drift_rec32": 0.982,
+              "static_rec16": 0.991,
+              "static_rec32": 1.0,
+              "violated": 1353,
+              "total_cost": 122198,
+              "categories": {
+                "search": 31879,
+                "planning": 33206,
+                "store": 16797,
+                "detector": 40153,
+                "reverse_link": 163
+              },
+              "setup_cost": 0
+            },
+            "arm7b_ours_t0_exempted_ef64": {
+              "drift_rec16": 0.898,
+              "drift_rec32": 0.974,
+              "static_rec16": 0.99,
+              "static_rec32": 0.999,
+              "violated": 1072,
+              "total_cost": 235995,
+              "categories": {
+                "search": 83155,
+                "planning": 84998,
+                "store": 26164,
+                "detector": 41378,
+                "reverse_link": 300
+              },
+              "setup_cost": 0
+            }
+          },
+          "30x": {
+            "arm1_no_repair": {
+              "drift_rec16": 0.944,
+              "drift_rec32": 0.986,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 2570,
+              "total_cost": 0,
+              "categories": {
+                "search": 0,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm2_ceiling": {
+              "drift_rec16": 0.93,
+              "drift_rec32": 0.986,
+              "static_rec16": 0.999,
+              "static_rec32": 1.0,
+              "violated": 2161,
+              "total_cost": 124012,
+              "categories": {
+                "search": 124012,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm3_inplace_reinsert_once": {
+              "drift_rec16": 0.902,
+              "drift_rec32": 0.984,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 1818,
+              "total_cost": 22230,
+              "categories": {
+                "search": 22230,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm4_inplace_reinsert_with_prerepair_once": {
+              "drift_rec16": 0.876,
+              "drift_rec32": 0.964,
+              "static_rec16": 0.991,
+              "static_rec32": 1.0,
+              "violated": 658,
+              "total_cost": 33806,
+              "categories": {
+                "search": 20619,
+                "planning": 13187,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5a_reinsert_every_step_no_prerepair": {
+              "drift_rec16": 0.902,
+              "drift_rec32": 0.984,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 1804,
+              "total_cost": 219499,
+              "categories": {
+                "search": 219499,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5b_reinsert_every_step_with_prerepair": {
+              "drift_rec16": 0.87,
+              "drift_rec32": 0.962,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 494,
+              "total_cost": 233778,
+              "categories": {
+                "search": 207105,
+                "planning": 26673,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6a_periodic_k2_with_prerepair": {
+              "drift_rec16": 0.87,
+              "drift_rec32": 0.962,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 548,
+              "total_cost": 122454,
+              "categories": {
+                "search": 103571,
+                "planning": 18883,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6b_periodic_k5_with_prerepair": {
+              "drift_rec16": 0.878,
+              "drift_rec32": 0.962,
+              "static_rec16": 0.991,
+              "static_rec32": 1.0,
+              "violated": 618,
+              "total_cost": 55888,
+              "categories": {
+                "search": 41320,
+                "planning": 14568,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm7a_ours_t0_repaired_ef16": {
+              "drift_rec16": 0.87,
+              "drift_rec32": 0.962,
+              "static_rec16": 0.981,
+              "static_rec32": 0.999,
+              "violated": 0,
+              "total_cost": 59464,
+              "categories": {
+                "search": 16738,
+                "planning": 22654,
+                "store": 10497,
+                "detector": 9575,
+                "reverse_link": 0
+              },
+              "setup_cost": 81687
+            },
+            "arm7a_ours_t0_repaired_ef64": {
+              "drift_rec16": 0.892,
+              "drift_rec32": 0.97,
+              "static_rec16": 0.981,
+              "static_rec32": 0.999,
+              "violated": 0,
+              "total_cost": 118641,
+              "categories": {
+                "search": 44585,
+                "planning": 51192,
+                "store": 12741,
+                "detector": 10123,
+                "reverse_link": 0
+              },
+              "setup_cost": 81687
+            },
+            "arm7b_ours_t0_exempted_ef16": {
+              "drift_rec16": 0.9,
+              "drift_rec32": 0.968,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 1383,
+              "total_cost": 91348,
+              "categories": {
+                "search": 19479,
+                "planning": 22928,
+                "store": 10444,
+                "detector": 38419,
+                "reverse_link": 78
+              },
+              "setup_cost": 0
+            },
+            "arm7b_ours_t0_exempted_ef64": {
+              "drift_rec16": 0.9,
+              "drift_rec32": 0.974,
+              "static_rec16": 0.991,
+              "static_rec32": 0.999,
+              "violated": 1256,
+              "total_cost": 157001,
+              "categories": {
+                "search": 50179,
+                "planning": 53573,
+                "store": 14230,
+                "detector": 38925,
+                "reverse_link": 94
+              },
+              "setup_cost": 0
+            }
+          }
+        }
+      },
+      {
+        "seed": 43,
+        "t0_initial_violations": 2323,
+        "speeds": {
+          "10x": {
+            "arm1_no_repair": {
+              "drift_rec16": 0.972,
+              "drift_rec32": 0.996,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 2579,
+              "total_cost": 0,
+              "categories": {
+                "search": 0,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm2_ceiling": {
+              "drift_rec16": 0.98,
+              "drift_rec32": 1.0,
+              "static_rec16": 0.997,
+              "static_rec32": 1.0,
+              "violated": 2281,
+              "total_cost": 125955,
+              "categories": {
+                "search": 125955,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm3_inplace_reinsert_once": {
+              "drift_rec16": 0.9,
+              "drift_rec32": 0.962,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 1825,
+              "total_cost": 22195,
+              "categories": {
+                "search": 22195,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm4_inplace_reinsert_with_prerepair_once": {
+              "drift_rec16": 0.89,
+              "drift_rec32": 0.968,
+              "static_rec16": 0.989,
+              "static_rec32": 1.0,
+              "violated": 715,
+              "total_cost": 34507,
+              "categories": {
+                "search": 20632,
+                "planning": 13875,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5a_reinsert_every_step_no_prerepair": {
+              "drift_rec16": 0.9,
+              "drift_rec32": 0.962,
+              "static_rec16": 0.989,
+              "static_rec32": 1.0,
+              "violated": 1800,
+              "total_cost": 221356,
+              "categories": {
+                "search": 221356,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5b_reinsert_every_step_with_prerepair": {
+              "drift_rec16": 0.908,
+              "drift_rec32": 0.978,
+              "static_rec16": 0.985,
+              "static_rec32": 0.999,
+              "violated": 491,
+              "total_cost": 251812,
+              "categories": {
+                "search": 209504,
+                "planning": 42308,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6a_periodic_k2_with_prerepair": {
+              "drift_rec16": 0.912,
+              "drift_rec32": 0.984,
+              "static_rec16": 0.987,
+              "static_rec32": 1.0,
+              "violated": 560,
+              "total_cost": 130607,
+              "categories": {
+                "search": 104490,
+                "planning": 26117,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6b_periodic_k5_with_prerepair": {
+              "drift_rec16": 0.912,
+              "drift_rec32": 0.98,
+              "static_rec16": 0.988,
+              "static_rec32": 1.0,
+              "violated": 658,
+              "total_cost": 57861,
+              "categories": {
+                "search": 41515,
+                "planning": 16346,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm7a_ours_t0_repaired_ef16": {
+              "drift_rec16": 0.89,
+              "drift_rec32": 0.988,
+              "static_rec16": 0.977,
+              "static_rec32": 0.997,
+              "violated": 0,
+              "total_cost": 94659,
+              "categories": {
+                "search": 29361,
+                "planning": 35513,
+                "store": 19295,
+                "detector": 10490,
+                "reverse_link": 0
+              },
+              "setup_cost": 83404
+            },
+            "arm7a_ours_t0_repaired_ef64": {
+              "drift_rec16": 0.9,
+              "drift_rec32": 0.99,
+              "static_rec16": 0.977,
+              "static_rec32": 0.997,
+              "violated": 0,
+              "total_cost": 205546,
+              "categories": {
+                "search": 79130,
+                "planning": 87355,
+                "store": 27031,
+                "detector": 12030,
+                "reverse_link": 0
+              },
+              "setup_cost": 83404
+            },
+            "arm7b_ours_t0_exempted_ef16": {
+              "drift_rec16": 0.9,
+              "drift_rec32": 0.986,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 1262,
+              "total_cost": 130556,
+              "categories": {
+                "search": 35087,
+                "planning": 34353,
+                "store": 18914,
+                "detector": 42110,
+                "reverse_link": 92
+              },
+              "setup_cost": 0
+            },
+            "arm7b_ours_t0_exempted_ef64": {
+              "drift_rec16": 0.904,
+              "drift_rec32": 0.988,
+              "static_rec16": 0.986,
+              "static_rec32": 1.0,
+              "violated": 1097,
+              "total_cost": 244540,
+              "categories": {
+                "search": 87429,
+                "planning": 85837,
+                "store": 27494,
+                "detector": 43604,
+                "reverse_link": 176
+              },
+              "setup_cost": 0
+            }
+          },
+          "30x": {
+            "arm1_no_repair": {
+              "drift_rec16": 0.948,
+              "drift_rec32": 0.994,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 2610,
+              "total_cost": 0,
+              "categories": {
+                "search": 0,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm2_ceiling": {
+              "drift_rec16": 0.954,
+              "drift_rec32": 0.992,
+              "static_rec16": 0.998,
+              "static_rec32": 1.0,
+              "violated": 2230,
+              "total_cost": 125464,
+              "categories": {
+                "search": 125464,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm3_inplace_reinsert_once": {
+              "drift_rec16": 0.892,
+              "drift_rec32": 0.972,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 1808,
+              "total_cost": 21984,
+              "categories": {
+                "search": 21984,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm4_inplace_reinsert_with_prerepair_once": {
+              "drift_rec16": 0.894,
+              "drift_rec32": 0.974,
+              "static_rec16": 0.99,
+              "static_rec32": 1.0,
+              "violated": 702,
+              "total_cost": 33551,
+              "categories": {
+                "search": 20382,
+                "planning": 13169,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5a_reinsert_every_step_no_prerepair": {
+              "drift_rec16": 0.894,
+              "drift_rec32": 0.972,
+              "static_rec16": 0.989,
+              "static_rec32": 1.0,
+              "violated": 1795,
+              "total_cost": 216927,
+              "categories": {
+                "search": 216927,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5b_reinsert_every_step_with_prerepair": {
+              "drift_rec16": 0.878,
+              "drift_rec32": 0.958,
+              "static_rec16": 0.984,
+              "static_rec32": 0.999,
+              "violated": 553,
+              "total_cost": 225474,
+              "categories": {
+                "search": 198608,
+                "planning": 26866,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6a_periodic_k2_with_prerepair": {
+              "drift_rec16": 0.872,
+              "drift_rec32": 0.95,
+              "static_rec16": 0.987,
+              "static_rec32": 1.0,
+              "violated": 621,
+              "total_cost": 117785,
+              "categories": {
+                "search": 99302,
+                "planning": 18483,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6b_periodic_k5_with_prerepair": {
+              "drift_rec16": 0.89,
+              "drift_rec32": 0.968,
+              "static_rec16": 0.987,
+              "static_rec32": 1.0,
+              "violated": 663,
+              "total_cost": 55437,
+              "categories": {
+                "search": 40827,
+                "planning": 14610,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm7a_ours_t0_repaired_ef16": {
+              "drift_rec16": 0.876,
+              "drift_rec32": 0.962,
+              "static_rec16": 0.978,
+              "static_rec32": 0.997,
+              "violated": 0,
+              "total_cost": 66559,
+              "categories": {
+                "search": 18307,
+                "planning": 25322,
+                "store": 12576,
+                "detector": 10354,
+                "reverse_link": 0
+              },
+              "setup_cost": 83404
+            },
+            "arm7a_ours_t0_repaired_ef64": {
+              "drift_rec16": 0.882,
+              "drift_rec32": 0.97,
+              "static_rec16": 0.978,
+              "static_rec32": 0.997,
+              "violated": 0,
+              "total_cost": 132345,
+              "categories": {
+                "search": 49837,
+                "planning": 56545,
+                "store": 14911,
+                "detector": 11052,
+                "reverse_link": 0
+              },
+              "setup_cost": 83404
+            },
+            "arm7b_ours_t0_exempted_ef16": {
+              "drift_rec16": 0.9,
+              "drift_rec32": 0.972,
+              "static_rec16": 0.991,
+              "static_rec32": 1.0,
+              "violated": 1326,
+              "total_cost": 100170,
+              "categories": {
+                "search": 22856,
+                "planning": 25290,
+                "store": 12175,
+                "detector": 39758,
+                "reverse_link": 91
+              },
+              "setup_cost": 0
+            },
+            "arm7b_ours_t0_exempted_ef64": {
+              "drift_rec16": 0.92,
+              "drift_rec32": 0.978,
+              "static_rec16": 0.988,
+              "static_rec32": 1.0,
+              "violated": 1261,
+              "total_cost": 173309,
+              "categories": {
+                "search": 57777,
+                "planning": 58620,
+                "store": 15764,
+                "detector": 41051,
+                "reverse_link": 97
+              },
+              "setup_cost": 0
+            }
+          }
+        }
+      },
+      {
+        "seed": 44,
+        "t0_initial_violations": 2052,
+        "speeds": {
+          "10x": {
+            "arm1_no_repair": {
+              "drift_rec16": 0.962,
+              "drift_rec32": 0.99,
+              "static_rec16": 0.987,
+              "static_rec32": 0.999,
+              "violated": 2312,
+              "total_cost": 0,
+              "categories": {
+                "search": 0,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm2_ceiling": {
+              "drift_rec16": 0.962,
+              "drift_rec32": 0.994,
+              "static_rec16": 0.999,
+              "static_rec32": 1.0,
+              "violated": 2042,
+              "total_cost": 124447,
+              "categories": {
+                "search": 124447,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm3_inplace_reinsert_once": {
+              "drift_rec16": 0.908,
+              "drift_rec32": 0.978,
+              "static_rec16": 0.987,
+              "static_rec32": 0.999,
+              "violated": 1622,
+              "total_cost": 21940,
+              "categories": {
+                "search": 21940,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm4_inplace_reinsert_with_prerepair_once": {
+              "drift_rec16": 0.924,
+              "drift_rec32": 0.99,
+              "static_rec16": 0.986,
+              "static_rec32": 1.0,
+              "violated": 664,
+              "total_cost": 34518,
+              "categories": {
+                "search": 20608,
+                "planning": 13910,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5a_reinsert_every_step_no_prerepair": {
+              "drift_rec16": 0.902,
+              "drift_rec32": 0.978,
+              "static_rec16": 0.987,
+              "static_rec32": 0.999,
+              "violated": 1582,
+              "total_cost": 219141,
+              "categories": {
+                "search": 219141,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5b_reinsert_every_step_with_prerepair": {
+              "drift_rec16": 0.928,
+              "drift_rec32": 0.988,
+              "static_rec16": 0.985,
+              "static_rec32": 0.997,
+              "violated": 406,
+              "total_cost": 255803,
+              "categories": {
+                "search": 209272,
+                "planning": 46531,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6a_periodic_k2_with_prerepair": {
+              "drift_rec16": 0.926,
+              "drift_rec32": 0.988,
+              "static_rec16": 0.985,
+              "static_rec32": 0.998,
+              "violated": 453,
+              "total_cost": 132366,
+              "categories": {
+                "search": 104539,
+                "planning": 27827,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6b_periodic_k5_with_prerepair": {
+              "drift_rec16": 0.92,
+              "drift_rec32": 0.99,
+              "static_rec16": 0.986,
+              "static_rec32": 1.0,
+              "violated": 604,
+              "total_cost": 58424,
+              "categories": {
+                "search": 41616,
+                "planning": 16808,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm7a_ours_t0_repaired_ef16": {
+              "drift_rec16": 0.898,
+              "drift_rec32": 0.98,
+              "static_rec16": 0.974,
+              "static_rec32": 0.992,
+              "violated": 0,
+              "total_cost": 92745,
+              "categories": {
+                "search": 28778,
+                "planning": 34651,
+                "store": 18565,
+                "detector": 10751,
+                "reverse_link": 0
+              },
+              "setup_cost": 75091
+            },
+            "arm7a_ours_t0_repaired_ef64": {
+              "drift_rec16": 0.904,
+              "drift_rec32": 0.98,
+              "static_rec16": 0.973,
+              "static_rec32": 0.993,
+              "violated": 0,
+              "total_cost": 207116,
+              "categories": {
+                "search": 78226,
+                "planning": 87109,
+                "store": 29265,
+                "detector": 12516,
+                "reverse_link": 0
+              },
+              "setup_cost": 75091
+            },
+            "arm7b_ours_t0_exempted_ef16": {
+              "drift_rec16": 0.9,
+              "drift_rec32": 0.982,
+              "static_rec16": 0.987,
+              "static_rec32": 0.996,
+              "violated": 1150,
+              "total_cost": 126180,
+              "categories": {
+                "search": 33586,
+                "planning": 34525,
+                "store": 18434,
+                "detector": 39450,
+                "reverse_link": 185
+              },
+              "setup_cost": 0
+            },
+            "arm7b_ours_t0_exempted_ef64": {
+              "drift_rec16": 0.89,
+              "drift_rec32": 0.978,
+              "static_rec16": 0.987,
+              "static_rec32": 0.997,
+              "violated": 883,
+              "total_cost": 244807,
+              "categories": {
+                "search": 84610,
+                "planning": 87816,
+                "store": 30471,
+                "detector": 41611,
+                "reverse_link": 299
+              },
+              "setup_cost": 0
+            }
+          },
+          "30x": {
+            "arm1_no_repair": {
+              "drift_rec16": 0.928,
+              "drift_rec32": 0.98,
+              "static_rec16": 0.987,
+              "static_rec32": 0.999,
+              "violated": 2339,
+              "total_cost": 0,
+              "categories": {
+                "search": 0,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm2_ceiling": {
+              "drift_rec16": 0.934,
+              "drift_rec32": 0.986,
+              "static_rec16": 0.999,
+              "static_rec32": 1.0,
+              "violated": 1997,
+              "total_cost": 124012,
+              "categories": {
+                "search": 124012,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm3_inplace_reinsert_once": {
+              "drift_rec16": 0.906,
+              "drift_rec32": 0.976,
+              "static_rec16": 0.987,
+              "static_rec32": 0.999,
+              "violated": 1613,
+              "total_cost": 21871,
+              "categories": {
+                "search": 21871,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm4_inplace_reinsert_with_prerepair_once": {
+              "drift_rec16": 0.896,
+              "drift_rec32": 0.972,
+              "static_rec16": 0.986,
+              "static_rec32": 1.0,
+              "violated": 668,
+              "total_cost": 33701,
+              "categories": {
+                "search": 20414,
+                "planning": 13287,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5a_reinsert_every_step_no_prerepair": {
+              "drift_rec16": 0.906,
+              "drift_rec32": 0.976,
+              "static_rec16": 0.987,
+              "static_rec32": 0.999,
+              "violated": 1613,
+              "total_cost": 215077,
+              "categories": {
+                "search": 215077,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm5b_reinsert_every_step_with_prerepair": {
+              "drift_rec16": 0.882,
+              "drift_rec32": 0.966,
+              "static_rec16": 0.985,
+              "static_rec32": 0.999,
+              "violated": 484,
+              "total_cost": 234065,
+              "categories": {
+                "search": 205801,
+                "planning": 28264,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6a_periodic_k2_with_prerepair": {
+              "drift_rec16": 0.894,
+              "drift_rec32": 0.974,
+              "static_rec16": 0.986,
+              "static_rec32": 1.0,
+              "violated": 561,
+              "total_cost": 121311,
+              "categories": {
+                "search": 102701,
+                "planning": 18610,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm6b_periodic_k5_with_prerepair": {
+              "drift_rec16": 0.894,
+              "drift_rec32": 0.972,
+              "static_rec16": 0.986,
+              "static_rec32": 1.0,
+              "violated": 607,
+              "total_cost": 55631,
+              "categories": {
+                "search": 40931,
+                "planning": 14700,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm7a_ours_t0_repaired_ef16": {
+              "drift_rec16": 0.86,
+              "drift_rec32": 0.966,
+              "static_rec16": 0.975,
+              "static_rec32": 0.991,
+              "violated": 0,
+              "total_cost": 62848,
+              "categories": {
+                "search": 18483,
+                "planning": 23472,
+                "store": 11020,
+                "detector": 9873,
+                "reverse_link": 0
+              },
+              "setup_cost": 75091
+            },
+            "arm7a_ours_t0_repaired_ef64": {
+              "drift_rec16": 0.878,
+              "drift_rec32": 0.968,
+              "static_rec16": 0.976,
+              "static_rec32": 0.992,
+              "violated": 0,
+              "total_cost": 130127,
+              "categories": {
+                "search": 49107,
+                "planning": 55071,
+                "store": 14989,
+                "detector": 10960,
+                "reverse_link": 0
+              },
+              "setup_cost": 75091
+            },
+            "arm7b_ours_t0_exempted_ef16": {
+              "drift_rec16": 0.902,
+              "drift_rec32": 0.982,
+              "static_rec16": 0.988,
+              "static_rec32": 0.997,
+              "violated": 1186,
+              "total_cost": 91762,
+              "categories": {
+                "search": 20290,
+                "planning": 23813,
+                "store": 11248,
+                "detector": 36411,
+                "reverse_link": 0
+              },
+              "setup_cost": 0
+            },
+            "arm7b_ours_t0_exempted_ef64": {
+              "drift_rec16": 0.916,
+              "drift_rec32": 0.982,
+              "static_rec16": 0.986,
+              "static_rec32": 0.998,
+              "violated": 1124,
+              "total_cost": 168028,
+              "categories": {
+                "search": 55813,
+                "planning": 58426,
+                "store": 16176,
+                "detector": 37560,
+                "reverse_link": 53
+              },
+              "setup_cost": 0
+            }
+          }
+        }
+      }
+    ],
+    "mean": {
+      "10x": {
+        "arm1_no_repair": {
+          "drift_rec16": 0.9693333333333333,
+          "drift_rec32": 0.9933333333333333,
+          "static_rec16": 0.989,
+          "static_rec32": 0.9996666666666667,
+          "violated": 2482.6666666666665,
+          "total_cost": 0.0,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 0.0,
+            "planning": 0.0,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm2_ceiling": {
+          "drift_rec16": 0.9673333333333334,
+          "drift_rec32": 0.9953333333333333,
+          "static_rec16": 0.9980000000000001,
+          "static_rec32": 1.0,
+          "violated": 2165.3333333333335,
+          "total_cost": 124964.33333333333,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 124964.33333333333,
+            "planning": 0.0,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm3_inplace_reinsert_once": {
+          "drift_rec16": 0.912,
+          "drift_rec32": 0.976,
+          "static_rec16": 0.989,
+          "static_rec32": 0.9996666666666667,
+          "violated": 1757.3333333333333,
+          "total_cost": 22166.333333333332,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 22166.333333333332,
+            "planning": 0.0,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm4_inplace_reinsert_with_prerepair_once": {
+          "drift_rec16": 0.9126666666666666,
+          "drift_rec32": 0.9786666666666667,
+          "static_rec16": 0.9886666666666667,
+          "static_rec32": 1.0,
+          "violated": 679.6666666666666,
+          "total_cost": 34645.666666666664,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 20705.0,
+            "planning": 13940.666666666666,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm5a_reinsert_every_step_no_prerepair": {
+          "drift_rec16": 0.91,
+          "drift_rec32": 0.976,
+          "static_rec16": 0.9886666666666667,
+          "static_rec32": 0.9996666666666667,
+          "violated": 1731.0,
+          "total_cost": 221283.33333333334,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 221283.33333333334,
+            "planning": 0.0,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm5b_reinsert_every_step_with_prerepair": {
+          "drift_rec16": 0.9186666666666667,
+          "drift_rec32": 0.98,
+          "static_rec16": 0.9866666666666667,
+          "static_rec32": 0.9986666666666667,
+          "violated": 432.6666666666667,
+          "total_cost": 253830.66666666666,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 210191.33333333334,
+            "planning": 43639.333333333336,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm6a_periodic_k2_with_prerepair": {
+          "drift_rec16": 0.9193333333333333,
+          "drift_rec32": 0.9826666666666667,
+          "static_rec16": 0.9873333333333333,
+          "static_rec32": 0.9993333333333334,
+          "violated": 491.6666666666667,
+          "total_cost": 131639.66666666666,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 104944.0,
+            "planning": 26695.666666666668,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm6b_periodic_k5_with_prerepair": {
+          "drift_rec16": 0.918,
+          "drift_rec32": 0.9813333333333333,
+          "static_rec16": 0.9876666666666667,
+          "static_rec32": 1.0,
+          "violated": 605.6666666666666,
+          "total_cost": 58326.0,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 41743.333333333336,
+            "planning": 16582.666666666668,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm7a_ours_t0_repaired_ef16": {
+          "drift_rec16": 0.8926666666666666,
+          "drift_rec32": 0.9813333333333333,
+          "static_rec16": 0.9766666666666666,
+          "static_rec32": 0.996,
+          "violated": 0.0,
+          "total_cost": 91753.0,
+          "setup_cost": 80060.66666666667,
+          "categories": {
+            "search": 28382.333333333332,
+            "planning": 34486.0,
+            "store": 18376.666666666668,
+            "detector": 10495.333333333334,
+            "reverse_link": 12.666666666666666
+          }
+        },
+        "arm7a_ours_t0_repaired_ef64": {
+          "drift_rec16": 0.9013333333333334,
+          "drift_rec32": 0.9826666666666667,
+          "static_rec16": 0.9766666666666666,
+          "static_rec32": 0.9963333333333333,
+          "violated": 0.0,
+          "total_cost": 201997.0,
+          "setup_cost": 80060.66666666667,
+          "categories": {
+            "search": 77223.33333333333,
+            "planning": 85851.0,
+            "store": 26889.0,
+            "detector": 12021.0,
+            "reverse_link": 12.666666666666666
+          }
+        },
+        "arm7b_ours_t0_exempted_ef16": {
+          "drift_rec16": 0.9033333333333333,
+          "drift_rec32": 0.9833333333333334,
+          "static_rec16": 0.9893333333333333,
+          "static_rec32": 0.9986666666666667,
+          "violated": 1255.0,
+          "total_cost": 126311.33333333333,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 33517.333333333336,
+            "planning": 34028.0,
+            "store": 18048.333333333332,
+            "detector": 40571.0,
+            "reverse_link": 146.66666666666666
+          }
+        },
+        "arm7b_ours_t0_exempted_ef64": {
+          "drift_rec16": 0.8973333333333334,
+          "drift_rec32": 0.98,
+          "static_rec16": 0.9876666666666667,
+          "static_rec32": 0.9986666666666667,
+          "violated": 1017.3333333333334,
+          "total_cost": 241780.66666666666,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 85064.66666666667,
+            "planning": 86217.0,
+            "store": 28043.0,
+            "detector": 42197.666666666664,
+            "reverse_link": 258.3333333333333
+          }
+        }
+      },
+      "30x": {
+        "arm1_no_repair": {
+          "drift_rec16": 0.94,
+          "drift_rec32": 0.9866666666666667,
+          "static_rec16": 0.989,
+          "static_rec32": 0.9996666666666667,
+          "violated": 2506.3333333333335,
+          "total_cost": 0.0,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 0.0,
+            "planning": 0.0,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm2_ceiling": {
+          "drift_rec16": 0.9393333333333334,
+          "drift_rec32": 0.988,
+          "static_rec16": 0.9986666666666667,
+          "static_rec32": 1.0,
+          "violated": 2129.3333333333335,
+          "total_cost": 124496.0,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 124496.0,
+            "planning": 0.0,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm3_inplace_reinsert_once": {
+          "drift_rec16": 0.9,
+          "drift_rec32": 0.9773333333333333,
+          "static_rec16": 0.989,
+          "static_rec32": 0.9996666666666667,
+          "violated": 1746.3333333333333,
+          "total_cost": 22028.333333333332,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 22028.333333333332,
+            "planning": 0.0,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm4_inplace_reinsert_with_prerepair_once": {
+          "drift_rec16": 0.8886666666666666,
+          "drift_rec32": 0.9700000000000001,
+          "static_rec16": 0.9889999999999999,
+          "static_rec32": 1.0,
+          "violated": 676.0,
+          "total_cost": 33686.0,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 20471.666666666668,
+            "planning": 13214.333333333334,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm5a_reinsert_every_step_no_prerepair": {
+          "drift_rec16": 0.9006666666666666,
+          "drift_rec32": 0.9773333333333333,
+          "static_rec16": 0.9886666666666667,
+          "static_rec32": 0.9996666666666667,
+          "violated": 1737.3333333333333,
+          "total_cost": 217167.66666666666,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 217167.66666666666,
+            "planning": 0.0,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm5b_reinsert_every_step_with_prerepair": {
+          "drift_rec16": 0.8766666666666666,
+          "drift_rec32": 0.9620000000000001,
+          "static_rec16": 0.9863333333333334,
+          "static_rec32": 0.9993333333333334,
+          "violated": 510.3333333333333,
+          "total_cost": 231105.66666666666,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 203838.0,
+            "planning": 27267.666666666668,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm6a_periodic_k2_with_prerepair": {
+          "drift_rec16": 0.8786666666666667,
+          "drift_rec32": 0.9620000000000001,
+          "static_rec16": 0.9876666666666667,
+          "static_rec32": 1.0,
+          "violated": 576.6666666666666,
+          "total_cost": 120516.66666666667,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 101858.0,
+            "planning": 18658.666666666668,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm6b_periodic_k5_with_prerepair": {
+          "drift_rec16": 0.8873333333333333,
+          "drift_rec32": 0.9673333333333334,
+          "static_rec16": 0.988,
+          "static_rec32": 1.0,
+          "violated": 629.3333333333334,
+          "total_cost": 55652.0,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 41026.0,
+            "planning": 14626.0,
+            "store": 0.0,
+            "detector": 0.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm7a_ours_t0_repaired_ef16": {
+          "drift_rec16": 0.8686666666666666,
+          "drift_rec32": 0.9633333333333333,
+          "static_rec16": 0.9780000000000001,
+          "static_rec32": 0.9956666666666667,
+          "violated": 0.0,
+          "total_cost": 62957.0,
+          "setup_cost": 80060.66666666667,
+          "categories": {
+            "search": 17842.666666666668,
+            "planning": 23816.0,
+            "store": 11364.333333333334,
+            "detector": 9934.0,
+            "reverse_link": 0.0
+          }
+        },
+        "arm7a_ours_t0_repaired_ef64": {
+          "drift_rec16": 0.884,
+          "drift_rec32": 0.9693333333333333,
+          "static_rec16": 0.9783333333333334,
+          "static_rec32": 0.996,
+          "violated": 0.0,
+          "total_cost": 127037.66666666667,
+          "setup_cost": 80060.66666666667,
+          "categories": {
+            "search": 47843.0,
+            "planning": 54269.333333333336,
+            "store": 14213.666666666666,
+            "detector": 10711.666666666666,
+            "reverse_link": 0.0
+          }
+        },
+        "arm7b_ours_t0_exempted_ef16": {
+          "drift_rec16": 0.9006666666666666,
+          "drift_rec32": 0.9739999999999999,
+          "static_rec16": 0.9896666666666666,
+          "static_rec32": 0.999,
+          "violated": 1298.3333333333333,
+          "total_cost": 94426.66666666667,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 20875.0,
+            "planning": 24010.333333333332,
+            "store": 11289.0,
+            "detector": 38196.0,
+            "reverse_link": 56.333333333333336
+          }
+        },
+        "arm7b_ours_t0_exempted_ef64": {
+          "drift_rec16": 0.912,
+          "drift_rec32": 0.9780000000000001,
+          "static_rec16": 0.9883333333333333,
+          "static_rec32": 0.999,
+          "violated": 1213.6666666666667,
+          "total_cost": 166112.66666666666,
+          "setup_cost": 0.0,
+          "categories": {
+            "search": 54589.666666666664,
+            "planning": 56873.0,
+            "store": 15390.0,
+            "detector": 39178.666666666664,
+            "reverse_link": 81.33333333333333
+          }
+        }
+      }
+    }
+  },
+  "item_c_decision_table": "| Speed | Arm | Drift Rec@10 ($ef=16$) | Drift Rec@10 ($ef=32$) | Static Rec@10 ($ef=16$) | Violated | Drift Cost | Setup Cost | Reaches $\\ge \\text{ceil}-0.01$ at $< 50\\%$ Cost? |\n| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n| **10x** | 1 no repair | 0.9693 | 0.9933 | 0.9890 | 2482.7 | 0 | 0 | **YES** |\n| **10x** | 2 ceiling | 0.9673 | 0.9953 | 0.9980 | 2165.3 | 124,964 | 0 | No |\n| **10x** | 3 inplace reinsert once | 0.9120 | 0.9760 | 0.9890 | 1757.3 | 22,166 | 0 | No |\n| **10x** | 4 inplace reinsert with prerepair once | 0.9127 | 0.9787 | 0.9887 | 679.7 | 34,646 | 0 | No |\n| **10x** | 5a reinsert every step no prerepair | 0.9100 | 0.9760 | 0.9887 | 1731.0 | 221,283 | 0 | No |\n| **10x** | 5b reinsert every step with prerepair | 0.9187 | 0.9800 | 0.9867 | 432.7 | 253,831 | 0 | No |\n| **10x** | 6a periodic k2 with prerepair | 0.9193 | 0.9827 | 0.9873 | 491.7 | 131,640 | 0 | No |\n| **10x** | 6b periodic k5 with prerepair | 0.9180 | 0.9813 | 0.9877 | 605.7 | 58,326 | 0 | No |\n| **10x** | 7a ours t0 repaired ef16 | 0.8927 | 0.9813 | 0.9767 | 0.0 | 91,753 | 80,061 | No |\n| **10x** | 7a ours t0 repaired ef64 | 0.9013 | 0.9827 | 0.9767 | 0.0 | 201,997 | 80,061 | No |\n| **10x** | 7b ours t0 exempted ef16 | 0.9033 | 0.9833 | 0.9893 | 1255.0 | 126,311 | 0 | No |\n| **10x** | 7b ours t0 exempted ef64 | 0.8973 | 0.9800 | 0.9877 | 1017.3 | 241,781 | 0 | No |\n| **30x** | 1 no repair | 0.9400 | 0.9867 | 0.9890 | 2506.3 | 0 | 0 | **YES** |\n| **30x** | 2 ceiling | 0.9393 | 0.9880 | 0.9987 | 2129.3 | 124,496 | 0 | No |\n| **30x** | 3 inplace reinsert once | 0.9000 | 0.9773 | 0.9890 | 1746.3 | 22,028 | 0 | No |\n| **30x** | 4 inplace reinsert with prerepair once | 0.8887 | 0.9700 | 0.9890 | 676.0 | 33,686 | 0 | No |\n| **30x** | 5a reinsert every step no prerepair | 0.9007 | 0.9773 | 0.9887 | 1737.3 | 217,168 | 0 | No |\n| **30x** | 5b reinsert every step with prerepair | 0.8767 | 0.9620 | 0.9863 | 510.3 | 231,106 | 0 | No |\n| **30x** | 6a periodic k2 with prerepair | 0.8787 | 0.9620 | 0.9877 | 576.7 | 120,517 | 0 | No |\n| **30x** | 6b periodic k5 with prerepair | 0.8873 | 0.9673 | 0.9880 | 629.3 | 55,652 | 0 | No |\n| **30x** | 7a ours t0 repaired ef16 | 0.8687 | 0.9633 | 0.9780 | 0.0 | 62,957 | 80,061 | No |\n| **30x** | 7a ours t0 repaired ef64 | 0.8840 | 0.9693 | 0.9783 | 0.0 | 127,038 | 80,061 | No |\n| **30x** | 7b ours t0 exempted ef16 | 0.9007 | 0.9740 | 0.9897 | 1298.3 | 94,427 | 0 | No |\n| **30x** | 7b ours t0 exempted ef64 | 0.9120 | 0.9780 | 0.9883 | 1213.7 | 166,113 | 0 | No |"
+}

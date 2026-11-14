@@ -1,0 +1,21 @@
+diff --git a/src/khnsw/core/repair/engine.py b/src/khnsw/core/repair/engine.py
+index e29a3c1..24888e4 100644
+--- a/src/khnsw/core/repair/engine.py
++++ b/src/khnsw/core/repair/engine.py
+@@ -44,6 +44,7 @@ class KHNSWRepairEngine:
+         self._run_id = run_id
+         self._pending_moves: list[tuple[int, float]] = []
+         self._moved_since_certified: set[int] = set()
++        self._rebuilt_in_run: set[int] = set()
+ 
+     def notify_moved(self, node: int, t: float = 0.0) -> None:
+         """Register a node that underwent spatial displacement at simulation timestamp t."""
+@@ -239,6 +240,8 @@ class KHNSWRepairEngine:
+                     else:
+                         self._pending_moves.remove(item)
+             elif drift_moved_nodes:
++                drift_moved_nodes = [nid for nid in drift_moved_nodes if nid not in self._rebuilt_in_run]
++                self._rebuilt_in_run.update(drift_moved_nodes)
+                 moves_to_process = list(drift_moved_nodes)
+                 unrepaired_drift_nodes = list(drift_moved_nodes)
+                 for node_id in moves_to_process:

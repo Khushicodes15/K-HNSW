@@ -1,0 +1,297 @@
+.........FF............................................................. [ 21%]
+.........ss.........................................................FF.. [ 43%]
+........................................................................ [ 65%]
+........................................................................ [ 87%]
+.........................................                                [100%]
+================================== FAILURES ===================================
+_____ test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants[2] ______
+
+d = 2
+
+    @pytest.mark.parametrize("d", [2, 8])
+    def test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants(d: int) -> None:
+        """Tests (1, 2, 4): Drifting nodes on HNSWIndex get rebuilt out-links and reverse links."""
+        n = 35
+        m = 4
+        seed = 42 + d
+        rng = np.random.default_rng(seed)
+        X = rng.standard_normal((n, d)).astype(np.float32)
+    
+        idx = HNSWIndex(dim=d, m=m, seed=seed)
+        idx.add(np.arange(n, dtype=np.int64), X)
+    
+        store = CertificateStore()
+        meter = CostMeter()
+        store.build(idx, meter)
+        _settle_hnsw(idx, store)
+    
+        initial_adj = {
+            (u, lvl): list(idx.neighbors(u, lvl))
+            for u in idx.ids()
+            for lvl in range(idx.node_level(u) + 1)
+        }
+    
+        # 1 drifting node, 34 static
+        drift_node = 0
+        velocities = np.zeros((n, d), dtype=np.float64)
+        velocities[drift_node] = np.ones(d, dtype=np.float64) * 35.0
+    
+        def traj_of(node_id: int) -> tuple[np.ndarray, np.ndarray]:
+            return X[node_id].astype(np.float64), velocities[node_id]
+    
+        sink = ListSink()
+        emitter = EventEmitter("hnsw_drift_test", sink)
+        heap = KineticEventHeap(version_of=idx.version)
+        detector = KineticDetector(
+            index=idx,
+            store=store,
+            heap=heap,
+            trajectory_of=traj_of,
+            meter=CostMeter(),
+            horizon=1.0,
+            sync_vector=make_hnsw_sync(idx),
+            emitter=emitter,
+        )
+        detector.schedule_all(t0=0.0)
+    
+        engine = KHNSWRepairEngine(
+            store=store,
+            detector=detector,
+            time_source=0.0,
+            search_layer=search_layer,
+            run_id="hnsw_drift_test",
+        )
+    
+        t_step = 0.10
+        for i in range(n):
+            idx._store.set_vector(i, (X[i] + velocities[i] * t_step).astype(np.float32))
+        engine._time_source = t_step
+    
+        res = engine.run_repairs(idx, budget=10000.0, sink=sink)
+    
+>       assert res["moved_in_drift"] == 1, "Precondition: exactly 1 drifting node must be recognized"
+E       AssertionError: Precondition: exactly 1 drifting node must be recognized
+E       assert 9 == 1
+
+tests\integration\test_drift_moved_nodes_hnsw.py:98: AssertionError
+_____ test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants[8] ______
+
+d = 8
+
+    @pytest.mark.parametrize("d", [2, 8])
+    def test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants(d: int) -> None:
+        """Tests (1, 2, 4): Drifting nodes on HNSWIndex get rebuilt out-links and reverse links."""
+        n = 35
+        m = 4
+        seed = 42 + d
+        rng = np.random.default_rng(seed)
+        X = rng.standard_normal((n, d)).astype(np.float32)
+    
+        idx = HNSWIndex(dim=d, m=m, seed=seed)
+        idx.add(np.arange(n, dtype=np.int64), X)
+    
+        store = CertificateStore()
+        meter = CostMeter()
+        store.build(idx, meter)
+        _settle_hnsw(idx, store)
+    
+        initial_adj = {
+            (u, lvl): list(idx.neighbors(u, lvl))
+            for u in idx.ids()
+            for lvl in range(idx.node_level(u) + 1)
+        }
+    
+        # 1 drifting node, 34 static
+        drift_node = 0
+        velocities = np.zeros((n, d), dtype=np.float64)
+        velocities[drift_node] = np.ones(d, dtype=np.float64) * 35.0
+    
+        def traj_of(node_id: int) -> tuple[np.ndarray, np.ndarray]:
+            return X[node_id].astype(np.float64), velocities[node_id]
+    
+        sink = ListSink()
+        emitter = EventEmitter("hnsw_drift_test", sink)
+        heap = KineticEventHeap(version_of=idx.version)
+        detector = KineticDetector(
+            index=idx,
+            store=store,
+            heap=heap,
+            trajectory_of=traj_of,
+            meter=CostMeter(),
+            horizon=1.0,
+            sync_vector=make_hnsw_sync(idx),
+            emitter=emitter,
+        )
+        detector.schedule_all(t0=0.0)
+    
+        engine = KHNSWRepairEngine(
+            store=store,
+            detector=detector,
+            time_source=0.0,
+            search_layer=search_layer,
+            run_id="hnsw_drift_test",
+        )
+    
+        t_step = 0.10
+        for i in range(n):
+            idx._store.set_vector(i, (X[i] + velocities[i] * t_step).astype(np.float32))
+        engine._time_source = t_step
+    
+        res = engine.run_repairs(idx, budget=10000.0, sink=sink)
+    
+>       assert res["moved_in_drift"] == 1, "Precondition: exactly 1 drifting node must be recognized"
+E       AssertionError: Precondition: exactly 1 drifting node must be recognized
+E       assert 7 == 1
+
+tests\integration\test_drift_moved_nodes_hnsw.py:98: AssertionError
+_____________ test_static_node_involved_in_failure_never_rebuilt ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002A880237A10>
+
+    def test_static_node_involved_in_failure_never_rebuilt(monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test (2): A static node involved in a failure is never treated as moved or rebuilt."""
+        rng = np.random.default_rng(200)
+        n = 20
+        d = 2
+        X = rng.standard_normal((n, d)).astype(np.float32)
+        levels = {i: 0 for i in range(n)}
+        rg = ReferenceGraph.from_points(X, M=4, seed=200, levels=levels)
+    
+        store = CertificateStore()
+        meter = CostMeter()
+        store.build(rg, meter)
+        _settle_rg(rg, store)
+    
+        drift_node = 0
+        velocities = np.zeros((n, d), dtype=np.float64)
+        velocities[drift_node] = np.array([60.0, 60.0], dtype=np.float64)
+    
+        def traj_of(node_id: int) -> tuple[np.ndarray, np.ndarray]:
+            return X[node_id].astype(np.float64), velocities[node_id]
+    
+        sink = ListSink()
+        emitter = EventEmitter("drift_test_static", sink)
+        heap = KineticEventHeap(version_of=rg.version)
+        det_meter = CostMeter()
+        detector = KineticDetector(
+            index=rg,
+            store=store,
+            heap=heap,
+            trajectory_of=traj_of,
+            meter=det_meter,
+            horizon=1.0,
+            sync_vector=make_rg_sync(rg),
+            emitter=emitter,
+        )
+        detector.schedule_all(t0=0.0)
+    
+        # Track which nodes have _rebuild_moved_out_links called
+        rebuilt_nodes: list[int] = []
+        orig_rebuild = loop_mod._rebuild_moved_out_links
+    
+        def tracking_rebuild(index: Any, moved: int, *args: Any, **kwargs: Any) -> Any:
+            rebuilt_nodes.append(int(moved))
+            return orig_rebuild(index, moved, *args, **kwargs)
+    
+        monkeypatch.setattr(loop_mod, "_rebuild_moved_out_links", tracking_rebuild)
+    
+        t_step = 0.10
+        cur_t = t_step
+        for i in range(n):
+            rg._vectors[i] = (X[i] + velocities[i] * t_step).astype(np.float32)
+    
+        engine = KHNSWRepairEngine(
+            store=store,
+            detector=detector,
+            time_source=lambda: cur_t,
+            search_layer=search_layer,
+        )
+    
+        res = engine.run_repairs(rg, budget=10000.0, sink=sink)
+>       assert res["moved_in_drift"] == 1, (
+            "Only the 1 drifting node should be counted as moved_in_drift"
+        )
+E       AssertionError: Only the 1 drifting node should be counted as moved_in_drift
+E       assert 9 == 1
+
+tests\unit\test_drift_moved_nodes.py:231: AssertionError
+_________ test_one_rebuild_per_node_per_step_across_multiple_failures _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002A8800F3D10>
+
+    def test_one_rebuild_per_node_per_step_across_multiple_failures(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test (3): One rebuild per node per step even if it appears in several failures."""
+        rng = np.random.default_rng(300)
+        n = 25
+        d = 2
+        X = rng.standard_normal((n, d)).astype(np.float32)
+        levels = {i: 0 for i in range(n)}
+        rg = ReferenceGraph.from_points(X, M=4, seed=300, levels=levels)
+    
+        store = CertificateStore()
+        meter = CostMeter()
+        store.build(rg, meter)
+        _settle_rg(rg, store)
+    
+        drift_node = 2
+        velocities = np.zeros((n, d), dtype=np.float64)
+        velocities[drift_node] = np.array([45.0, 45.0], dtype=np.float64)
+    
+        def traj_of(node_id: int) -> tuple[np.ndarray, np.ndarray]:
+            return X[node_id].astype(np.float64), velocities[node_id]
+    
+        sink = ListSink()
+        emitter = EventEmitter("drift_test_dedup", sink)
+        heap = KineticEventHeap(version_of=rg.version)
+        detector = KineticDetector(
+            index=rg,
+            store=store,
+            heap=heap,
+            trajectory_of=traj_of,
+            meter=CostMeter(),
+            horizon=1.0,
+            sync_vector=make_rg_sync(rg),
+            emitter=emitter,
+        )
+        detector.schedule_all(t0=0.0)
+    
+        rebuild_call_counts: dict[int, int] = {}
+        orig_rebuild = loop_mod._rebuild_moved_out_links
+    
+        def tracking_rebuild(index: Any, moved: int, *args: Any, **kwargs: Any) -> Any:
+            rebuild_call_counts[int(moved)] = rebuild_call_counts.get(int(moved), 0) + 1
+            return orig_rebuild(index, moved, *args, **kwargs)
+    
+        monkeypatch.setattr(loop_mod, "_rebuild_moved_out_links", tracking_rebuild)
+    
+        t_step = 0.12
+        cur_t = t_step
+        for i in range(n):
+            rg._vectors[i] = (X[i] + velocities[i] * t_step).astype(np.float32)
+    
+        engine = KHNSWRepairEngine(
+            store=store,
+            detector=detector,
+            time_source=lambda: cur_t,
+            search_layer=search_layer,
+        )
+    
+        res = engine.run_repairs(rg, budget=10000.0, sink=sink)
+>       assert res["moved_in_drift"] == 1
+E       assert 8 == 1
+
+tests\unit\test_drift_moved_nodes.py:302: AssertionError
+============================== warnings summary ===============================
+..\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\User\Downloads\khsnw\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/integration/test_drift_moved_nodes_hnsw.py::test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants[2]
+FAILED tests/integration/test_drift_moved_nodes_hnsw.py::test_hnsw_drift_moved_rebuilt_with_reverse_links_and_invariants[8]
+FAILED tests/unit/test_drift_moved_nodes.py::test_static_node_involved_in_failure_never_rebuilt
+FAILED tests/unit/test_drift_moved_nodes.py::test_one_rebuild_per_node_per_step_across_multiple_failures
+

@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Callable
 
+import numpy as np
+
 from khnsw.core.detection.cost import CostMeter
 from khnsw.core.events.schema import EventEmitter, EventSink
 from khnsw.core.interfaces import MutableGraphIndex
@@ -13,7 +15,6 @@ from khnsw.core.repair.loop import repair_loop
 from khnsw.core.repair.plan import mnru_plan, native_plan
 
 if TYPE_CHECKING:
-    import numpy as np
     from numpy.typing import NDArray
 
     from khnsw.core.detection.certificate_store import CertificateStore
@@ -93,9 +94,16 @@ class KHNSWRepairEngine:
                 "still_violated": self._collect_still_violated(index),
                 "still_violated_count": len(self._collect_still_violated(index)),
                 "unrepaired_nodes": [u for u, _ in self._pending_moves],
-                "budget_used": {"search": 0, "planning": 0, "store": 0, "detector": 0},
+                "budget_used": {
+                    "search": 0,
+                    "planning": 0,
+                    "store": 0,
+                    "detector": 0,
+                    "reverse_link": 0,
+                },
                 "budget_consumed": 0,
                 "stopped_reason": "budget",
+                "moved_in_drift": 0,
             }
 
         # Lazily instantiate and build CertificateStore if needed
@@ -115,6 +123,35 @@ class KHNSWRepairEngine:
         if self._detector is not None:
             detector_failures = self._detector.advance(t_curr)
 
+        # In drift maintenance, extract moved nodes from confirmed failures:
+        # candidate nodes are {u, v, witness} whose trajectory has a non-zero velocity.
+        # Deduplicated per step.
+        drift_moved_nodes: list[int] = []
+        if self._detector is not None and detector_failures:
+            traj_fn = getattr(self._detector, "trajectory_of", None)
+            if traj_fn is None:
+                traj_fn = getattr(self._detector, "_trajectory_of", None)
+            if traj_fn is not None:
+                candidates: set[int] = set()
+                for edge in detector_failures:
+                    u, v, _level = edge
+                    candidates.add(int(u))
+                    candidates.add(int(v))
+                    witness = None
+                    if self._store is not None:
+                        witness = self._store.witness(edge)
+                    if witness is not None:
+                        candidates.add(int(witness))
+                drift_set: set[int] = set()
+                for nid in candidates:
+                    try:
+                        _, vel = traj_fn(nid)
+                        if np.any(np.asarray(vel) != 0.0):
+                            drift_set.add(int(nid))
+                    except Exception:
+                        pass
+                drift_moved_nodes = sorted(drift_set)
+
         # Check if there is anything to do
         has_pending = bool(self._pending_moves)
         has_failures = bool(detector_failures)
@@ -128,9 +165,16 @@ class KHNSWRepairEngine:
                 "still_violated": [],
                 "still_violated_count": 0,
                 "unrepaired_nodes": [],
-                "budget_used": {"search": 0, "planning": 0, "store": 0, "detector": 0},
+                "budget_used": {
+                    "search": 0,
+                    "planning": 0,
+                    "store": 0,
+                    "detector": 0,
+                    "reverse_link": 0,
+                },
                 "budget_consumed": 0,
                 "stopped_reason": "nothing_to_do",
+                "moved_in_drift": 0,
             }
 
         emitter = EventEmitter(run_id=self._run_id, sink=sink)
@@ -139,10 +183,13 @@ class KHNSWRepairEngine:
             "planning": 0,
             "store": 0,
             "detector": 0,
+            "reverse_link": 0,
         }
         total_rounds = 0
         total_edges_repaired = 0
         stopped_reason = ""
+        repaired_drift_count = 0
+        unrepaired_drift_nodes: list[int] = []
 
         # Synchronize store for any moved nodes not yet certified
         for node_id in list(self._moved_since_certified):
@@ -181,7 +228,7 @@ class KHNSWRepairEngine:
                     total_rounds += res.rounds
                     total_edges_repaired += res.edges_repaired
                     for k in cumulative_budget:
-                        cumulative_budget[k] += res.budget_used[k]
+                        cumulative_budget[k] += res.budget_used.get(k, 0)
 
                     if res.stopped_reason == "budget":
                         stopped_reason = "budget"
@@ -191,6 +238,69 @@ class KHNSWRepairEngine:
                         self._pending_moves.remove(item)
                     else:
                         self._pending_moves.remove(item)
+            elif drift_moved_nodes:
+                moves_to_process = list(drift_moved_nodes)
+                unrepaired_drift_nodes = list(drift_moved_nodes)
+                for node_id in moves_to_process:
+                    rem_budget = budget_cap - sum(cumulative_budget.values())
+                    if rem_budget <= 0:
+                        stopped_reason = "budget"
+                        break
+
+                    res = repair_loop(
+                        index=index,
+                        store=self._store,
+                        detector=self._detector,
+                        moved_node=node_id,
+                        failures=detector_failures,
+                        t=t_curr,
+                        search_layer=self._search_layer,
+                        budget=rem_budget,
+                        max_rounds=self._max_rounds,
+                        ef=self._ef,
+                        emitter=emitter,
+                    )
+                    detector_failures = None
+                    total_rounds += res.rounds
+                    total_edges_repaired += res.edges_repaired
+                    for k in cumulative_budget:
+                        cumulative_budget[k] += res.budget_used.get(k, 0)
+
+                    if res.stopped_reason == "budget":
+                        stopped_reason = "budget"
+                        break
+                    elif res.stopped_reason == "max_rounds":
+                        stopped_reason = "max_rounds"
+                        unrepaired_drift_nodes.remove(node_id)
+                        repaired_drift_count += 1
+                    else:
+                        unrepaired_drift_nodes.remove(node_id)
+                        repaired_drift_count += 1
+
+                if stopped_reason not in {"budget", "max_rounds"}:
+                    still_v = self._collect_still_violated(index)
+                    if still_v:
+                        rem_budget = budget_cap - sum(cumulative_budget.values())
+                        if rem_budget <= 0:
+                            stopped_reason = "budget"
+                        else:
+                            res = repair_loop(
+                                index=index,
+                                store=self._store,
+                                detector=self._detector,
+                                failures=None,
+                                t=t_curr,
+                                search_layer=self._search_layer,
+                                budget=rem_budget,
+                                max_rounds=self._max_rounds,
+                                ef=self._ef,
+                                emitter=emitter,
+                            )
+                            total_rounds += res.rounds
+                            total_edges_repaired += res.edges_repaired
+                            for k in cumulative_budget:
+                                cumulative_budget[k] += res.budget_used.get(k, 0)
+                            stopped_reason = res.stopped_reason
             elif detector_failures or has_violated:
                 rem_budget = budget_cap - sum(cumulative_budget.values())
                 if rem_budget <= 0:
@@ -211,7 +321,7 @@ class KHNSWRepairEngine:
                     total_rounds += res.rounds
                     total_edges_repaired += res.edges_repaired
                     for k in cumulative_budget:
-                        cumulative_budget[k] += res.budget_used[k]
+                        cumulative_budget[k] += res.budget_used.get(k, 0)
                     stopped_reason = res.stopped_reason
 
         if stopped_reason == "":
@@ -225,10 +335,11 @@ class KHNSWRepairEngine:
             "edges_repaired": total_edges_repaired,
             "still_violated": still_violated,
             "still_violated_count": len(still_violated),
-            "unrepaired_nodes": [u for u, _ in self._pending_moves],
+            "unrepaired_nodes": [u for u, _ in self._pending_moves] + unrepaired_drift_nodes,
             "budget_used": cumulative_budget,
             "budget_consumed": sum(cumulative_budget.values()),
             "stopped_reason": stopped_reason,
+            "moved_in_drift": repaired_drift_count,
         }
 
     def _collect_still_violated(self, index: MutableGraphIndex) -> list[tuple[int, int, int]]:
