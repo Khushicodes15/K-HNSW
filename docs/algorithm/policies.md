@@ -14,7 +14,7 @@ All policies conform to the `MaintenancePolicy` public API, implemented under Co
 class MaintenancePolicy:
     def __init__(
         self,
-        policy: Literal["none", "periodic", "round_robin", "lazy", "budgeted_priority"] = "lazy",
+        policy: str = "lazy",
         K: int = 1,
         B: int = 1,
         theta: float = 1.0,
@@ -23,6 +23,16 @@ class MaintenancePolicy:
         meter: CostMeter | None = None,
         emitter: EventEmitter | None = None,
     ) -> None: ...
+
+    def register(self, index: HNSWIndex, positions: NDArray[Any] | None = None) -> None: ...
+
+    def step(
+        self,
+        index: HNSWIndex,
+        positions: NDArray[Any],
+        t: float = 0.0,
+        moving_nodes: Sequence[int] | None = None,
+    ) -> list[int]: ...
 ```
 
 ---
@@ -91,7 +101,7 @@ class MaintenancePolicy:
 * **Parameters Tested**: $\theta \in \{0.25, 0.5, 1.0, 2.0\}$.
 * **Pre-Registered Rule Outcome**:
   - In Phase 5n, the pre-registered decision rule specified that adaptive policies must beat `round_robin` by $\ge 0.01$ mean recall at matched count to be claimed superior.
-  - Actual margins: $+0.0080$ (`indep_dir`, $n=500$), $+0.0091$ (`RandomState`, $n=500$), $+0.0042$ (`indep_dir`, $n=2000$).
+  - Actual margins (`docs/data/controls_benchmark.json`): $+0.0080$ (`indep_dir`, $n=500$: $0.9349$ vs $0.9269$), $+0.0093$ (`RandomState`, $n=500$: $0.9329$ vs $0.9236$), $+0.0038$ (`indep_dir`, $n=2000$: $0.9280$ vs $0.9242$).
   - **Result**: The pre-registered threshold was **not met**. The adaptive displacement trigger is **NOT claimed to beat round-robin**.
 
 ---
@@ -108,8 +118,8 @@ class MaintenancePolicy:
   - `stale_check`: $|\mathcal{V}_{\text{drift}}|$ distance computations per step.
   - `reinsert`: Exactly $B$ node reinsertions per step.
 * **Empirical Measurement**:
-  - Achieves $0.9238$ recall in $n=500$ at cost $147,733$ (`docs/data/controls_benchmark.json`).
-  - Did not beat cyclic round-robin ($\Delta = -0.0010$ vs $0.9248$), while incurring extra `stale_check` overhead.
+  - Achieves $0.9280$ recall in $n=500$ (`indep_dir`) at cost $136,336$ and $0.9248$ recall in $n=2000$ (`indep_dir`) at cost $360,704$ (`docs/data/controls_benchmark.json`).
+  - Margins over uniform `round_robin` are negligible ($+0.0010$ in $n=500$, $+0.0006$ in $n=2000$) while incurring extra `stale_check` evaluations each step.
 
 ---
 
@@ -121,4 +131,8 @@ class MaintenancePolicy:
 
 ### The Edge-Certificate Kinetic Engine (`KineticDetector`)
 - **Mechanism**: Maintains kinetic Voronoi certificates on level-0 edges, tracking certificate failure events in a priority heap (`KineticEventHeap`).
-- **Empirical Status**: **Measured Not Useful Under Isotropic Drift**. In 5l (`docs/data/harness_conflict_benchmark.json`), certificate repair scored lower recall than 1-pass reinsertion ($0.8549$ vs $0.9029$) at $5.7\times$ higher cost ($362\text{k}$ vs $63\text{k}$; unmatched in cost). In 5n, `cert_triggered` cost $1,598,047$ for $0.9089$ recall, compared to $357,395$ cost and $0.9242$ recall for `round_robin` ($4.5\times$ more expensive for worse recall).
+- **Empirical Status**: **Measured Not Useful Under Isotropic Drift**.
+  - In 5l (`docs/data/harness_conflict_benchmark.json`), certificate repair scored lower recall than 1-pass reinsertion ($0.8549$ vs $0.9029$) at $5.7\times$ higher cost ($362\text{k}$ vs $63\text{k}$; unmatched in cost).
+  - In the unified 5m harness (`docs/data/lazy_reinsertion_benchmark.json`):
+    - At $n=500$ (Setting I, `RandomState`, seeds 42–44): `cert_triggered` achieves $0.9385$ recall at cost $615,680$ ($814.7$ reinsertions) vs `displacement_theta_1.0` achieving $0.9329$ recall at cost $135,313$ ($312.0$ reinsertions) — an extra $480\text{k}$ distance operations for $+0.0056$ recall.
+    - At $n=2000$ (Setting II, `RandomState`, seed 42): `cert_triggered` achieves lower recall ($0.9089$) than `displacement_theta_1.0` ($0.9193$) while consuming over $4.4\times$ the distance budget ($1,598,047$ vs $357,629$).

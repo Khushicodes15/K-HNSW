@@ -6,16 +6,12 @@
 
 ## 1. Baseline HNSW Operational Complexity
 
-In the published HNSW analysis (Malkov & Yashunin, IEEE TPAMI 2018, Section 3.2):
-- **Graph Search & Routing**: Traversing the multi-layer skip-graph from entry point down to layer $0$ scales logarithmically with graph size:
-  $$C_{\text{search}} \in O(ef \cdot \log n)$$
-- **Single-Node Insertion / Reinsertion**:
-  Inserting a single element into an existing HNSW graph of size $n$ requires:
-  1. Greedy routing from top layer to the insertion layer: $O(\log n)$ distance evaluations.
-  2. Beam search and heuristic neighbor selection at layers $\ell \in [\text{level}, 0]$: bounded by $O(efConstruction \cdot M \cdot \text{level})$.
-  As published by Malkov & Yashunin, the expected insertion cost per element scales as:
-  $$C_{\text{insert}} \in O(efConstruction \cdot M \cdot \log n)$$
-  In our empirical configurations ($n=500, d=8, M=8, efConstruction=16$), empirical single-node reinsertion averages approximately **$300 - 450$ distance computations**. At $n=2000$, it averages approximately **$750 - 900$ distance computations**.
+In the foundational HNSW paper (Malkov & Yashunin, arXiv:1603.09320; the section number of the complexity discussion is **UNVERIFIED**, as the paper's body was not read in full):
+- **Search & Routing**: Greedy routing through the layered graph, then beam search at layer 0. The paper states that the structure offers logarithmic complexity scaling and describes it as an extension of the skip-list structure (abstract/introduction).
+- **Single-node insertion**: Coarse greedy positioning in upper layers, then candidate search (pool size $efConstruction$) and link selection (degree $M$) at the element's layers down to 0.
+- **Construction cost**: The paper's claimed scaling of insertion/construction cost was **not verified** by us, and we do not quote it. We make no theoretical complexity claim; cost is measured empirically with software counters (`CostMeter`).
+
+In our empirical configurations ($n=500, d=8, M=8, efConstruction=16$), single-node reinsertion averages approximately **$300 - 450$ distance computations**. At $n=2000$, it averages approximately **$750 - 900$ distance computations**.
 
 ---
 
@@ -68,4 +64,8 @@ All numbers below are extracted from committed benchmark runs under the isotropi
 | `periodic_k1_no_prerepair` | 0.9224 | 1,571,353 | 1,571,353 | 0 | 0 | 2000 |
 
 ### Complexity Conclusion
-Without changing the asymptotic complexity of graph search or insertion, **temporal staggering** eliminates the deep recall troughs of periodic batching, delivering higher mean recall ($+0.0270$) at equivalent cumulative insertion budgets, and matching continuous $K=1$ repair quality at a **$77.3\%$ cost reduction**.
+Without changing the asymptotic complexity of search or insertion, temporal staggering (`round_robin`) scored higher mean drifting recall than bursty `periodic_k5` at similar, not identical, cost: +0.0252 at n=500 (0.9275 vs 0.9023; 133,945 vs 125,722 distance computations, +6.5%) and +0.0270 at n=2000 (0.9242 vs 0.8972; 357,395 vs 316,203, +13.0%).
+
+Against `periodic_k1` (reinsertion every step), `round_robin` has slightly higher recall at n=2000 (0.9242 vs 0.9224) at 77.3% lower cost (357,395 vs 1,571,353). At n=500 it has lower recall (0.9275 vs 0.9338, -0.0063) at 78.4% lower cost (133,945 vs 621,384).
+
+Source: `docs/data/missing_controls_benchmark.json`. These are internal results on synthetic data (3 seeds), not tested against external baselines.
