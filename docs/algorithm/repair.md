@@ -562,7 +562,7 @@ Evaluated across seeds $\{42, 43, 44\}$ under the unconfounded `indep_dir` proto
 
 #### 6. Decommissioned Repair Components: Measured Not Useful
 Rigorous measurement across Phase 5 sweeps establishes that two proposed repair mechanisms provide negative value:
-1. **Edge-Certificate Failure Detection**: Tracking kinetic Voronoi edge certificates via `KineticDetector` and `CertificateStore` adds $197,164$ ($n=500$) to $456,341$ ($n=2000$) distance calculations to the maintenance budget. In $n=2000$, `cert_triggered` achieves lower recall ($0.9089$) than simple staggered reinsertion ($0.9280$) at over $4\times$ the cost ($1,598,047$ vs $358,641$). Edge certificates are **measured not useful** for point drift maintenance.
+1. **Edge-Certificate Failure Detection**: Tracking kinetic Voronoi edge certificates via `KineticDetector` and `CertificateStore` adds $197,164$ ($n=500$, seeds 42–44) to $456,341$ ($n=2000$, seed 42) distance calculations to the maintenance budget. In the unified 5m harness (`docs/data/lazy_reinsertion_benchmark.json`), `cert_triggered` at $n=2000$ (evaluated on a single seed, seed 42) achieves lower recall ($0.9089$) than displacement-bounded lazy reinsertion (`displacement_theta_1.0`: $0.9193$) at over $4.4\times$ the cost ($1,598,047$ vs $357,629$). Note that the `cert_triggered` arm in `lazy_reinsertion_benchmark.json` utilized in-neighbour pre-repair ($84,681$ of its $615,680$ cost at $n=500$, and $249,171$ of its $1,598,047$ cost at $n=2000$), inflating its computational expenditure compared to unassisted displacement reinsertion. Edge certificates are **measured not useful** for point drift maintenance.
 2. **In-Neighbor Pre-Repair (`in_neighbour_pre_repair`)**: Heuristic pruning of static in-neighbors before node reinsertion adds $25,000 - 300,000$ distance evaluations without improving drifting recall (e.g., $0.9304$ with pre-repair vs $0.9329$ without in $n=500$; $0.8767$ vs $0.9007$ in $30\times$ continuous drift). In-neighbor pre-repair is **measured not useful**.
 
 #### 7. Missing Controls: Pre-Repair Disentanglement (Phase 6 Item B)
@@ -582,30 +582,47 @@ Because periodic arms in Section 8.9.4 employed in-neighbor pre-repair while `ro
 | | `round_robin_with_prerepair` | 0.9148 | 0.8782 | 0.9751 | 441,428 | 109,962 | 331,466 | 443 |
 
 **Key Empirical Findings**:
-1. **Staggering Advantage Survives Without Pre-Repair**: At matched reinsertion budgets, unassisted `round_robin` outperforms unassisted `periodic_k5` by **$+0.0252$ in $n=500$** ($0.9275$ vs $0.9023$) and by **$+0.0270$ in $n=2000$** ($0.9242$ vs $0.8972$). Furthermore, `round_robin` matches or exceeds `periodic_k1` recall ($0.9242$ vs $0.9224$ in $n=2000$) at **$22.7\%$ of its cost** ($357\text{k}$ vs $1.57\text{M}$).
+1. **Staggering Advantage Survives Without Pre-Repair**: At matched reinsertion budgets, unassisted `round_robin` (which acts as periodic reinsertion with per-node phase offsets, distributing the same reinsertion volume as periodic $K=5$ evenly across steps rather than in bursts) outperforms unassisted `periodic_k5` by **$+0.0252$ in $n=500$** ($0.9275$ vs $0.9023$) and by **$+0.0270$ in $n=2000$** ($0.9242$ vs $0.8972$). Furthermore, `round_robin` matches or exceeds `periodic_k1` recall ($0.9242$ vs $0.9224$ in $n=2000$) at **$22.7\%$ of its cost** ($357\text{k}$ vs $1.57\text{M}$).
 2. **Pre-Repair Negative Value**: Adding pre-repair to `round_robin` degrades recall by $0.007 - 0.010$ while increasing maintenance cost by $+24\% - 25\%$.
+   > [!NOTE] Untested Hypothesis
+   > The speculative explanation that pre-repair hurts because it deletes obsolete edges prematurely before reinsertion establishes replacing bidirectional links remains an **untested hypothesis**. The empirical measurement of degraded recall is confirmed, but the microscopic mechanism has not been isolated experimentally.
 
 #### 8. Formal Withdrawal of Phase 5m "WIN" Labels
-Phase 5m preliminarily labeled lazy reinsertion ($\theta=0.5, 1.0$) as a "WIN" based on comparison against `periodic_k5`. However, in the Phase 5n controlled ablation against `round_robin` with matched reinsertion counts:
-- `lazy_theta_1.0` beat `round_robin` by **$+0.0080$** in `indep_dir`, **$+0.0093$** in `RandomState`, and **$+0.0038$** in $n=2000$.
-- Because none of these margins achieved the pre-registered $\ge 0.01$ threshold, **all Phase 5m "WIN" labels are formally withdrawn**.
-- The recall advantage of lazy reinsertion over periodic batching is predominantly attributable to **temporal staggering** of reinsertions rather than adaptive departure-bound selectivity. Uniform random reinsertion is inferior to cyclic round-robin ($0.9126$ vs $0.9269$ in $n=500$), confirming that systematic coverage of the moving set across time is the operative mechanism.
+Phase 5m preliminarily labeled lazy reinsertion ($\theta=0.5, 1.0$) as a "WIN" over periodic batching. However, that comparison confounded scheduling with `pre_repair`:
+- In `scripts/measure_lazy_reinsertion.py` (lines 217–222, 377–379), all periodic arms (`periodic_k1_pre_repair`, `periodic_k2_pre_repair`, `periodic_k5_pre_repair`) invoked `in_neighbour_pre_repair`:
+  ```python
+  if step % period_k == 0:
+      pr_cost = in_neighbour_pre_repair(index, drifting_nodes, static_set)
+  ```
+- Conversely, `displacement_theta_*` and `round_robin` arms did NOT invoke pre-repair (lines 382–385: `pre_repair=False` in `measure_lazy_reinsertion.py`, and line 270 in `scripts/measure_protocol_and_controls.py`: `lazy_tracker = NodeDisplacementTracker(index, theta=theta, pre_repair=False)`), unless explicitly designated `_prerepair`.
+- In the Phase 5n controlled ablation against `round_robin` at identical reinsertion counts (`scripts/measure_protocol_and_controls.py` lines 763–768), the pre-registered decision rule required an adaptive policy to exceed `round_robin` by $\ge 0.01$ mean recall:
+  ```python
+  # scripts/measure_protocol_and_controls.py lines 766-767:
+  # Rule: Adaptive policies count as better than round_robin only if mean-over-steps
+  # drifting recall (ef 16, mean of 3 seeds) is higher by >= 0.01 at the same count.
+  ```
+- The empirical differences in `docs/data/controls_benchmark.json` across evaluation protocols were:
+  - Protocol `indep_dir` ($n=500$): `lazy_theta_1.0` beat `round_robin` by **$+0.0080$** ($0.9349$ vs $0.9269$).
+  - Protocol `RandomState` ($n=500$): `lazy_theta_1.0` beat `round_robin` by **$+0.0093$** ($0.9329$ vs $0.9236$).
+  - Protocol `indep_dir` ($n=2000$): `lazy_theta_1.0` beat `round_robin` by **$+0.0038$** ($0.9280$ vs $0.9242$).
+- Because none of these protocol margins reached the pre-registered $\ge 0.01$ threshold, **all Phase 5m "WIN" labels are formally withdrawn**.
+- The operative mechanism delivering recall gains over bursty periodic repair is **temporal staggering** (periodic reinsertion with staggered per-node phase offsets, as executed by round-robin), rather than adaptive departure-bound selectivity.
 
 ---
 
-### 8.10 Member 3 Scope & Component Status Table
+### 8.10 Scope & Component Status Table
 
 | Scope Area | Component / Subsystem | Implementation File Path | Status | Backing Data / JSON Reference |
 | :--- | :--- | :--- | :---: | :--- |
-| **Movement Models** | `LinearDrift`, `ClusterDrift`, `DiscreteReplacement`, `TeleportAdversary` | [`src/khnsw/core/movement/`](../src/khnsw/core/movement/) | **Built** | Stream collision hazard audited in `docs/data/controls_benchmark.json` |
-| **Certificates** | `KineticDetector`, `CertificateStore`, `empty_ellipse` | [`src/khnsw/core/detection/`](../src/khnsw/core/detection/) | **Measured Not Useful** | Adds 197k–456k cost without recall benefit (`docs/data/lazy_reinsertion_benchmark.json`) |
-| **Versioned Heap** | `KineticEventHeap`, `DueEvent`, generation guards | [`src/khnsw/core/scheduling/event_heap.py`](../src/khnsw/core/scheduling/event_heap.py) | **Built** | Heap order and stale-skip verified in `tests/unit/test_event_heap.py` |
-| **Local Repair** | `repair_loop`, reverse-link synthesis, pruning | [`src/khnsw/core/repair/`](../src/khnsw/core/repair/) | **Built** | Reverse links restore ingress in discrete moves (`docs/algorithm/repair.md` Section 8.4) |
-| **In-Neighbor Pre-Repair** | `in_neighbour_pre_repair` static neighbor heuristic | [`src/khnsw/core/scheduling/tracker.py`](../src/khnsw/core/scheduling/tracker.py) | **Measured Not Useful** | Degrades recall by ~0.01, raises cost +25% (`docs/data/missing_controls_benchmark.json`) |
-| **Hierarchy-Aware Repair** | Multi-layer local repair during reinsertion | — | **Specified Not Built** | Layer-0 repair and hierarchy level preservation on reinsertion exist; cross-layer heuristic re-routing does not exist |
-| **Priority Scheduler** | `MaintenancePolicy`, `BudgetedPriorityTracker`, `NodeDisplacementTracker` | [`src/khnsw/core/scheduling/policy.py`](../src/khnsw/core/scheduling/policy.py), [`tracker.py`](../src/khnsw/core/scheduling/tracker.py) | **Built** | Staggering advantage verified in `docs/data/controls_benchmark.json` & `missing_controls_benchmark.json` |
-| **Ablation Switches** | Policy types (`periodic`, `round_robin`, `lazy`, `budgeted_priority`), `theta`, `pre_repair` | [`src/khnsw/core/scheduling/policy.py`](../src/khnsw/core/scheduling/policy.py) | **Built** | Sweep data across all switches in `docs/data/controls_benchmark.json` |
-| **Event Logging** | `EventEmitter`, `ListSink`, `JsonlSink` integration | [`src/khnsw/core/events/`](../src/khnsw/core/events/) | **Built** (Contract Bound) | Trace emission operational; `events.md` lacks `node_reinsert` event type (contract amendment requested) |
+| **Movement Models** | `LinearDrift`, `ClusterDrift`, `DiscreteReplacement`, `TeleportAdversary` | [`src/khnsw/core/movement/`](../../src/khnsw/core/movement/) | **Built** | Stream collision hazard audited in `docs/data/controls_benchmark.json` |
+| **Edge-Certificate Repair Engine** | `KineticDetector`, `CertificateStore`, `KHNSWRepairEngine` | [`src/khnsw/core/detection/`](../../src/khnsw/core/detection/), [`src/khnsw/core/repair/`](../../src/khnsw/core/repair/) | **Measured Not Useful Under Isotropic Drift** | In 5l setting (i) (`docs/data/harness_conflict_benchmark.json`), `arm7b_ours_t0_exempt_ef16` achieved lower drift recall than `arm3_reinsert_once` ($0.8549$ vs $0.9029$) at $5.7\times$ higher cost ($362,683$ vs $63,141$; **not matched in cost**). In the unified 5m harness (`docs/data/lazy_reinsertion_benchmark.json`), `cert_triggered` achieved $0.9089$ recall at cost $1,598,047$ ($1,210$ reinsertions; evaluated on a single seed, seed 42) vs `displacement_theta_1.0` at $0.9193$ recall at cost $357,629$ ($447$ reinsertions) at $n=2000$, and at $n=500$ (seeds 42–44) achieved $0.9385$ at cost $615,680$ vs $0.9329$ at cost $135,313$ ($4.5\times$ cost for +0.0056 recall; **not matched in cost**). Note: `cert_triggered` used in-neighbour pre-repair ($84,681$ of its $615,680$ cost at $n=500$). |
+| **Versioned Heap** | `KineticEventHeap`, `DueEvent`, generation guards | [`src/khnsw/core/scheduling/event_heap.py`](../../src/khnsw/core/scheduling/event_heap.py) | **Built** | Heap order and stale-skip verified in `tests/unit/test_event_heap.py` |
+| **Local Repair** | `repair_loop`, reverse-link synthesis, pruning | [`src/khnsw/core/repair/`](../../src/khnsw/core/repair/) | **Built** | Reverse links restore ingress in discrete moves (`docs/algorithm/repair.md` Section 8.4) |
+| **In-Neighbor Pre-Repair** | `in_neighbour_pre_repair` static neighbor heuristic | [`src/khnsw/core/scheduling/tracker.py`](../../src/khnsw/core/scheduling/tracker.py) | **Measured Not Useful** | Degrades recall by ~0.01, raises cost +25% (`docs/data/missing_controls_benchmark.json`) |
+| **Hierarchy-Aware Repair** | Multi-layer local repair during reinsertion | [`src/khnsw/core/repair/loop.py`](../../src/khnsw/core/repair/loop.py), [`policy.py`](../../src/khnsw/core/scheduling/policy.py) | **Partially Built / Contradiction Resolved** | Resolution: `_rebuild_moved_out_links` in `loop.py` (lines 166–250) rebuilds out-links and reverse links across **all levels** from `min(top_lvl, ep_max_lvl)` down to 0 where the node exists. Similarly, `_reinsert_node` in `policy.py` preserves the node's assigned maximum level via `_insert_one`. However, `CertificateStore` tracks certificates strictly on **level 0**; upper-layer certificate tracking and static neighbor heuristic routing updates at levels $\ell > 0$ were specified but never built. |
+| **Priority Scheduler** | `MaintenancePolicy`, `BudgetedPriorityTracker`, `NodeDisplacementTracker` | [`src/khnsw/core/scheduling/policy.py`](../../src/khnsw/core/scheduling/policy.py), [`tracker.py`](../../src/khnsw/core/scheduling/tracker.py) | **Built** | Staggering advantage verified in `docs/data/controls_benchmark.json` & `missing_controls_benchmark.json` |
+| **Ablation Switches** | Policy types (`periodic`, `round_robin`, `lazy`, `budgeted_priority`), `theta`, `pre_repair` | [`src/khnsw/core/scheduling/policy.py`](../../src/khnsw/core/scheduling/policy.py) | **Built** | Sweep data across all switches in `docs/data/controls_benchmark.json` |
+| **Event Logging** | `EventEmitter`, `ListSink`, `JsonlSink` integration | [`src/khnsw/core/events/schema.py`](../../src/khnsw/core/events/schema.py) | **Built (Replay Gap)** | Event infrastructure operational, but `docs/contracts/events.md` lacks a `node_reinsert` event type. As verified by `scripts/diagnostic_replay_events.py`, `MaintenancePolicy.step` emits 0 events; Member 5 cannot replay policy reinsertions today without an owner contract amendment. |
 
 
 
