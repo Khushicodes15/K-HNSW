@@ -480,6 +480,35 @@ Evaluated across seeds $\{42, 43, 44\}$ on the vanilla graph (eval $ef=16/32$, 1
 
 *Note*: Only `no_repair` satisfies the criterion of reaching within $0.01$ of the ceiling's drifting recall at less than half the ceiling's cost. All active repair arms score below `no_repair` at $ef=16$.
 
+---
+
+### 8.9 Node-Level Displacement Tracking & Lazy Reinsertion (Phase 5m Specification)
+
+The `NodeDisplacementTracker` component (`src/khnsw/core/scheduling/tracker.py`) implements a localized, displacement-driven maintenance policy designed to trigger reinsertion only when a node has experienced significant spatial departure from its local neighborhood:
+
+1. **Anchor and Neighborhood Radius**:
+   - For each node $i$, upon registration or reinsertion, the tracker stores its anchor coordinates $p_i \in \mathbb{R}^d$ and computes its level-0 neighborhood radius:
+     $$r_i = \max_{j \in N_0(i)} \|p_i - x_j\|_2$$
+     requiring $M_0$ distance evaluations from the current neighbor list.
+
+2. **Staleness Condition**:
+   - At each simulation timestamp $t$, staleness is evaluated exclusively for nodes with non-zero velocity:
+     $$\text{stale}(i, t) \iff \|x_i(t) - p_i\|_2 > \theta \cdot r_i$$
+   - Each staleness check incurs exactly $1$ distance computation per moving node per step, tracked under the `CostMeter` category `stale_check`.
+
+3. **Maintenance Action on Staleness**:
+   - When $\text{stale}(i, t)$ evaluates to `True`, node $i$ is reinserted into the graph via the index's standard deletion and insertion path (`delete + _insert_one`) preserving its original hierarchy level.
+   - Evaluated in two structural variants:
+     - **Variant 1**: Standard reinsertion (delete + add with fixed levels).
+     - **Variant 2**: Reinsertion preceded by static in-neighbor pre-repair (`in_neighbour_pre_repair`).
+   - Following reinsertion, anchor $p_i$ is reset to $x_i(t)$ and radius $r_i$ is recomputed from the freshly formed level-0 neighborhood.
+
+4. **Pre-Registered Decision Rule**:
+   - The lazy reinsertion policy counts as a win if and only if:
+     - At the same cost, its mean-over-steps drifting recall exceeds the periodic arm nearest in cost by $\ge 0.02$ ($ef=16$, $n=500$ mean across 3 seeds), **OR**
+     - It matches periodic $K=1$'s mean-over-steps recall within $0.01$ at $< 50\%$ of its cost.
+   - Formal evaluation and comparative metrics across the fixed grid $\theta \in \{0.25, 0.5, 1.0, 2.0\}$ are deferred to dedicated benchmark measurements.
+
 
 
 
