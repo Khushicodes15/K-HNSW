@@ -1,4 +1,4 @@
-"""Unified benchmark harness for Phase 5h reconciliation (Items B, C, D, E).
+"""Unified benchmark harness for Phase 5h & 5i reconciliation (Items A-F).
 
 Runs on HNSWIndex (n=500, M=8, d=8) under 10% kinetic drift at 10x and 30x speeds
 (T=0.30, 10 steps, seeds 42, 43, 44).
@@ -6,26 +6,33 @@ Unified harness specification:
 - Drift: LinearDrift(X0, speed=speed), 50 drifting nodes chosen via rng.choice.
 - Ground truth: Brute-force Euclidean top-10 at t=0.30.
 - Queries: 50 drifting queries (all drifting nodes at t=0.30) and 100 static queries.
-- Cost: Full CostMeter counting detector evaluations (including initial scheduling)
+- Cost: Full CostMeter counting detector evaluations
   + rebuild search/planning/store/reverse evaluations.
-- Rows:
+- Arms:
   - no_repair
-  - ours-after (ef=16 in rebuild)
-  - arm 3 (rebuild with ef=64)
-  - fresh-insert reference (drifting nodes built at final positions into settled static index)
-  - arm 4 (exact top-M candidates, reporting cost with and without brute-force search)
-  - arm 5 (oracle reinsert of confirmed failure drifting nodes, fixed levels)
-  - oracle control (i): reinsert exactly the nodes our loop rebuilt each step, fixed levels
-  - oracle control (ii): reinsert all 50 drifting nodes every step, fixed levels
+  - ours_after (ef=16 in rebuild)
+  - arm3_rebuild_ef64 (rebuild with ef=64)
+  - fresh_insert_reference (drifting nodes built at final positions into fresh static index)
+  - arm_inplace_reinsert (in-place delete from no_repair graph + add once via index add)
+  - arm_inplace_reinsert_heuristic (in-place delete with static in-nbr heuristic repair + add once)
+  - arm4_exact_top_m (exact top-M candidates, reporting cost with and without brute-force search)
+  - arm5_oracle_failures (oracle reinsert of confirmed failure drifting nodes, fixed levels)
+  - oracle_control_rebuilt (reinsert exactly the nodes our loop rebuilt each step, fixed levels)
+  - oracle_control_all_drift (reinsert all 50 drifting nodes every step, fixed levels)
 - Static search path tracing (Item D): fraction of static queries visiting >=1 drifting node,
   and mean drifting nodes visited.
 - In-degree analysis (Item E): level-0 in-degree and in-degree from true top-10 neighbors.
+- Static node edge audit (Phase 5i Item C): mean out-degree of static nodes, fraction of out-edges
+  pointing to drifting nodes, and fraction of those that are stale.
+- Headroom sweep (Phase 5i Item D): no_repair vs fresh_insert_ref across drift fractions
+  10%, 30%, 50% and d=32 at 30x.
 """
 
 from __future__ import annotations
 
 import argparse
 import copy
+import heapq
 import json
 import subprocess
 import sys
@@ -42,48 +49,65 @@ from khnsw.core.events.schema import ListSink
 from khnsw.core.graph.hnsw import HNSWIndex
 from khnsw.core.movement.linear import LinearDrift
 from khnsw.core.repair.engine import KHNSWRepairEngine
-from khnsw.core.repair.loop import prune, rank_pool, repair_loop
+from khnsw.core.repair.loop import prune, rank_pool
 from khnsw.core.repair.plan import Rewrite
 from khnsw.core.scheduling.event_heap import KineticEventHeap
+from khnsw.core.search.heuristic import select_neighbors_heuristic
 from khnsw.core.search.search_layer import search_layer
 
 
-def make_hnsw_sync(index: HNSWIndex) -> Callable[[int, np.ndarray], None]:
-    def _sync(node_id: int, pos: np.ndarray) -> None:
-        index._store.set_vector(node_id, pos.astype(np.float32))
-
-    return _sync
-
-
 def settle_hnsw(index: HNSWIndex, store: CertificateStore) -> None:
-    repair_loop(index, store)
+    """Run native_plan repairs until all violated edges are resolved."""
+    from khnsw.core.repair.plan import native_plan
+
+    max_rounds = 50
+    meter_p = CostMeter()
+    meter_s = CostMeter()
+    for _ in range(max_rounds):
+        violated = [
+            edge
+            for edge, status in store._edge_status.items()
+            if status == EdgeStatus.VIOLATED.value
+        ]
+        if not violated:
+            break
+        plan = native_plan(index, violated, meter_p)
+        for rewrite in plan.rewrites:
+            store.set_neighbors(index, rewrite.node, rewrite.level, rewrite.new, meter_s)
 
 
-def brute_force_knn(X: np.ndarray, queries: np.ndarray, k: int = 10) -> list[set[int]]:
-    exact_neighbors: list[set[int]] = []
-    for q in queries:
-        diffs = X - q
-        dists = np.sum(diffs**2, axis=1)
-        top_k = np.argpartition(dists, k)[:k]
-        exact_neighbors.append({int(idx) for idx in top_k})
-    return exact_neighbors
+def brute_force_knn(
+    vectors: np.ndarray, queries: np.ndarray, k: int = 10, exclude_self: bool = False
+) -> list[set[int]]:
+    """Compute ground-truth k-NN via brute force squared Euclidean distances."""
+    gt: list[set[int]] = []
+    for i, q in enumerate(queries):
+        dists = np.sum((vectors - q) ** 2, axis=1)
+        order = np.argsort(dists)
+        if exclude_self:
+            selected = [int(idx) for idx in order if int(idx) != i][:k]
+        else:
+            selected = [int(idx) for idx in order[:k]]
+        gt.append(set(selected))
+    return gt
 
 
 def evaluate_recall(
-    index: HNSWIndex, queries: np.ndarray, exact_sets: list[set[int]], k: int = 10, ef: int = 16
+    index: HNSWIndex, queries: np.ndarray, ground_truth: list[set[int]], k: int = 10, ef: int = 16
 ) -> float:
+    """Compute mean recall@k against ground truth sets."""
     recalls: list[float] = []
-    for q, exact in zip(queries, exact_sets, strict=False):
+    for q, gt_set in zip(queries, ground_truth, strict=False):
         ids, _ = index.search(q, k=k, ef=ef)
-        found = {int(nid) for nid in ids[:k]}
-        recalls.append(len(found & exact) / float(k))
+        retrieved = {int(x) for x in ids[:k]}
+        overlap = len(retrieved & gt_set)
+        denom = min(k, len(gt_set))
+        recalls.append(overlap / float(denom) if denom > 0 else 1.0)
     return float(np.mean(recalls))
 
 
 def trace_search_path(index: HNSWIndex, query: np.ndarray, ef: int = 16) -> set[int]:
     """Trace all nodes visited during HNSW search."""
-    import heapq
-
     visited: set[int] = set()
     ep = index.entry_point()
     if ep is None:
@@ -130,6 +154,78 @@ def trace_search_path(index: HNSWIndex, query: np.ndarray, ef: int = 16) -> set[
     return visited
 
 
+def run_headroom(seed: int) -> list[dict[str, Any]]:
+    """Evaluate headroom between no_repair and fresh_insert_ref across drift regimes."""
+    headroom_results: list[dict[str, Any]] = []
+    n = 500
+    m = 8
+    speed = 30.0
+    t_final = 0.30
+
+    regimes = [
+        {"dim": 8, "drift_frac": 0.10, "label": "d8_frac10"},
+        {"dim": 8, "drift_frac": 0.30, "label": "d8_frac30"},
+        {"dim": 8, "drift_frac": 0.50, "label": "d8_frac50"},
+        {"dim": 32, "drift_frac": 0.10, "label": "d32_frac10"},
+    ]
+
+    for reg in regimes:
+        d = int(reg["dim"])
+        frac = float(reg["drift_frac"])
+        rng = np.random.default_rng(seed)
+        X0 = rng.standard_normal((n, d)).astype(np.float32)
+
+        base_index = HNSWIndex(dim=d, m=m, seed=seed)
+        base_index.add(np.arange(n, dtype=np.int64), X0)
+        base_store = CertificateStore()
+        base_store.build(base_index, CostMeter())
+        settle_hnsw(base_index, base_store)
+
+        n_drift = int(frac * n)
+        drifting_nodes = sorted(rng.choice(n, size=n_drift, replace=False).tolist())
+        static_nodes = [i for i in range(n) if i not in set(drifting_nodes)]
+
+        drift = LinearDrift(X0, seed=seed, speed=speed)
+        drift._velocities[static_nodes] = 0.0
+        pos_t_final = drift.positions(t_final).astype(np.float32)
+
+        q_drift = pos_t_final[drifting_nodes]
+        exact_drift = brute_force_knn(pos_t_final, q_drift, k=10)
+
+        # 1. no_repair
+        idx_no_rep = copy.deepcopy(base_index)
+        for nid in range(n):
+            idx_no_rep._store.set_vector(nid, pos_t_final[nid])
+        rec16_no_rep = evaluate_recall(idx_no_rep, q_drift, exact_drift, k=10, ef=16)
+        rec32_no_rep = evaluate_recall(idx_no_rep, q_drift, exact_drift, k=10, ef=32)
+
+        # 2. fresh_insert_ref
+        idx_fresh = HNSWIndex(dim=d, m=m, seed=seed)
+        static_arr = np.array(static_nodes, dtype=np.int64)
+        idx_fresh.add(static_arr, pos_t_final[static_arr])
+        drift_arr = np.array(drifting_nodes, dtype=np.int64)
+        idx_fresh.add(drift_arr, pos_t_final[drift_arr])
+        rec16_fresh = evaluate_recall(idx_fresh, q_drift, exact_drift, k=10, ef=16)
+        rec32_fresh = evaluate_recall(idx_fresh, q_drift, exact_drift, k=10, ef=32)
+
+        headroom_results.append(
+            {
+                "seed": seed,
+                "label": reg["label"],
+                "dim": d,
+                "drift_frac": frac,
+                "no_repair_rec16": rec16_no_rep,
+                "no_repair_rec32": rec32_no_rep,
+                "fresh_insert_rec16": rec16_fresh,
+                "fresh_insert_rec32": rec32_fresh,
+                "headroom_rec16": rec16_fresh - rec16_no_rep,
+                "headroom_rec32": rec32_fresh - rec32_no_rep,
+            }
+        )
+
+    return headroom_results
+
+
 def run_seed(seed: int) -> dict[str, Any]:
     n = 500
     m = 8
@@ -151,6 +247,7 @@ def run_seed(seed: int) -> dict[str, Any]:
     drifting_nodes = sorted(rng.choice(n, size=int(0.10 * n), replace=False).tolist())
     static_nodes = [i for i in range(n) if i not in drifting_nodes]
     drifting_set = set(drifting_nodes)
+    static_set = set(static_nodes)
 
     rng_s = np.random.default_rng(seed + 500)
     eval_static_nodes = sorted(rng_s.choice(static_nodes, size=100, replace=False).tolist())
@@ -160,7 +257,15 @@ def run_seed(seed: int) -> dict[str, Any]:
         "runs": [],
         "static_tracing": {},
         "in_degree": {},
+        "static_edge_audit": {},
+        "headroom": run_headroom(seed),
     }
+
+    def make_hnsw_sync(index: HNSWIndex) -> Callable[[int, np.ndarray], None]:
+        def _sync(node_id: int, vec: np.ndarray) -> None:
+            index._store.set_vector(node_id, np.asarray(vec, dtype=np.float32))
+
+        return _sync
 
     for speed in speeds:
         drift = LinearDrift(X0, seed=seed, speed=speed)
@@ -201,20 +306,13 @@ def run_seed(seed: int) -> dict[str, Any]:
         }
 
         # Arms to evaluate:
-        # 1. no_repair
-        # 2. ours_after (ef=16)
-        # 3. fresh_insert_reference
-        # 4. arm3_rebuild_ef64
-        # 5. arm4_exact_top_m
-        # 6. arm5_oracle_failures
-        # 7. oracle_control_rebuilt_nodes (i)
-        # 8. oracle_control_all_drifting_every_step (ii)
-
         arms = [
             "no_repair",
             "ours_after",
             "arm3_rebuild_ef64",
             "fresh_insert_reference",
+            "arm_inplace_reinsert",
+            "arm_inplace_reinsert_heuristic",
             "arm4_exact_top_m",
             "arm5_oracle_failures",
             "oracle_control_rebuilt",
@@ -245,6 +343,13 @@ def run_seed(seed: int) -> dict[str, Any]:
             ef=16,
         )
 
+        categories_ours = {
+            "search": 0,
+            "planning": 0,
+            "store": 0,
+            "detector": 0,
+            "reverse_link": 0,
+        }
         cost_ours = 0
         rebuilt_this_step: list[int] = []
         orig_rebuild_fn = loop_mod._rebuild_moved_out_links
@@ -273,13 +378,15 @@ def run_seed(seed: int) -> dict[str, Any]:
                 det_before = det_meter_ours.count
                 res = engine_ours.run_repairs(idx_ours, budget=1e9, sink=ListSink())
                 det_cost = det_meter_ours.count - det_before
+                categories_ours["detector"] += det_cost
+                for k in ["search", "planning", "store", "reverse_link"]:
+                    categories_ours[k] += res["budget_used"].get(k, 0)
                 rebuild_cost = sum(
                     res["budget_used"].get(k, 0)
                     for k in ["search", "planning", "store", "reverse_link"]
                 )
                 cost_ours += det_cost + rebuild_cost
                 rebuilt_per_step[step] = list(rebuilt_this_step)
-            cost_ours += det_meter_ours.count
         finally:
             loop_mod._rebuild_moved_out_links = orig_rebuild_fn
 
@@ -324,25 +431,80 @@ def run_seed(seed: int) -> dict[str, Any]:
             },
         }
 
+        idx_fresh_ref: HNSWIndex | None = None
+
         # Evaluate each arm
         for arm in arms:
+            arm_categories: dict[str, int] = {
+                "search": 0,
+                "planning": 0,
+                "store": 0,
+                "detector": 0,
+                "reverse_link": 0,
+            }
+            brute_force_extra_cost = 0
+
             if arm == "no_repair":
                 idx_arm = idx_no_rep
                 total_cost = 0
             elif arm == "ours_after":
                 idx_arm = idx_ours
                 total_cost = cost_ours
+                arm_categories = dict(categories_ours)
             elif arm == "fresh_insert_reference":
                 # Build index with static nodes, then insert drifting nodes at final positions
                 idx_arm = HNSWIndex(dim=d, m=m, seed=seed)
-                # Add static nodes first
                 static_arr = np.array(static_nodes, dtype=np.int64)
                 idx_arm.add(static_arr, pos_t_final[static_arr])
-                # Add drifting nodes at their final positions
                 before_add = idx_arm.distance_computations
                 drift_arr = np.array(drifting_nodes, dtype=np.int64)
                 idx_arm.add(drift_arr, pos_t_final[drift_arr])
                 total_cost = idx_arm.distance_computations - before_add
+                arm_categories["search"] = total_cost
+                if speed == 30.0:
+                    idx_fresh_ref = idx_arm
+            elif arm == "arm_inplace_reinsert":
+                idx_arm = copy.deepcopy(base_index)
+                for nid in range(n):
+                    idx_arm._store.set_vector(nid, pos_t_final[nid])
+                before_add = idx_arm.distance_computations
+                for nid in drifting_nodes:
+                    idx_arm.delete(nid)
+                drift_arr = np.array(drifting_nodes, dtype=np.int64)
+                idx_arm.add(drift_arr, pos_t_final[drift_arr])
+                total_cost = idx_arm.distance_computations - before_add
+                arm_categories["search"] = total_cost
+            elif arm == "arm_inplace_reinsert_heuristic":
+                idx_arm = copy.deepcopy(base_index)
+                for nid in range(n):
+                    idx_arm._store.set_vector(nid, pos_t_final[nid])
+                heuristic_dists = 0
+                for d_id in drifting_nodes:
+                    top_lvl = idx_arm.node_level(d_id)
+                    for lc in range(top_lvl + 1):
+                        static_in = [u for u in idx_arm.in_neighbors(d_id, lc) if u in static_set]
+                        d_nbrs = set(idx_arm.neighbors(d_id, lc))
+                        for u in static_in:
+                            u_nbrs = set(idx_arm.neighbors(u, lc))
+                            cands = (u_nbrs | d_nbrs) - {u, d_id}
+                            max_m = idx_arm.max_degree(lc)
+                            cand_list = list(cands)
+                            if cand_list:
+                                heuristic_dists += len(cand_list)
+                                pruned = select_neighbors_heuristic(
+                                    idx_arm._store, u, cand_list, max_m, level=lc
+                                )
+                                heuristic_dists += (len(pruned) * (len(pruned) - 1)) // 2
+                                idx_arm._store.set_neighbors(u, lc, pruned)
+                before_add = idx_arm.distance_computations
+                for nid in drifting_nodes:
+                    idx_arm.delete(nid)
+                drift_arr = np.array(drifting_nodes, dtype=np.int64)
+                idx_arm.add(drift_arr, pos_t_final[drift_arr])
+                add_cost = idx_arm.distance_computations - before_add
+                total_cost = heuristic_dists + add_cost
+                arm_categories["search"] = add_cost
+                arm_categories["planning"] = heuristic_dists
             else:
                 idx_arm = copy.deepcopy(base_index)
                 store_arm = copy.deepcopy(base_store)
@@ -359,8 +521,9 @@ def run_seed(seed: int) -> dict[str, Any]:
                 )
                 det_arm.schedule_all(t0=0.0)
 
-                total_cost = det_meter_arm.count
-                brute_force_extra_cost = 0
+                total_cost = 0
+                oracle_dist_used = 0
+                oracle_det_cost = 0
 
                 # Rebuild hooks for arm3 and arm4
                 orig_rebuild = loop_mod._rebuild_moved_out_links
@@ -478,6 +641,7 @@ def run_seed(seed: int) -> dict[str, Any]:
                             failures = det_arm.advance(t_curr)
                             det_cost = det_meter_arm.count - det_before
                             total_cost += det_cost
+                            oracle_det_cost += det_cost
 
                             if arm == "arm5_oracle_failures":
                                 target_nodes = set()
@@ -510,6 +674,7 @@ def run_seed(seed: int) -> dict[str, Any]:
 
                                 dist_used = idx_arm.distance_computations - dist_before
                                 total_cost += dist_used
+                                oracle_dist_used += dist_used
 
                             store_arm.build(idx_arm, CostMeter())
                             det_arm.schedule_all(t0=t_curr)
@@ -520,16 +685,26 @@ def run_seed(seed: int) -> dict[str, Any]:
                                 idx_arm, budget=1e9, sink=ListSink()
                             )
                             det_cost = det_meter_arm.count - det_before
+                            arm_categories["detector"] += det_cost
+                            for k in ["search", "planning", "store", "reverse_link"]:
+                                arm_categories[k] += res_engine["budget_used"].get(k, 0)
                             rebuild_cost = sum(
                                 res_engine["budget_used"].get(k, 0)
                                 for k in ["search", "planning", "store", "reverse_link"]
                             )
                             total_cost += det_cost + rebuild_cost
                             if arm == "arm4_exact_top_m":
-                                # Brute-force: 50 drifting nodes * 500 distances per step
                                 brute_force_extra_cost += len(drifting_nodes) * n
                 finally:
                     loop_mod._rebuild_moved_out_links = orig_rebuild
+
+                if arm in {
+                    "arm5_oracle_failures",
+                    "oracle_control_rebuilt",
+                    "oracle_control_all_drift",
+                }:
+                    arm_categories["search"] = oracle_dist_used
+                    arm_categories["detector"] = oracle_det_cost
 
             # Synchronize to final positions for evaluation
             for nid in range(n):
@@ -561,14 +736,62 @@ def run_seed(seed: int) -> dict[str, Any]:
                     "cost_with_brute_force": total_cost + brute_force_extra_cost
                     if arm == "arm4_exact_top_m"
                     else total_cost,
+                    "cost_by_category": arm_categories,
+                    "initial_schedule_all": 0,
                 }
             )
+
+        # Audit static node edges at 30x drift
+        if speed == 30.0:
+            top_16_dict: dict[int, set[int]] = {}
+            for s in static_nodes:
+                diffs = pos_t_final - pos_t_final[s]
+                dists = np.sum(diffs**2, axis=1)
+                order = np.argsort(dists)
+                top_16 = [int(u) for u in order if u != s][:16]
+                top_16_dict[s] = set(top_16)
+
+            def audit_edges(
+                idx_to_audit: HNSWIndex | None,
+                _top16: dict[int, set[int]] = top_16_dict,
+                _drifting: set[int] = drifting_set,
+                _static: list[int] = static_nodes,
+            ) -> dict[str, float]:
+                if idx_to_audit is None:
+                    return {"mean_out_deg": 0.0, "frac_out_to_drift": 0.0, "frac_stale": 0.0}
+                out_degs = []
+                edges_to_drift = 0
+                stale_edges = 0
+                total_edges = 0
+                for s in _static:
+                    nbrs = idx_to_audit.neighbors(s, 0)
+                    out_degs.append(len(nbrs))
+                    total_edges += len(nbrs)
+                    for nb in nbrs:
+                        if nb in _drifting:
+                            edges_to_drift += 1
+                            if nb not in _top16[s]:
+                                stale_edges += 1
+                mean_deg = float(np.mean(out_degs))
+                frac_drift = edges_to_drift / total_edges if total_edges > 0 else 0.0
+                frac_stale = stale_edges / edges_to_drift if edges_to_drift > 0 else 0.0
+                return {
+                    "mean_out_deg": mean_deg,
+                    "frac_out_to_drift": frac_drift,
+                    "frac_stale": frac_stale,
+                }
+
+            results["static_edge_audit"] = {
+                "no_repair": audit_edges(idx_no_rep),
+                "ours_after": audit_edges(idx_ours),
+                "fresh_insert_ref": audit_edges(idx_fresh_ref),
+            }
 
     return results
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Unified reconciliation harness for Phase 5h")
+    parser = argparse.ArgumentParser(description="Unified reconciliation harness for Phase 5h & 5i")
     parser.add_argument("--seeds", type=int, nargs="+", default=None)
     parser.add_argument("--output", type=str, default="docs/data/reconcile_benchmark.json")
     parser.add_argument("--parallel", action="store_true")
@@ -603,20 +826,27 @@ def main() -> None:
 
         # Merge results
         combined_runs = []
-        static_tracing = {"10x": [], "30x": []}
-        in_degrees = {
+        static_tracing: dict[str, list[Any]] = {"10x": [], "30x": []}
+        in_degrees: dict[str, dict[str, list[Any]]] = {
             "10x": {"no_repair": [], "ours_after": []},
             "30x": {"no_repair": [], "ours_after": []},
         }
+        loaded_data = []
 
         for f in out_files:
             with open(f, "r", encoding="utf-8") as fp:
                 data = json.load(fp)
+            loaded_data.append(data)
             combined_runs.extend(data["runs"])
             for spd in ["10x", "30x"]:
                 static_tracing[spd].append(data["static_tracing"][spd])
                 for cond in ["no_repair", "ours_after"]:
                     in_degrees[spd][cond].append(data["in_degree"][spd][cond])
+
+        # Headroom runs
+        headroom_runs = []
+        for d in loaded_data:
+            headroom_runs.extend(d.get("headroom", []))
 
         final_data = {
             "runs": combined_runs,
@@ -661,6 +891,33 @@ def main() -> None:
                 }
                 for spd in ["10x", "30x"]
             },
+            "static_edge_audit": {
+                "per_seed": [d["static_edge_audit"] for d in loaded_data],
+                "mean": {
+                    cond: {
+                        "mean_out_deg": float(
+                            np.mean(
+                                [d["static_edge_audit"][cond]["mean_out_deg"] for d in loaded_data]
+                            )
+                        ),
+                        "frac_out_to_drift": float(
+                            np.mean(
+                                [
+                                    d["static_edge_audit"][cond]["frac_out_to_drift"]
+                                    for d in loaded_data
+                                ]
+                            )
+                        ),
+                        "frac_stale": float(
+                            np.mean(
+                                [d["static_edge_audit"][cond]["frac_stale"] for d in loaded_data]
+                            )
+                        ),
+                    }
+                    for cond in ["no_repair", "ours_after", "fresh_insert_ref"]
+                },
+            },
+            "headroom": headroom_runs,
         }
 
         with open(args.output, "w", encoding="utf-8") as fp:
@@ -675,18 +932,24 @@ def main() -> None:
         seeds = [42, 43, 44] if args.seeds is None else args.seeds
         combined_runs = []
         static_tracing: dict[str, list[Any]] = {"10x": [], "30x": []}
-        in_degrees: dict[str, dict[str, list[Any]]] = {
+        in_degrees = {
             "10x": {"no_repair": [], "ours_after": []},
             "30x": {"no_repair": [], "ours_after": []},
         }
+        loaded_res = []
 
         for s in seeds:
             res = run_seed(s)
+            loaded_res.append(res)
             combined_runs.extend(res["runs"])
             for spd in ["10x", "30x"]:
                 static_tracing[spd].append(res["static_tracing"][spd])
                 for cond in ["no_repair", "ours_after"]:
                     in_degrees[spd][cond].append(res["in_degree"][spd][cond])
+
+        headroom_runs = []
+        for r in loaded_res:
+            headroom_runs.extend(r.get("headroom", []))
 
         final_data = {
             "runs": combined_runs,
@@ -715,6 +978,33 @@ def main() -> None:
                 }
                 for spd in ["10x", "30x"]
             },
+            "static_edge_audit": {
+                "per_seed": [r["static_edge_audit"] for r in loaded_res],
+                "mean": {
+                    cond: {
+                        "mean_out_deg": float(
+                            np.mean(
+                                [r["static_edge_audit"][cond]["mean_out_deg"] for r in loaded_res]
+                            )
+                        ),
+                        "frac_out_to_drift": float(
+                            np.mean(
+                                [
+                                    r["static_edge_audit"][cond]["frac_out_to_drift"]
+                                    for r in loaded_res
+                                ]
+                            )
+                        ),
+                        "frac_stale": float(
+                            np.mean(
+                                [r["static_edge_audit"][cond]["frac_stale"] for r in loaded_res]
+                            )
+                        ),
+                    }
+                    for cond in ["no_repair", "ours_after", "fresh_insert_ref"]
+                },
+            },
+            "headroom": headroom_runs,
         }
 
         with open(args.output, "w", encoding="utf-8") as fp:
