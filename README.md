@@ -22,7 +22,7 @@ K-HNSW investigates mechanisms to preserve search navigability and recall in HNS
 - **Claim 11 (`supported`)**: `settle_hnsw` removes 32.1% of level-0 edges (`docs/data/vanilla_headroom.json`). Running `settle_hnsw` on fresh `HNSWIndex` drops mean level-0 edges from $5,131.3$ to $3,483.3$ ($-32.12\%$) and mean out-degree from $10.26$ to $6.97$.
 - **Claim 12 (`supported`)**: `no_repair` graph recall collapses under isotropic continuous drift (`docs/data/missing_controls_benchmark.json`, `docs/data/controls_benchmark.json`). At 8x displacement, unassisted drift recall collapses from $>0.98$ to $0.6562$ ($n=500$, 30% drift) and $0.6497$ ($n=2000$, 10% drift) at $ef=16$.
 - **Claim 13 (`supported`)**: Temporal staggering (`round_robin`) outperforms bursty periodic repair (`docs/data/missing_controls_benchmark.json`). At matched cumulative reinsertion counts, unassisted `round_robin` beats unassisted `periodic_k5` by $+0.0252$ in $n=500$ ($0.9275$ vs $0.9023$; $133,945$ vs $125,722$ distance computations) and $+0.0270$ in $n=2000$ ($0.9242$ vs $0.8972$; $357,395$ vs $316,203$ distance computations). Against continuous step-by-step reinsertion (`periodic_k1`): at $n=500$, `periodic_k1` achieves higher recall ($0.9338$ vs $0.9275$, $+0.0063$) at $4.6\times$ the distance cost ($621,384$ vs $133,945$); at $n=2000$, `round_robin` achieves slightly higher recall ($0.9242$ vs $0.9224$) at $22.7\%$ of the cost of `periodic_k1` ($357,395$ vs $1,571,353$, a $77.3\%$ savings).
-- **Claim 14 (`supported`)**: In-neighbor pre-repair degrades recall and inflates maintenance cost (`docs/data/missing_controls_benchmark.json`). Pre-repair consistently lowers recall by $0.0073$ in $n=500$ ($0.9202$ vs $0.9275$) and by $0.0094$ in $n=2000$ ($0.9148$ vs $0.9242$), while inflating distance costs by $+23.6\%$ to $+24.7\%$.
+- **Claim 14 (`supported`)**: In-neighbor pre-repair degrades recall and inflates maintenance cost (`docs/data/missing_controls_benchmark.json`). Pre-repair consistently lowers recall by $0.0073$ in $n=500$ ($0.9202$ vs $0.9275$) and by $0.0094$ in $n=2000$ ($0.9148$ vs $0.9242$), while inflating distance costs by $+23.65\%$ in $n=500$ ($165,622.3$ vs $133,945.0$) and $+23.51\%$ in $n=2000$ ($441,428.3$ vs $357,395.0$).
 - **Claim 15 (`supported`)**: Kinetic Voronoi edge certificates cost $\approx 4\times$ more for inferior recall (`docs/data/harness_conflict_benchmark.json`, `docs/data/lazy_reinsertion_benchmark.json`). In unified 5m benchmarks, `cert_triggered` achieves inferior recall ($0.9089$) at over $4.4\times$ higher cost ($1,598,047$ vs $357,629$) compared to `displacement_theta_1.0` ($0.9193$) at $n=2000$ (seed 42), and consumes $4.5\times$ more distance computations ($615,680$ vs $135,313$) for only $+0.0056$ recall at $n=500$ (seeds 42–44).
 
 #### Unsupported Claims (3)
@@ -103,6 +103,29 @@ npm run build
 Instruments `MaintenancePolicy` graph mutations into contracted `edge_remove` (`reason="policy_reinsert"`) and `edge_add` events, enabling deterministic graph state replay from an initial snapshot:
 ```bash
 python scripts/diagnostic_replay_events.py
+```
+
+### Policy Replay Export (Snapshots & Event Stream)
+Exports initial graph snapshot (`initial_snapshot.json`), line-delimited trace events (`events.jsonl`), and final graph snapshot (`final_snapshot.json`) for downstream visualization:
+```bash
+python scripts/export_policy_replay.py --policy round_robin --steps 5 --n 200 --seed 42 --out-dir replay_output
+```
+```text
+Exported replay_output\initial_snapshot.json
+Exported replay_output\final_snapshot.json
+Exported replay_output\events.jsonl (921 events)
+
+Policy Replay Trace Event Summary:
+-----------------------------------
+Event Type           |      Count
+-----------------------------------
+edge_add             |        170
+edge_remove          |        549
+move                 |        200
+run_end              |          1
+run_start            |          1
+-----------------------------------
+Total Events         |        921
 ```
 
 ### Alternative Kinetic Edge-Certificate Engine

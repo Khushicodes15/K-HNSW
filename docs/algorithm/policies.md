@@ -170,5 +170,5 @@ This guarantees that a replay engine enforcing strict degree bounds ($M_0$ at le
 
 ### Snapshot Mechanics & Performance Cost
 - **Zero Overhead Without Emitter**: When `emitter=None`, no snapshots are taken, no diffs are computed, and execution incurs zero extra distance or memory overhead.
-- **Snapshot Implementation**: Snapshotting reads the index's internal forward neighbor lists directly from `index._store._forward`.
-- **Nodes Snapshotted**: `MaintenancePolicy._snapshot_neighbors` copies forward neighbor sets across all layers for **all nodes** present in the index (`index._store._forward.items()`). During maintenance, a snapshot of all nodes is taken before and after each individual node reinsertion (and once before and after pre-repair, if enabled). Consequently, the snapshot overhead grows with the total number of nodes in the graph ($n$) and the number of nodes reinserted in the step ($B$). Any graph size limit or execution speed limit for snapshot diffing is **UNMEASURED**.
+- **Internal Storage Access**: Snapshotting reads the index's internal adjacency storage attribute directly (`index._store._forward`) rather than calling a public method.
+- **Scaling Behavior**: When an emitter is attached, the policy copies all nodes' neighbour lists before and after each reinsertion, so the overhead per reinsertion grows with the index size (**UNMEASURED**).
