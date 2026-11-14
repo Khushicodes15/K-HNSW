@@ -20,7 +20,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from khnsw.core.detection.cost import CostMeter
-from khnsw.core.events.schema import EventEmitter
+from khnsw.core.events.schema import EventEmitter, EventType
 from khnsw.core.graph.hnsw import HNSWIndex
 from khnsw.core.scheduling.tracker import (
     in_neighbour_pre_repair,
@@ -50,9 +50,9 @@ class MaintenancePolicy:
     meter : CostMeter, optional
         Cost meter tracking distance computations across categories.
     emitter : EventEmitter, optional
-        Kinetic event emitter. Note: Because docs/contracts/events.md defines no
-        'node_reinsert' or 'maintenance' event type, reinsertions do not emit
-        uncontracted events to maintain schema conformity for downstream consumers.
+        Kinetic event emitter. When attached, `step()` emits contracted
+        `edge_remove` and `edge_add` trace events for each graph topology
+        change caused by reinsertion and pre-repair.
     """
 
     def __init__(
@@ -155,6 +155,72 @@ class MaintenancePolicy:
         else:
             self._radii[nid] = 0.0
 
+    @staticmethod
+    def _snapshot_neighbors(index: HNSWIndex) -> dict[int, dict[int, set[int]]]:
+        """Snapshot all forward neighbor sets across all layers."""
+        store = index._store
+        return {
+            u: {lvl: set(nbrs) for lvl, nbrs in lvls.items()} for u, lvls in store._forward.items()
+        }
+
+    def _emit_diff(
+        self,
+        before: dict[int, dict[int, set[int]]],
+        after: dict[int, dict[int, set[int]]],
+        index: HNSWIndex,
+        t: float,
+        reason: str = "policy_reinsert",
+    ) -> None:
+        """Emit edge_remove and edge_add events for net topology differences."""
+        if self._emitter is None:
+            return
+
+        removes: list[tuple[int, int, int]] = []
+        adds: list[tuple[int, int, int]] = []
+
+        all_nodes = set(before.keys()) | set(after.keys())
+        for u in sorted(all_nodes):
+            b_levels = before.get(u, {})
+            a_levels = after.get(u, {})
+            all_lvls = set(b_levels.keys()) | set(a_levels.keys())
+            for lvl in sorted(all_lvls):
+                old_set = b_levels.get(lvl, set())
+                new_set = a_levels.get(lvl, set())
+                if old_set != new_set:
+                    for d in sorted(old_set - new_set):
+                        removes.append((u, lvl, d))
+                    for a in sorted(new_set - old_set):
+                        adds.append((u, lvl, a))
+
+        # Emit all removals first so degree bounds are never exceeded during replay
+        for u, lvl, target in removes:
+            try:
+                u_ver = index.version(u)
+            except Exception:
+                u_ver = 0
+            self._emitter.emit(
+                type=EventType.edge_remove,
+                node=u,
+                level=lvl,
+                version=u_ver,
+                payload={"target_id": target, "reason": reason},
+                t=t,
+            )
+
+        for u, lvl, target in adds:
+            try:
+                u_ver = index.version(u)
+            except Exception:
+                u_ver = 0
+            self._emitter.emit(
+                type=EventType.edge_add,
+                node=u,
+                level=lvl,
+                version=u_ver,
+                payload={"target_id": target},
+                t=t,
+            )
+
     def step(
         self,
         index: HNSWIndex,
@@ -249,10 +315,22 @@ class MaintenancePolicy:
         # Execute reinsertion maintenance
         if reinserted:
             if self._pre_repair:
-                _ = in_neighbour_pre_repair(index, reinserted, static_set)
+                if self._emitter is not None:
+                    before_pre = self._snapshot_neighbors(index)
+                    _ = in_neighbour_pre_repair(index, reinserted, static_set)
+                    after_pre = self._snapshot_neighbors(index)
+                    self._emit_diff(before_pre, after_pre, index, t=t, reason="policy_reinsert")
+                else:
+                    _ = in_neighbour_pre_repair(index, reinserted, static_set)
 
             for nid in reinserted:
-                _ = reinsert_node_fixed_level(index, nid, pos_mat[nid])
+                if self._emitter is not None:
+                    before_re = self._snapshot_neighbors(index)
+                    _ = reinsert_node_fixed_level(index, nid, pos_mat[nid])
+                    after_re = self._snapshot_neighbors(index)
+                    self._emit_diff(before_re, after_re, index, t=t, reason="policy_reinsert")
+                else:
+                    _ = reinsert_node_fixed_level(index, nid, pos_mat[nid])
                 self._update_node_anchor(index, nid, pos_mat[nid])
 
         return reinserted

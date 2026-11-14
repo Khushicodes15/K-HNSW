@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 from khnsw.core.detection.cost import CostMeter
-from khnsw.core.events.schema import EventEmitter, ListSink
+from khnsw.core.events.schema import EventEmitter, EventType, ListSink
 from khnsw.core.graph.hnsw import HNSWIndex
 from khnsw.core.scheduling.policy import MaintenancePolicy
 
@@ -177,8 +177,8 @@ def test_cost_categories() -> None:
 def test_event_emission_contract_adherence() -> None:
     """Documents contract boundary: events.md defines no node_reinsert event type.
 
-    Asserts that no uncontracted events are emitted to avoid breaking JSON schema
-    validation for downstream consumers (Member 5).
+    Asserts that no uncontracted events (e.g. 'node_reinsert') are emitted,
+    and only valid contracted 'edge_remove' and 'edge_add' events are emitted.
     """
     index, X0 = _sample_graph()
     sink = ListSink()
@@ -190,8 +190,10 @@ def test_event_emission_contract_adherence() -> None:
     res = pol.step(index, X1, t=0.1, moving_nodes=[1])
     assert res == [1]
 
-    # No uncontracted events emitted to sink
-    assert len(sink.events) == 0, (
+    # All emitted events must be contracted types (edge_remove, edge_add)
+    assert len(sink.events) > 0
+    assert all(ev.type in {EventType.edge_remove, EventType.edge_add} for ev in sink.events)
+    assert not any(ev.type == "node_reinsert" for ev in sink.events), (
         "docs/contracts/events.md defines no 'node_reinsert' type; "
         "custom events must not be emitted without repo owner contract amendment."
     )
