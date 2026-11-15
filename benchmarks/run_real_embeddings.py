@@ -75,8 +75,14 @@ def load_benchmark_dataset(
 
     if dataset_name == "sift":
         resolved_path = data_path
-        if resolved_path is None and Path("docs/data/siftsmall/siftsmall_base.fvecs").exists():
-            resolved_path = "docs/data/siftsmall/siftsmall_base.fvecs"
+        if resolved_path is None:
+            # Resolve relative to repo root (parent of this file's package dir) so
+            # the lookup is CWD-independent and cannot silently fail when run from
+            # a different working directory.
+            _repo_root = Path(__file__).resolve().parent.parent
+            _default = _repo_root / "docs" / "data" / "siftsmall" / "siftsmall_base.fvecs"
+            if _default.exists():
+                resolved_path = str(_default)
 
         if resolved_path and Path(resolved_path).exists():
             raw = load_sift(resolved_path)
@@ -86,7 +92,15 @@ def load_benchmark_dataset(
             else:
                 X = raw[:n]
             return X.astype(np.float32), f"real_sift_texmex({resolved_path})"
-        # Fallback to SIFT-like clustered synthetic
+        # Fallback to SIFT-like clustered synthetic — emit explicit warning so caller
+        # is never silently unaware that real SIFT was not loaded.
+        import sys as _sys
+        _sys.stderr.write(
+            f"[WARNING] Real SIFT file not found (data_path={data_path!r}, "
+            f"default=docs/data/siftsmall/siftsmall_base.fvecs). "
+            f"Falling back to SIFT-like synthetic clustered data. "
+            f"Results labelled 'sift_like_synthetic_clustered_fallback' in JSON.\n"
+        )
         fallback = generate_sift_like(n=n, d=d, seed=seed)
         return fallback, "sift_like_synthetic_clustered_fallback"
 

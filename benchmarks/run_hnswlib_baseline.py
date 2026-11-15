@@ -339,8 +339,17 @@ def main() -> None:
     )
     elapsed = time.time() - t0
     res["elapsed_seconds"] = elapsed
-    save_results(res, args.out)
-    print(f"Completed in {elapsed:.2f}s. Saved to {args.out}")
+
+    if not HNSWLIB_AVAILABLE:
+        print(
+            "[WARNING] hnswlib is not installed — results are from NumPy brute-force "
+            "emulation (is_native_hnswlib=False). Output JSON will NOT be written. "
+            "Run on Linux/CI with native hnswlib to produce valid baseline numbers.",
+            file=sys.stderr,
+        )
+    else:
+        save_results(res, args.out)
+        print(f"Completed in {elapsed:.2f}s. Saved to {args.out}")
 
     print("\n=== hnswlib Summary ===")
     print(f"{'Policy':<15} {'Mean Rec@16':<12} {'Reinsertions':<15} {'Update Time (s)'}")
