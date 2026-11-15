@@ -74,17 +74,21 @@ def load_benchmark_dataset(
     rng = np.random.default_rng(seed)
 
     if dataset_name == "sift":
-        if data_path and Path(data_path).exists():
-            raw = load_sift(data_path)
+        resolved_path = data_path
+        if resolved_path is None and Path("docs/data/siftsmall/siftsmall_base.fvecs").exists():
+            resolved_path = "docs/data/siftsmall/siftsmall_base.fvecs"
+
+        if resolved_path and Path(resolved_path).exists():
+            raw = load_sift(resolved_path)
             if len(raw) > n:
                 indices = rng.choice(len(raw), size=n, replace=False)
                 X = raw[indices]
             else:
                 X = raw[:n]
-            return X.astype(np.float32), f"real_sift({data_path})"
+            return X.astype(np.float32), f"real_sift_texmex({resolved_path})"
         # Fallback to SIFT-like clustered synthetic
         fallback = generate_sift_like(n=n, d=d, seed=seed)
-        return fallback, "fallback_sift_like_clustered"
+        return fallback, "sift_like_synthetic_clustered_fallback"
 
     if dataset_name == "glove":
         if data_path and Path(data_path).exists():
@@ -177,6 +181,7 @@ def run_embedding_benchmark(
     k: int = 10,
     max_eval_queries: int = 100,
     arms: list[str] | None = None,
+    ef_construction: int = 16,
 ) -> dict[str, Any]:
     """Execute maintenance policy benchmark on the given embedding dataset.
 
@@ -250,7 +255,7 @@ def run_embedding_benchmark(
             X0=X0,
             m=8,
             m0=16,
-            ef_construction=16,
+            ef_construction=ef_construction,
         )
 
         b_matched = max(1, int(math.ceil(len(drift_nodes) / 5)))
@@ -393,6 +398,7 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--drift-frac", type=float, default=0.3, help="Fraction drifting (default: 0.3).")
     parser.add_argument("--steps", type=int, default=10, help="Time steps (default: 10).")
     parser.add_argument("--t-final", type=float, default=0.30, help="End time (default: 0.30).")
+    parser.add_argument("--ef-construction", type=int, default=16, help="Construction beam width (default: 16).")
     parser.add_argument(
         "--out",
         type=str,
@@ -434,6 +440,7 @@ def main() -> None:
         steps=steps,
         t_final=args.t_final,
         max_eval_queries=max_eval,
+        ef_construction=args.ef_construction,
     )
 
     elapsed = time.time() - t0

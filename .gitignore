@@ -57,6 +57,8 @@ mlruns/
 *.h5
 *.pkl
 *.index
+*.fvecs
+*.ivecs
 
 # Data directory contents (except .gitkeep)
 data/*

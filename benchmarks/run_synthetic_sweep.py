@@ -234,6 +234,7 @@ def run_seed_configuration(
     drift_frac: float = 0.3,
     steps: int = 10,
     t_final: float = 0.30,
+    ef_construction: int = 16,
     arms: list[str] | None = None,
     ef_values: list[int] | None = None,
     k: int = 10,
@@ -257,6 +258,8 @@ def run_seed_configuration(
         Number of steps.
     t_final : float, default=0.30
         End time.
+    ef_construction : int, default=16
+        Construction beam width for base index.
     arms : list[str], optional
         List of arm identifiers to run.
     ef_values : list[int], optional
@@ -300,7 +303,7 @@ def run_seed_configuration(
         X0=X0,
         m=8,
         m0=16,
-        ef_construction=16,
+        ef_construction=ef_construction,
     )
 
     # Budget matching for round_robin vs periodic_k5
@@ -352,6 +355,7 @@ def run_seed_configuration(
         "drift_frac": drift_frac,
         "steps": steps,
         "t_final": t_final,
+        "ef_construction": ef_construction,
         "n_drift": len(drift_nodes),
         "setup_cost": setup_cost,
         "b_matched": b_matched,
@@ -380,15 +384,15 @@ def aggregate_sweep_results(
     if ef_values is None:
         ef_values = [16, 32]
 
-    # Group runs by (n, d, displacement_mult)
-    groups: dict[tuple[int, int, float], list[dict[str, Any]]] = {}
+    # Group runs by (n, d, displacement_mult, ef_construction)
+    groups: dict[tuple[int, int, float, int], list[dict[str, Any]]] = {}
     for run in raw_runs:
-        key = (run["n"], run["d"], float(run["displacement_mult"]))
+        key = (run["n"], run["d"], float(run["displacement_mult"]), int(run.get("ef_construction", 16)))
         groups.setdefault(key, []).append(run)
 
     conditions_summary: list[dict[str, Any]] = []
 
-    for (n, d, disp), runs in sorted(groups.items()):
+    for (n, d, disp, ef_c), runs in sorted(groups.items()):
         seeds = [r["seed"] for r in runs]
         arms_present = list(runs[0]["arms"].keys())
 
@@ -456,6 +460,7 @@ def aggregate_sweep_results(
             "n": n,
             "d": d,
             "displacement_mult": disp,
+            "ef_construction": ef_c,
             "seeds": seeds,
             "setup_cost_mean": float(np.mean([r["setup_cost"] for r in runs])),
             "arm_stats": arm_stats,
@@ -539,6 +544,12 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
         help="Max query count evaluated per step (default: 100).",
     )
     parser.add_argument(
+        "--ef-construction",
+        type=int,
+        default=200,
+        help="Construction beam width for base index (default: 200).",
+    )
+    parser.add_argument(
         "--arms",
         type=str,
         nargs="+",
@@ -595,6 +606,7 @@ def run_benchmark_suite(parsed_args: argparse.Namespace) -> dict[str, Any]:
                         "drift_frac": parsed_args.drift_frac,
                         "steps": steps,
                         "t_final": parsed_args.t_final,
+                        "ef_construction": parsed_args.ef_construction,
                         "arms": parsed_args.arms,
                         "ef_values": parsed_args.ef,
                         "k": parsed_args.k,
