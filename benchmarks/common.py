@@ -236,12 +236,22 @@ def evaluate_recall(
     total_recall = 0.0
     q = len(queries)
     for qi in range(q):
-        result = index.search(queries[qi], k=k, ef=ef)
-        # Accept both list-of-pairs and list-of-ints
-        if result and not isinstance(result[0], (int, np.integer)):
-            retrieved = {int(nid) for nid, _dist in result}
+        raw_res = index.search(queries[qi], k=k, ef=ef)
+
+        # Handle tuple of (labels, distances) as returned by HNSWIndex and hnswlib
+        if isinstance(raw_res, tuple) and len(raw_res) == 2 and hasattr(raw_res[0], "__iter__"):
+            retrieved = {int(x) for x in raw_res[0]}
+        elif isinstance(raw_res, (list, np.ndarray)) and len(raw_res) > 0:
+            first = raw_res[0]
+            if isinstance(first, (tuple, list)) and len(first) >= 2:
+                # list of (id, dist) pairs
+                retrieved = {int(item[0]) for item in raw_res}
+            else:
+                # list/array of IDs
+                retrieved = {int(x) for x in raw_res}
         else:
-            retrieved = {int(nid) for nid in result}
+            retrieved = set()
+
         true_set = set(int(x) for x in ground_truth[qi])
         total_recall += len(retrieved & true_set) / k
     return total_recall / q if q > 0 else 0.0
