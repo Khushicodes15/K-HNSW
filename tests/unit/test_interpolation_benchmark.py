@@ -10,6 +10,7 @@ Tests:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -183,3 +184,81 @@ class TestInterpolationExecution:
                 assert "final_drift_rec16" in final_p[pair]
                 assert "mean" in final_p[pair]["final_drift_rec16"]
                 assert "t_interval_95" in final_p[pair]["final_drift_rec16"]
+
+    def test_committed_interpolation_benchmark_coverage(self) -> None:
+        """Verify the committed JSON contains all 5 conditions and required arms."""
+        json_path = (
+            Path(__file__).resolve().parent.parent.parent
+            / "docs"
+            / "data"
+            / "interpolation_benchmark.json"
+        )
+        if not json_path.exists():
+            return
+
+        with json_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+
+        meta = data["metadata"]
+        assert meta["jitter_formulation"]["type"] == "coordinate_wise_gaussian"
+        assert "0.05 * mean_1nn" in meta["jitter_formulation"]["sigma_per_coordinate"]
+        assert meta["jitter_formulation"]["theoretical_norm_fraction"] == 0.565685
+        assert "motion_equation" in meta["jitter_formulation"]
+
+        expected_conds = ["f_0.25", "f_0.50", "f_1.00", "f_0.50_jitter", "f_1.00_jitter"]
+        for c_name in expected_conds:
+            assert c_name in data["conditions"]
+            cond = data["conditions"][c_name]
+            for arm in ["no_repair", "periodic_k5", "round_robin", "rebuild"]:
+                assert arm in cond["arm_summary"]
+                assert "mean_drift_rec16" in cond["arm_summary"][arm]
+                assert "final_drift_rec16" in cond["arm_summary"][arm]
+
+    def test_final_step_paired_differences_statistics(self) -> None:
+        """Verify sign convention, t-interval, and positive-seed count on final-step differences."""
+        json_path = (
+            Path(__file__).resolve().parent.parent.parent
+            / "docs"
+            / "data"
+            / "interpolation_benchmark.json"
+        )
+        if not json_path.exists():
+            return
+
+        with json_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+
+        raw_seeds = data["seed_records"]
+        pairs = [
+            ("periodic_k5_vs_no_repair", "periodic_k5", "no_repair"),
+            ("round_robin_vs_no_repair", "round_robin", "no_repair"),
+            ("round_robin_vs_periodic_k5", "round_robin", "periodic_k5"),
+        ]
+
+        for c_name in ["f_0.25", "f_0.50", "f_1.00", "f_0.50_jitter", "f_1.00_jitter"]:
+            cond = data["conditions"][c_name]
+            final_p = cond["final_step_timing_dependent_paired_differences"]
+
+            for p_name, arm_a, arm_b in pairs:
+                assert p_name in final_p
+                stat = final_p[p_name]["final_drift_rec16"]
+
+                # Verify sign convention: diff = arm_a - arm_b
+                diffs = [
+                    s["conditions"][c_name]["arms"][arm_a]["final_drift_rec16"]
+                    - s["conditions"][c_name]["arms"][arm_b]["final_drift_rec16"]
+                    for s in raw_seeds
+                ]
+
+                # Assert mean and std match
+                np.testing.assert_allclose(stat["mean"], np.mean(diffs), rtol=1e-5)
+                np.testing.assert_allclose(stat["std"], np.std(diffs, ddof=1), rtol=1e-5)
+
+                # Assert positive seed count
+                expected_pos = sum(1 for d in diffs if d > 0)
+                assert stat["positive_seeds"] == expected_pos
+
+                # Assert interval coverage and symmetry
+                ci_low, ci_high = stat["t_interval_95"]
+                assert ci_low <= stat["mean"] <= ci_high
+                np.testing.assert_allclose(ci_high - stat["mean"], stat["mean"] - ci_low, rtol=1e-5)
