@@ -32,6 +32,15 @@ To satisfy repository Core Purity constraints (pure standard library and NumPy o
 ### F. Absence of External Baselines & Real Datasets (Member 4 Scope)
 The present evaluation compares internal algorithmic arms (`no_repair`, `periodic`, `round_robin`, `lazy`, `budgeted_priority`, `cert_triggered`) on synthetic linear motion. Full integration with external C++ libraries (FAISS, hnswlib, DiskANN) and real-world drifting datasets (e.g., streaming text/image benchmarks) is explicitly designated as **Member 4's scope** and is excluded from Member 3's core engine deliverables.
 
+### G. Parameter Sensitivity & Construction Beam Width (`ef_construction`)
+The recall margin of `round_robin` over `periodic_k5` was evaluated under two distinct construction parameter regimes:
+1. **`ef_construction = 200` (Default Engine Setting, 3 seeds)**:
+   In `docs/data/missing_controls_benchmark.json` (seeds $\{42, 43, 44\}$), `HNSWIndex` used its default $efConstruction=200$ ($M=8, M_0=16$). Under this configuration, single-node reinsertion required $\approx 420 - 430$ distance computations at $n=500$ ($419.1$ for `periodic_k5`, $429.3$ for `round_robin`) and $\approx 790 - 810$ at $n=2000$ ($790.5$ for `periodic_k5`, $806.8$ for `round_robin`). The resulting recall margin of `round_robin` over `periodic_k5` was $+0.0252$ at $n=500$ ($0.9275$ vs $0.9023$, $30\%$ drift fraction) and $+0.0270$ at $n=2000$ ($0.9242$ vs $0.8972$, $10\%$ drift fraction).
+2. **`ef_construction = 16` (Low-Cost Setting, 5 seeds)**:
+   In independent sweeps (seeds $\{42, 43, 44, 45, 46\}$), the index was constructed with $efConstruction=16$, which reduced single-node reinsertion cost to $\approx 88 - 93$ distance computations at $n=500$. The resulting recall margin of `round_robin` over `periodic_k5` was $+0.0171$ at $n=500$ ($0.79998$ vs $0.78286$) and $+0.0144$ at $n=2000$ ($0.72218$ vs $0.70776$, $30\%$ drift fraction), falling below the $+0.0200$ pre-registered bar.
+
+Because both the construction beam width ($efConstruction=200$ vs $16$) and the drift fraction at $n=2000$ ($10\%$ vs $30\%$) differed between these runs, the two settings are not directly comparable.
+
 ---
 
 ## 2. Methodological Findings & Resolved Confounds
