@@ -11,7 +11,7 @@ In the foundational HNSW paper (Malkov & Yashunin, arXiv:1603.09320; the section
 - **Single-node insertion**: Coarse greedy positioning in upper layers, then candidate search (pool size $efConstruction$) and link selection (degree $M$) at the element's layers down to 0.
 - **Construction cost**: The paper's claimed scaling of insertion/construction cost was **not verified** by us, and we do not quote it. We make no theoretical complexity claim; cost is measured empirically with software counters (`CostMeter`).
 
-In our empirical configurations ($n=500, d=8, M=8, efConstruction=16$), single-node reinsertion averages approximately **$300 - 450$ distance computations**. At $n=2000$, it averages approximately **$750 - 900$ distance computations**.
+In our benchmark runs (`docs/data/missing_controls_benchmark.json`), `HNSWIndex` was instantiated with default construction parameters ($n=500, d=8, M=8, efConstruction=200$), where single-node reinsertion averages approximately **$420 - 430$ distance computations** at $n=500$ ($419.1$ for `periodic_k5` and $429.3$ for `round_robin`). At $n=2000$ ($M=8, efConstruction=200$), single-node reinsertion averages approximately **$790 - 810$ distance computations** ($790.5$ for `periodic_k5` and $806.8$ for `round_robin`). Note that single-node reinsertion cost scales with the construction beam width $efConstruction$; when evaluated independently at $efConstruction=16$, reinsertion cost at $n=500$ averages approximately **$88 - 93$ distance computations**.
 
 ---
 
@@ -32,7 +32,7 @@ Let $n$ be total graph size, $N_{\text{drift}} = |\mathcal{V}_{\text{drift}}| = 
    - `lazy` and `budgeted_priority` must compute $\|\vec{x}_i(t) - \vec{p}_i\|$ for every moving node at every step, incurring strictly $N_{\text{drift}}$ distance evaluations ($1$ distance computation per moving node).
    - In contrast, `round_robin` relies purely on cyclic cursor indexing and incurs **$0$ stale check distance computations**.
 2. **Reinsertion Cost Dominance**:
-   - Because single-node reinsertion requires $C_{\text{insert}} \approx 300 - 900$ distance calculations, reinsertion cost dominates stale check overhead whenever $B \ge 1$.
+   - Because single-node reinsertion requires $C_{\text{insert}} \approx 420 - 810$ distance calculations (at $efConstruction=200$; $\approx 88 - 93$ at $efConstruction=16$), reinsertion cost dominates stale check overhead whenever $B \ge 1$.
    - However, over 10 steps in $n=2000$ ($N_{\text{drift}} = 200$), stale check still accumulates $2,000$ evaluations.
 
 ---
