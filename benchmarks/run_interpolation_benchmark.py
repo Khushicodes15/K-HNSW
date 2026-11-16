@@ -1,23 +1,39 @@
-"""On-manifold interpolation drift benchmark driver (Member 4 â€” Benchmarks Lead).
+"""Interpolation drift benchmark driver (Member 4 — Benchmarks Lead).
 
-Evaluates HNSW maintenance policies under on-manifold interpolation drift:
+Evaluates HNSW maintenance policies under linear interpolation drift:
 Each drifting node moves linearly toward a randomly chosen other data point,
-up to fraction f of the distance over 10 discrete steps.
+up to fraction f of the distance over 10 discrete simulation steps.
 
-Settings:
----------
-- Real SIFT dataset (n=2000, d=128, ef_construction=200).
+Dataset:
+--------
+- Texmex SIFT siftsmall subset with n=2000 (siftsmall_base.fvecs, d=128, ef_construction=200).
 - Seeds: 110-114 (5 distinct evaluation seeds).
-- Conditions:
-  - f = 0.25 (quarter-way interpolation)
-  - f = 0.50 (half-way interpolation)
-  - f = 1.00 (full interpolation to target point)
-  - f = 0.50 with small random jitter added to target (rules out duplicate ties)
-- Arms:
-  - no_repair: passive drift (zero maintenance)
-  - periodic_k5: batch reinsertion every 5 steps
-  - round_robin: budgeted incremental reinsertion each step (B = ceil(n_drift / 5))
-  - rebuild: empirical ceiling from fresh HNSW construction on final positions
+
+Jitter Formulation:
+-------------------
+- Coordinate-wise Gaussian perturbation: each coordinate of the target point receives noise
+  eta_j ~ N(0, sigma^2) with sigma = 0.05 * mean_1nn.
+- Vector norm: for d=128, the expected L2 norm of the jitter vector is
+  E[||eta||] = sqrt(128) * 0.05 * mean_1nn ≈ 0.5657 * mean_1nn (~134 distance units).
+- Position entry: at simulation step t (in [0, t_final]), the position is
+  x_u(t) = x_u(0) + (t / t_final) * f * (p_target - x_u(0) + eta).
+  At fraction f, jitter enters the final position scaled by f:
+  x_u(t_final) = (1 - f) * x_u(0) + f * p_target + f * eta.
+
+Conditions:
+-----------
+- f = 0.25 (quarter-way interpolation, no jitter)
+- f = 0.50 (half-way interpolation, no jitter)
+- f = 1.00 (full interpolation to target point, no jitter)
+- f = 0.50 with jitter (half-way with random target perturbation)
+- f = 1.00 with jitter (full interpolation with random target perturbation)
+
+Arms:
+-----
+- no_repair: passive drift (zero maintenance)
+- periodic_k5: batch reinsertion every 5 steps
+- round_robin: budgeted incremental reinsertion each step (B = ceil(n_drift / 5))
+- rebuild: empirical ceiling from fresh HNSW construction on final positions
 """
 
 from __future__ import annotations
@@ -172,6 +188,7 @@ def run_single_seed_task(
             {"name": "f_0.50", "f_frac": 0.50, "jitter": False},
             {"name": "f_1.00", "f_frac": 1.00, "jitter": False},
             {"name": "f_0.50_jitter", "f_frac": 0.50, "jitter": True},
+            {"name": "f_1.00_jitter", "f_frac": 1.00, "jitter": True},
         ]
     if ef_values is None:
         ef_values = [16, 32]
@@ -186,10 +203,21 @@ def run_single_seed_task(
     scale_1nn = mean_nn_distance(X0, sample=min(n, 500), seed=seed)
     dt = t_final / steps
 
+    # Empirical jitter norm ratio for this seed
+    rng_test_jitter = np.random.default_rng(seed + 4)
+    n_drift = max(1, int(round(n * drift_frac)))
+    sample_noise = rng_test_jitter.normal(
+        loc=0.0, scale=0.05 * scale_1nn, size=(n_drift, d)
+    ).astype(np.float32)
+    mean_jitter_norm = float(np.mean(np.linalg.norm(sample_noise, axis=1)))
+    jitter_norm_ratio = mean_jitter_norm / scale_1nn if scale_1nn > 0.0 else 0.5657
+
     seed_record: dict[str, Any] = {
         "seed": seed,
         "setup_cost": setup_cost,
         "scale_1nn": float(scale_1nn),
+        "mean_jitter_norm": mean_jitter_norm,
+        "jitter_norm_ratio": float(jitter_norm_ratio),
         "source_info": source_info,
         "conditions": {},
     }
@@ -332,6 +360,8 @@ def aggregate_benchmark_results(
             "f_frac": cond["f_frac"],
             "jitter": cond["jitter"],
             "arm_summary": {},
+            "trajectory_mean_paired_differences": {},
+            "final_step_timing_dependent_paired_differences": {},
             "paired_differences": {},
         }
 
@@ -371,18 +401,35 @@ def aggregate_benchmark_results(
         ]
 
         for p_label, arm_a, arm_b in pairs:
-            agg_conditions[c_name]["paired_differences"][p_label] = {}
+            # Trajectory-mean (stable headline across full trajectory)
+            traj_dict: dict[str, Any] = {}
             for ef in ef_values:
-                for prefix in ["mean_drift", "final_drift"]:
-                    mkey = f"{prefix}_rec{ef}"
-                    diffs = [
-                        s["conditions"][c_name]["arms"][arm_a][mkey]
-                        - s["conditions"][c_name]["arms"][arm_b][mkey]
-                        for s in raw_seed_records
-                    ]
-                    agg_conditions[c_name]["paired_differences"][p_label][mkey] = (
-                        compute_paired_stats(diffs)
-                    )
+                mkey = f"mean_drift_rec{ef}"
+                diffs = [
+                    s["conditions"][c_name]["arms"][arm_a][mkey]
+                    - s["conditions"][c_name]["arms"][arm_b][mkey]
+                    for s in raw_seed_records
+                ]
+                traj_dict[mkey] = compute_paired_stats(diffs)
+            agg_conditions[c_name]["trajectory_mean_paired_differences"][p_label] = traj_dict
+
+            # Final-step (timing-dependent metric at step 10)
+            final_dict: dict[str, Any] = {}
+            for ef in ef_values:
+                fkey = f"final_drift_rec{ef}"
+                diffs_f = [
+                    s["conditions"][c_name]["arms"][arm_a][fkey]
+                    - s["conditions"][c_name]["arms"][arm_b][fkey]
+                    for s in raw_seed_records
+                ]
+                final_dict[fkey] = compute_paired_stats(diffs_f)
+            agg_conditions[c_name]["final_step_timing_dependent_paired_differences"][p_label] = (
+                final_dict
+            )
+
+            # Combined dictionary for general consumers
+            comb_dict = {**traj_dict, **final_dict}
+            agg_conditions[c_name]["paired_differences"][p_label] = comb_dict
 
     return agg_conditions
 
@@ -407,6 +454,7 @@ def run_interpolation_benchmark(
             {"name": "f_0.50", "f_frac": 0.50, "jitter": False},
             {"name": "f_1.00", "f_frac": 1.00, "jitter": False},
             {"name": "f_0.50_jitter", "f_frac": 0.50, "jitter": True},
+            {"name": "f_1.00_jitter", "f_frac": 1.00, "jitter": True},
         ]
     arms = ["no_repair", "periodic_k5", "round_robin", "rebuild"]
     ef_values = [16, 32]
@@ -444,10 +492,16 @@ def run_interpolation_benchmark(
 
     aggregated = aggregate_benchmark_results(raw_seeds, conditions, arms, ef_values)
 
+    jitter_ratios = {str(s["seed"]): round(s["jitter_norm_ratio"], 4) for s in raw_seeds}
+    mean_jitter_ratio = round(float(np.mean(list(jitter_ratios.values()))), 4)
+
     results: dict[str, Any] = {
         "metadata": {
-            "title": "K-HNSW On-Manifold Interpolation Drift Evaluation",
-            "dataset": "siftsmall_base.fvecs",
+            "title": "K-HNSW Interpolation Drift Evaluation",
+            "description": (
+                "Interpolation drift evaluation on the Texmex SIFT siftsmall subset with n=2000"
+            ),
+            "dataset": "siftsmall_base.fvecs (Texmex SIFT siftsmall subset, n=2000)",
             "file_sha256": file_sha256,
             "n": n,
             "d": d,
@@ -456,6 +510,17 @@ def run_interpolation_benchmark(
             "arms": arms,
             "ef_values": ef_values,
             "conditions": [c["name"] for c in conditions],
+            "jitter_formulation": {
+                "type": "coordinate_wise_gaussian",
+                "sigma_per_coordinate": "0.05 * mean_1nn",
+                "theoretical_norm_fraction": 0.565685,
+                "mean_norm_fraction": mean_jitter_ratio,
+                "per_seed_norm_fraction": jitter_ratios,
+                "motion_equation": (
+                    "x_u(t) = x_u(0) + (t / t_final) * f * (p_target - x_u(0) + eta), "
+                    "where eta ~ N(0, sigma^2 I_d)"
+                ),
+            },
             "elapsed_seconds": round(time.time() - t0, 2),
         },
         "conditions": aggregated,
@@ -474,7 +539,7 @@ def run_interpolation_benchmark(
 
 def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="K-HNSW On-Manifold Interpolation Benchmark Driver"
+        description="K-HNSW Interpolation Drift Benchmark Driver (SIFT siftsmall subset, n=2000)"
     )
     parser.add_argument(
         "--smoke", action="store_true", help="Run quick smoke test with small parameters"
@@ -527,6 +592,7 @@ def main() -> None:
             seeds=[110],
             conditions=[{"name": "f_0.50", "f_frac": 0.50, "jitter": False}],
             output_path=None,
+            allow_fallback=True,
         )
         return
 

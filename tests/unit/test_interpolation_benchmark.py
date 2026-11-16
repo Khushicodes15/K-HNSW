@@ -129,7 +129,10 @@ class TestInterpolationExecution:
         assert args.seeds == [110, 111]
 
     def test_smoke_execution(self) -> None:
-        """Run minimal execution to verify end-to-end integration."""
+        """Run minimal execution to verify end-to-end integration.
+
+        Verifies jitter and final-step statistics.
+        """
         sift_path = (
             Path(__file__).resolve().parent.parent.parent
             / "docs"
@@ -143,13 +146,40 @@ class TestInterpolationExecution:
             d=128,
             ef_construction=16,
             seeds=[110],
-            conditions=[{"name": "f_0.50", "f_frac": 0.50, "jitter": False}],
+            conditions=[
+                {"name": "f_0.50", "f_frac": 0.50, "jitter": False},
+                {"name": "f_1.00_jitter", "f_frac": 1.00, "jitter": True},
+            ],
             output_path=None,
             allow_fallback=True,
         )
         assert "metadata" in res
+        assert "jitter_formulation" in res["metadata"]
+        assert res["metadata"]["jitter_formulation"]["type"] == "coordinate_wise_gaussian"
+        assert "0.05 * mean_1nn" in res["metadata"]["jitter_formulation"]["sigma_per_coordinate"]
+        assert "motion_equation" in res["metadata"]["jitter_formulation"]
+
         assert "conditions" in res
-        assert "f_0.50" in res["conditions"]
-        assert "arm_summary" in res["conditions"]["f_0.50"]
-        assert "round_robin" in res["conditions"]["f_0.50"]["arm_summary"]
-        assert "rebuild" in res["conditions"]["f_0.50"]["arm_summary"]
+        for cond_name in ["f_0.50", "f_1.00_jitter"]:
+            assert cond_name in res["conditions"]
+            cond = res["conditions"][cond_name]
+            assert "arm_summary" in cond
+            assert "round_robin" in cond["arm_summary"]
+            assert "rebuild" in cond["arm_summary"]
+            assert "no_repair" in cond["arm_summary"]
+            assert "periodic_k5" in cond["arm_summary"]
+            assert "trajectory_mean_paired_differences" in cond
+            assert "final_step_timing_dependent_paired_differences" in cond
+            assert "paired_differences" in cond
+
+            # Verify paired differences structure
+            final_p = cond["final_step_timing_dependent_paired_differences"]
+            for pair in [
+                "periodic_k5_vs_no_repair",
+                "round_robin_vs_no_repair",
+                "round_robin_vs_periodic_k5",
+            ]:
+                assert pair in final_p
+                assert "final_drift_rec16" in final_p[pair]
+                assert "mean" in final_p[pair]["final_drift_rec16"]
+                assert "t_interval_95" in final_p[pair]["final_drift_rec16"]

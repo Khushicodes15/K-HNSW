@@ -6,7 +6,9 @@ and the tables presented in Chapter 8 and Chapter 9.
 
 from __future__ import annotations
 
+import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -121,7 +123,62 @@ def generate_paired_table_md(
     return "\n".join(lines)
 
 
+def update_report(report_path: Path | None = None) -> None:
+    if report_path is None:
+        report_path = Path("docs/report/chapter9_external_baselines.md")
+
+    data = load_benchmarks()
+    content = report_path.read_text(encoding="utf-8")
+
+    # Generate Table 9.1A rows from condition 0 of real_sift_evaluation
+    c2000 = data["real_sift_evaluation"]["conditions"][0]
+    arm_configs = [
+        ("no_repair", "—"),
+        ("periodic_k1", "K=1"),
+        ("periodic_k5", "K=5"),
+        ("round_robin", f"B={c2000['arm_stats']['round_robin']['mean_reinsertions'] / 10:.0f}"),
+        ("lazy_theta_1.0", "θ=1.0"),
+        ("lazy_theta_0.5", "θ=0.5"),
+        (
+            "budgeted_priority",
+            f"B={c2000['arm_stats']['budgeted_priority']['mean_reinsertions'] / 10:.0f}",
+        ),
+    ]
+    rows_9_1a = [
+        format_arm_row(arm, params, c2000["arm_stats"][arm], include_rec32=True)
+        for arm, params in arm_configs
+    ]
+
+    pattern_9_1a = re.compile(
+        r"(### Table 9\.1A: Real Texmex SIFT-128 Embeddings.*?\n"
+        r"\|:---\|:---\|:---:\|:---:\|:---:\|:---:\|:---:\|\n)"
+        r"(?:\| `.*?` \|.*?\n)+"
+        r"(\n#### Paired Differences: Real Texmex SIFT-128 \(\$n=2000\$)",
+        re.DOTALL,
+    )
+
+    replacement_9_1a = r"\g<1>" + "\n".join(rows_9_1a) + "\n" + r"\g<2>"
+    new_content, count = pattern_9_1a.subn(replacement_9_1a, content)
+    if count == 0:
+        raise RuntimeError(f"Failed to locate Table 9.1A in {report_path}")
+
+    report_path.write_text(new_content, encoding="utf-8")
+    print(f"Successfully updated Table 9.1A in {report_path}")
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate or update report tables.")
+    parser.add_argument(
+        "--update-report",
+        action="store_true",
+        help="Update report markdown files in-place with the latest benchmark tables.",
+    )
+    args = parser.parse_args()
+
+    if args.update_report:
+        update_report()
+        return
+
     data = load_benchmarks()
 
     print("=" * 80)
