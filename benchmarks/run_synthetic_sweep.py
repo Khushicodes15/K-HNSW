@@ -31,7 +31,6 @@ import math
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -387,7 +386,12 @@ def aggregate_sweep_results(
     # Group runs by (n, d, displacement_mult, ef_construction)
     groups: dict[tuple[int, int, float, int], list[dict[str, Any]]] = {}
     for run in raw_runs:
-        key = (run["n"], run["d"], float(run["displacement_mult"]), int(run.get("ef_construction", 16)))
+        key = (
+            run["n"],
+            run["d"],
+            float(run["displacement_mult"]),
+            int(run.get("ef_construction", 16)),
+        )
         groups.setdefault(key, []).append(run)
 
     conditions_summary: list[dict[str, Any]] = []
@@ -398,8 +402,16 @@ def aggregate_sweep_results(
 
         arm_stats: dict[str, Any] = {}
         for arm in arms_present:
-            mean_d16_list = [r["arms"][arm]["mean_drift_rec16"] for r in runs if "mean_drift_rec16" in r["arms"][arm]]
-            final_d16_list = [r["arms"][arm]["final_drift_rec16"] for r in runs if "final_drift_rec16" in r["arms"][arm]]
+            mean_d16_list = [
+                r["arms"][arm]["mean_drift_rec16"]
+                for r in runs
+                if "mean_drift_rec16" in r["arms"][arm]
+            ]
+            final_d16_list = [
+                r["arms"][arm]["final_drift_rec16"]
+                for r in runs
+                if "final_drift_rec16" in r["arms"][arm]
+            ]
             cost_list = [r["arms"][arm]["total_cost"] for r in runs]
             reinsert_count_list = [r["arms"][arm]["total_reinsertions"] for r in runs]
 
@@ -414,9 +426,17 @@ def aggregate_sweep_results(
             }
 
             if 32 in ef_values:
-                mean_d32_list = [r["arms"][arm]["mean_drift_rec32"] for r in runs if "mean_drift_rec32" in r["arms"][arm]]
-                arm_stats[arm]["mean_drift_rec32"] = float(np.mean(mean_d32_list)) if mean_d32_list else 0.0
-                arm_stats[arm]["std_drift_rec32"] = float(np.std(mean_d32_list)) if mean_d32_list else 0.0
+                mean_d32_list = [
+                    r["arms"][arm]["mean_drift_rec32"]
+                    for r in runs
+                    if "mean_drift_rec32" in r["arms"][arm]
+                ]
+                arm_stats[arm]["mean_drift_rec32"] = (
+                    float(np.mean(mean_d32_list)) if mean_d32_list else 0.0
+                )
+                arm_stats[arm]["std_drift_rec32"] = (
+                    float(np.std(mean_d32_list)) if mean_d32_list else 0.0
+                )
 
         # Pre-registered decision rule evaluation between round_robin and periodic_k5
         decision_info: dict[str, Any] = {}
@@ -456,16 +476,18 @@ def aggregate_sweep_results(
                 "n_seeds": len(seeds),
             }
 
-        conditions_summary.append({
-            "n": n,
-            "d": d,
-            "displacement_mult": disp,
-            "ef_construction": ef_c,
-            "seeds": seeds,
-            "setup_cost_mean": float(np.mean([r["setup_cost"] for r in runs])),
-            "arm_stats": arm_stats,
-            "decision_rule": decision_info,
-        })
+        conditions_summary.append(
+            {
+                "n": n,
+                "d": d,
+                "displacement_mult": disp,
+                "ef_construction": ef_c,
+                "seeds": seeds,
+                "setup_cost_mean": float(np.mean([r["setup_cost"] for r in runs])),
+                "arm_stats": arm_stats,
+                "decision_rule": decision_info,
+            }
+        )
 
     return {
         "conditions": conditions_summary,
@@ -476,7 +498,9 @@ def aggregate_sweep_results(
 def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Run synthetic coordinate drift benchmarks across sizes, dimensions, and policies."
+        description=(
+            "Run synthetic coordinate drift benchmarks across sizes, dimensions, and policies."
+        )
     )
     parser.add_argument(
         "--n",
@@ -598,20 +622,22 @@ def run_benchmark_suite(parsed_args: argparse.Namespace) -> dict[str, Any]:
         for d in dims:
             for disp in displacements:
                 for seed in seeds:
-                    work_items.append({
-                        "n": n,
-                        "d": d,
-                        "seed": seed,
-                        "displacement_mult": disp,
-                        "drift_frac": parsed_args.drift_frac,
-                        "steps": steps,
-                        "t_final": parsed_args.t_final,
-                        "ef_construction": parsed_args.ef_construction,
-                        "arms": parsed_args.arms,
-                        "ef_values": parsed_args.ef,
-                        "k": parsed_args.k,
-                        "max_eval_queries": max_eval,
-                    })
+                    work_items.append(
+                        {
+                            "n": n,
+                            "d": d,
+                            "seed": seed,
+                            "displacement_mult": disp,
+                            "drift_frac": parsed_args.drift_frac,
+                            "steps": steps,
+                            "t_final": parsed_args.t_final,
+                            "ef_construction": parsed_args.ef_construction,
+                            "arms": parsed_args.arms,
+                            "ef_values": parsed_args.ef,
+                            "k": parsed_args.k,
+                            "max_eval_queries": max_eval,
+                        }
+                    )
 
     print(
         f"=== K-HNSW Synthetic Drift Benchmark Sweep ==="
@@ -664,7 +690,11 @@ def run_benchmark_suite(parsed_args: argparse.Namespace) -> dict[str, Any]:
 
     # Print summary table of decision rule outcomes
     print("\n=== Pre-Registered Decision Rule Summary (round_robin vs periodic_k5) ===")
-    print(f"{'n':<6} {'d':<4} {'disp':<6} {'RR Rec16':<10} {'Per Rec16':<10} {'Margin':<8} {'Cost Ratio':<12} {'Arm A Wins?':<12} {'Trigger'}")
+    hdr = (
+        f"{'n':<6} {'d':<4} {'disp':<6} {'RR Rec16':<10} {'Per Rec16':<10} "
+        f"{'Margin':<8} {'Cost Ratio':<12} {'Arm A Wins?':<12} {'Trigger'}"
+    )
+    print(hdr)
     print("-" * 80)
     for cond in summary["conditions"]:
         dec = cond.get("decision_rule", {})

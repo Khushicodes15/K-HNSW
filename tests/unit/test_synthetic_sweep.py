@@ -10,6 +10,8 @@ Verifies:
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 
@@ -156,7 +158,9 @@ class TestParseArgs:
         assert args.smoke is True
 
     def test_custom_values(self) -> None:
-        args = parse_args(["--n", "500", "1000", "--d", "32", "--seeds", "99", "--displacement", "2.0"])
+        args = parse_args(
+            ["--n", "500", "1000", "--d", "32", "--seeds", "99", "--displacement", "2.0"]
+        )
         assert args.n == [500, 1000]
         assert args.d == [32]
         assert args.seeds == [99]

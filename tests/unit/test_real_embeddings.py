@@ -10,7 +10,6 @@ Tests:
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from benchmarks.run_real_embeddings import (
     generate_drift_field_from_data,
@@ -26,7 +25,7 @@ class TestLoadBenchmarkDataset:
         assert X.shape == (50, 32)
         assert X.dtype == np.float32
         assert float(X.min()) >= 0.0
-        assert "sift" in info
+        assert "sift" in info.lower()
 
     def test_glove_fallback(self) -> None:
         X, info = load_benchmark_dataset("glove", n=40, d=16, seed=7)

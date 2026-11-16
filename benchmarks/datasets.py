@@ -21,7 +21,6 @@ from typing import Union
 import numpy as np
 from numpy.typing import NDArray
 
-
 # ---------------------------------------------------------------------------
 # Simple Gaussian synthetic dataset
 # ---------------------------------------------------------------------------

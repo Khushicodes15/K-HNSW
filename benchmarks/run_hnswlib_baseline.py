@@ -2,7 +2,8 @@
 
 Evaluates the standard production C++ hnswlib library under continuous
 coordinate drift using its native replacement protocol:
-    `index.mark_deleted(label)` followed by `index.add_items(new_vector, label, replace_deleted=True)`
+    `index.mark_deleted(label)` followed by
+    `index.add_items(new_vector, label, replace_deleted=True)`
 
 Accounting Notice (§6 in member4.md):
 ------------------------------------
@@ -297,12 +298,24 @@ def run_hnswlib_sweep(
 
 def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI options for hnswlib baseline."""
-    parser = argparse.ArgumentParser(description="Run hnswlib baseline comparison under coordinate drift.")
+    parser = argparse.ArgumentParser(
+        description="Run hnswlib baseline comparison under coordinate drift."
+    )
     parser.add_argument("--n", type=int, default=2000, help="Node count (default: 2000).")
     parser.add_argument("--d", type=int, default=128, help="Dimensionality (default: 128).")
-    parser.add_argument("--seeds", type=int, nargs="+", default=[42, 43, 44], help="Random seeds (default: 42 43 44).")
-    parser.add_argument("--displacement", type=float, default=8.0, help="Displacement multiplier (default: 8.0).")
-    parser.add_argument("--drift-frac", type=float, default=0.3, help="Fraction drifting (default: 0.3).")
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        default=[42, 43, 44],
+        help="Random seeds (default: 42 43 44).",
+    )
+    parser.add_argument(
+        "--displacement", type=float, default=8.0, help="Displacement multiplier (default: 8.0)."
+    )
+    parser.add_argument(
+        "--drift-frac", type=float, default=0.3, help="Fraction drifting (default: 0.3)."
+    )
     parser.add_argument("--steps", type=int, default=10, help="Time steps (default: 10).")
     parser.add_argument("--t-final", type=float, default=0.30, help="End time (default: 0.30).")
     parser.add_argument(
@@ -323,7 +336,7 @@ def main() -> None:
     else:
         n, d, seeds, steps = args.n, args.d, args.seeds, args.steps
 
-    print(f"=== C++ hnswlib Baseline Benchmark Driver ===")
+    print("=== C++ hnswlib Baseline Benchmark Driver ===")
     print(f"Native hnswlib installed: {HNSWLIB_AVAILABLE}")
     print(f"N: {n} | D: {d} | Seeds: {seeds} | Steps: {steps}")
 
@@ -355,7 +368,10 @@ def main() -> None:
     print(f"{'Policy':<15} {'Mean Rec@16':<12} {'Reinsertions':<15} {'Update Time (s)'}")
     print("-" * 55)
     for pol, stats in res["summary"].items():
-        print(f"{pol:<15} {stats['mean_drift_rec16']:<12.4f} {stats['mean_reinsertions']:<15.1f} {stats['mean_update_time_s']:.4f}")
+        m_rec = stats["mean_drift_rec16"]
+        m_reins = stats["mean_reinsertions"]
+        m_time = stats["mean_update_time_s"]
+        print(f"{pol:<15} {m_rec:<12.4f} {m_reins:<15.1f} {m_time:.4f}")
 
 
 if __name__ == "__main__":

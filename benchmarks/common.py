@@ -32,7 +32,6 @@ from numpy.typing import NDArray
 
 from khnsw.core.movement.base import mean_nn_distance
 
-
 # ---------------------------------------------------------------------------
 # Synthetic drift data
 # ---------------------------------------------------------------------------
@@ -100,9 +99,7 @@ def generate_isotropic_drift_data(
     # --- Stream 2: select moving node IDs ---
     rng_id = np.random.default_rng(seed + 1)
     n_moving = max(1, int(math.ceil(drift_frac * n)))
-    moving_ids: list[int] = sorted(
-        rng_id.choice(n, size=n_moving, replace=False).tolist()
-    )
+    moving_ids: list[int] = sorted(rng_id.choice(n, size=n_moving, replace=False).tolist())
 
     # --- Calibrate speed ---
     scale = mean_nn_distance(X0)
