@@ -14,7 +14,9 @@ import numpy as np
 
 
 def load_benchmarks() -> dict[str, Any]:
-    json_path = Path("docs/data/external_benchmarks.json")
+    # Resolve relative to repo root so the script works regardless of CWD.
+    _repo_root = Path(__file__).resolve().parent.parent
+    json_path = _repo_root / "docs" / "data" / "external_benchmarks.json"
     with json_path.open(encoding="utf-8") as f:
         return json.load(f)
 
@@ -94,9 +96,11 @@ def main() -> None:
     print("TABLES FOR CHAPTER 8: Dynamic Drift Maintenance on Synthetic Motion")
     print("=" * 80)
 
-    # 1. Table 8.1A: Synthetic ef_construction=16 (seeds 42-46)
+    # 1. Table 8.1A: Synthetic ef_construction=16 (Headline: seeds 100-104)
     conds_16 = data["synthetic_drift_ef16"]["conditions"]
-    print("\n### Table 8.1A: Synthetic Gaussian Drift (efConstruction = 16, seeds 42–46)")
+    ef16_seeds = data["synthetic_drift_ef16"]["metadata"].get("seeds", [100, 101, 102, 103, 104])
+    ef16_seeds_str = f"{ef16_seeds[0]}–{ef16_seeds[-1]}" if len(ef16_seeds) > 1 else str(ef16_seeds[0])
+    print(f"\n### Table 8.1A: Synthetic Gaussian Drift (efConstruction = 16, seeds {ef16_seeds_str}) [Headline]")
     print("Parameters: M=8, M0=16, efConstruction=16, delta=0.30, lambda=8.0x, k=10, ef=16, 10 steps\n")
     print("| Size | Policy Arm | Parameters | Mean Drift Rec@16 | Final Drift Rec@16 | Mean Cost (Dists) | Reinsertions |")
     print("|:---|:---|:---|:---:|:---:|:---:|:---:|")
@@ -164,10 +168,13 @@ def main() -> None:
     print("TABLES FOR CHAPTER 9: Real Embeddings & External Baselines")
     print("=" * 80)
 
-    # 3. Table 9.1: Real SIFT-128 Texmex (n=2000, seeds 42-46)
+    # 3. Table 9.1: Real SIFT-128 Texmex (Headline: seeds 100-104)
     real_sift = data["real_sift_evaluation"]
-    print("\n### Table 9.1: Real Texmex SIFT-128 Embeddings (n=2000, seeds 42–46)")
+    sift_seeds = real_sift.get("seeds", [100, 101, 102, 103, 104])
+    sift_seeds_str = f"{sift_seeds[0]}–{sift_seeds[-1]}" if len(sift_seeds) > 1 else str(sift_seeds[0])
+    print(f"\n### Table 9.1: Real Texmex SIFT-128 Embeddings (n=2000, seeds {sift_seeds_str}) [Headline]")
     print(f"Data source: {real_sift.get('source_info', 'siftsmall_base.fvecs')}")
+    print(f"SHA-256: {real_sift.get('sift_file_sha256', 'N/A')}")
     print("Parameters: M=8, M0=16, efConstruction=200, delta=0.30, lambda=8.0x, k=10, ef=16, 10 steps\n")
     print("| Policy Arm | Parameters | Mean Drift Rec@16 | Final Drift Rec@16 | Mean Cost (Dists) | Reinsertions |")
     print("|:---|:---|:---:|:---:|:---:|:---:|")
@@ -189,7 +196,7 @@ def main() -> None:
     rr = [r["arms"]["round_robin"]["mean_drift_rec16"] for r in real_sift["seed_results"]]
     per = [r["arms"]["periodic_k5"]["mean_drift_rec16"] for r in real_sift["seed_results"]]
     paired_sift = compute_paired_stats(seeds, rr, per)
-    print("\n" + generate_paired_table_md(paired_sift, "Real Texmex SIFT-128 (n=2000, seeds 42–46)"))
+    print("\n" + generate_paired_table_md(paired_sift, f"Real Texmex SIFT-128 (n=2000, seeds {sift_seeds_str}) [Headline]"))
 
     # 4. Table 9.2: SIFT-like synthetic clustered fallback (n=500, seeds 42-46)
     synth_sift = data["sift_like_synthetic_fallback"]
@@ -207,6 +214,43 @@ def main() -> None:
     per = [r["arms"]["periodic_k5"]["mean_drift_rec16"] for r in synth_sift["seed_results"]]
     paired_synth_sift = compute_paired_stats(seeds, rr, per)
     print("\n" + generate_paired_table_md(paired_synth_sift, "SIFT-like Synthetic Clustered Fallback (n=500, seeds 42–46)"))
+
+
+    # 5. Secondary Tables (Seeds 42–46) for Continuity & Version Traceability
+    if "synthetic_drift_ef16_secondary_seeds42" in data:
+        print("\n" + "=" * 80)
+        print("SECONDARY TABLES (Seeds 42–46) FOR CONTINUITY & VERSION TRACEABILITY")
+        print("=" * 80)
+        sec_conds = data["synthetic_drift_ef16_secondary_seeds42"]["conditions"]
+        print("\n### Table 8.1A-Secondary: Synthetic Gaussian Drift (efConstruction = 16, seeds 42–46)")
+        print("Parameters: M=8, M0=16, efConstruction=16, delta=0.30, lambda=8.0x, k=10, ef=16, 10 steps\n")
+        print("| Size | Policy Arm | Parameters | Mean Drift Rec@16 | Final Drift Rec@16 | Mean Cost (Dists) | Reinsertions |")
+        print("|:---|:---|:---|:---:|:---:|:---:|:---:|")
+        for cond in sec_conds:
+            n = cond["n"]
+            arm_configs = [
+                ("no_repair", "—"),
+                ("periodic_k1", "K=1"),
+                ("periodic_k5", "K=5"),
+                ("round_robin", f"B={cond['arm_stats']['round_robin']['mean_reinsertions']/10:.0f}"),
+                ("lazy_theta_1.0", "θ=1.0"),
+                ("lazy_theta_0.5", "θ=0.5"),
+                ("budgeted_priority", f"B={cond['arm_stats']['budgeted_priority']['mean_reinsertions']/10:.0f}"),
+            ]
+            for idx, (arm, params) in enumerate(arm_configs):
+                prefix = f"| **n={n}** " if idx == 0 else "| "
+                row_str = format_arm_row(arm, params, cond["arm_stats"][arm])
+                print(prefix + row_str[2:])
+
+    if "real_sift_evaluation_secondary_seeds42" in data:
+        sec_sift = data["real_sift_evaluation_secondary_seeds42"]
+        print("\n### Table 9.1-Secondary: Real Texmex SIFT-128 Embeddings (n=2000, seeds 42–46)")
+        print(f"Data source: {sec_sift.get('source_info', 'siftsmall_base.fvecs')}")
+        print("Parameters: M=8, M0=16, efConstruction=200, delta=0.30, lambda=8.0x, k=10, ef=16, 10 steps\n")
+        print("| Policy Arm | Parameters | Mean Drift Rec@16 | Final Drift Rec@16 | Mean Cost (Dists) | Reinsertions |")
+        print("|:---|:---|:---:|:---:|:---:|:---:|")
+        for arm, params in arm_configs:
+            print(format_arm_row(arm, params, sec_sift["arm_stats"][arm]))
 
 
 if __name__ == "__main__":

@@ -48,6 +48,7 @@ def load_benchmark_dataset(
     n: int = 2000,
     d: int = 128,
     seed: int = 42,
+    allow_fallback: bool = False,
 ) -> tuple[NDArray[np.float32], str]:
     """Load real embeddings or generate a realistic clustered fallback.
 
@@ -63,6 +64,11 @@ def load_benchmark_dataset(
         Dimensionality.
     seed : int, default=42
         Random seed for sampling or synthetic generation.
+    allow_fallback : bool, default=False
+        When False (the default), raise FileNotFoundError if the real SIFT
+        file is missing rather than silently falling back to synthetic data.
+        Set True only when synthetic fallback is explicitly acceptable (e.g.
+        unit tests or offline environments) by passing --allow-fallback.
 
     Returns
     -------
@@ -92,13 +98,32 @@ def load_benchmark_dataset(
             else:
                 X = raw[:n]
             return X.astype(np.float32), f"real_sift_texmex({resolved_path})"
-        # Fallback to SIFT-like clustered synthetic — emit explicit warning so caller
-        # is never silently unaware that real SIFT was not loaded.
+
+        # Real SIFT file not found — behaviour depends on allow_fallback flag.
+        # Default (allow_fallback=False): raise immediately so a CI clone never
+        # silently produces synthetic results labelled as real SIFT.
+        # Pass allow_fallback=True (--allow-fallback CLI flag) only when the file
+        # is intentionally unavailable and synthetic data is acceptable.
+        if not allow_fallback:
+            _repo_root = Path(__file__).resolve().parent.parent
+            _default_path = _repo_root / "docs" / "data" / "siftsmall" / "siftsmall_base.fvecs"
+            raise FileNotFoundError(
+                f"[ERROR] Real SIFT file not found.\n"
+                f"  Looked for: {data_path!r} and {_default_path}\n"
+                f"  Download it with:\n"
+                f"    mkdir -p docs/data/siftsmall\n"
+                f"    curl -L http://corpus-texmex.irisa.fr/sift.tar.gz | "
+                f"tar xz -C docs/data/siftsmall --strip-components=1\n"
+                f"  Expected SHA-256: "
+                f"1e90414a3254361aba48a0d58e461f7661fb135dabb3da985290e94de8f60fe0\n"
+                f"  To allow synthetic fallback (not for official results): "
+                f"pass --allow-fallback"
+            )
+
         import sys as _sys
         _sys.stderr.write(
-            f"[WARNING] Real SIFT file not found (data_path={data_path!r}, "
-            f"default=docs/data/siftsmall/siftsmall_base.fvecs). "
-            f"Falling back to SIFT-like synthetic clustered data. "
+            f"[WARNING] Real SIFT file not found (data_path={data_path!r}). "
+            f"--allow-fallback set: using SIFT-like synthetic clustered data. "
             f"Results labelled 'sift_like_synthetic_clustered_fallback' in JSON.\n"
         )
         fallback = generate_sift_like(n=n, d=d, seed=seed)
@@ -196,6 +221,7 @@ def run_embedding_benchmark(
     max_eval_queries: int = 100,
     arms: list[str] | None = None,
     ef_construction: int = 16,
+    allow_fallback: bool = False,
 ) -> dict[str, Any]:
     """Execute maintenance policy benchmark on the given embedding dataset.
 
@@ -247,6 +273,7 @@ def run_embedding_benchmark(
             n=n,
             d=d,
             seed=seed,
+            allow_fallback=allow_fallback,
         )
         actual_d = X0.shape[1]
         vels, drift_nodes, scale = generate_drift_field_from_data(
@@ -420,6 +447,17 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
         help="Output JSON path.",
     )
     parser.add_argument("--smoke", action="store_true", help="Minimal smoke test run.")
+    parser.add_argument(
+        "--allow-fallback",
+        action="store_true",
+        default=False,
+        help=(
+            "Allow silent fallback to SIFT-like synthetic data when the real .fvecs "
+            "file is unavailable. By default the runner raises FileNotFoundError "
+            "to prevent accidentally running on synthetic data in CI or official "
+            "benchmark contexts. Only set this flag for local exploratory runs."
+        ),
+    )
     return parser.parse_args(args)
 
 
@@ -455,6 +493,7 @@ def main() -> None:
         t_final=args.t_final,
         max_eval_queries=max_eval,
         ef_construction=args.ef_construction,
+        allow_fallback=args.allow_fallback,
     )
 
     elapsed = time.time() - t0
