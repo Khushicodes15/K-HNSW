@@ -9,7 +9,7 @@
 ## 8.1 Problem Setup, Isotropic Drift Generator, and Metric Definitions
 
 ### 8.1.1 Problem Formulation & The Kinetic Setting
-In streaming retrieval and dynamic vector databases, database items frequently undergo coordinate updates while search queries continue to arrive concurrently. When vectors move without graph structural adjustments, edge vectors become geometrically misaligned with the spatial topology, leading to severe recall collapse.
+In streaming retrieval and dynamic vector databases, database items frequently undergo coordinate updates while search queries continue to arrive concurrently. When vectors move without graph structural adjustments under the independent isotropic drift motion model, edge vectors become geometrically misaligned with the spatial topology, leading to severe recall collapse.
 
 We evaluate graph maintenance on graphs initialized with standard HNSW structural parameters ($M=8$, $M_0=16$, Euclidean $L_2$ distance) across a sequence of timestamps $t \in [0, t_{\text{final}}]$ divided into $T=10$ simulation steps.
 
@@ -152,7 +152,7 @@ We evaluate 7 maintenance policies under two distinct graph construction regimes
 ## 8.3 Scientific Insights & Ablations
 
 ### 8.3.1 Impact of Construction Quality (`efConstruction = 16` vs `200`)
-Under `efConstruction = 16`, distance computations per node reinsertion average $\approx 93.2$ ($27,955 / 300$), because candidate exploration in upper layers is constrained. Under `efConstruction = 200`, reinsertions evaluate $\approx 433.2$ distance computations ($129,963 / 300$), matching the project's internal reference engine. Higher construction quality provides higher overall recall ($93.6\%$ vs $80.0\%$) and widens the temporal staggering advantage over batch reinsertion ($+2.67\%$ at $n=500$; $+3.44\%$ at $n=2000$), successfully exceeding the pre-registered $+2.0\%$ decision threshold.
+Under `efConstruction = 16`, distance computations per node reinsertion average $\approx 93.2$ ($27,955 / 300$), because candidate exploration in upper layers is constrained. Under `efConstruction = 200`, reinsertions evaluate $\approx 433.2$ distance computations ($129,963 / 300$), matching the project's internal reference engine. Higher construction quality provides higher overall recall ($93.6\%$ vs $80.0\%$) and widens the temporal staggering advantage over batch reinsertion ($+2.67\%$ at $n=500$; $+3.44\%$ at $n=2000$) under independent isotropic drift, successfully exceeding the pre-registered $+2.0\%$ decision threshold (noting that this staggering advantage is motion-model dependent and does not generalize across all movement regimes).
 
 ### 8.3.2 Ablation of Threshold $\theta$
 Lowering $\theta$ from $1.0$ to $0.5$ in `lazy` roughly doubles reinsertion volume ($313 \to 546$ at $n=500$; $1291 \to 2293$ at $n=2000$) and almost doubles computational cost ($137\text{k} \to 235\text{k}$), while producing negligible recall gains ($0.9381 \to 0.9422$). Setting $\theta = 1.0$ provides the Pareto-optimal operational balance.

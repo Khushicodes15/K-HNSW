@@ -147,9 +147,10 @@ For environments where raw external binary datasets are unavailable, the testbed
 - **95% Bootstrap CI**: [-0.0249, -0.0119]
 - **Positive Seeds**: **0 / 5** (`periodic_k5` superior on all 5 seeds)
 
-### 9.1.3 Empirical Insight on Clustered Manifolds
-Both real Texmex SIFT embeddings (Table 9.1A, 9.1B) and SIFT-like synthetic clustered vectors (Table 9.2) demonstrate that **batch periodic reinsertion outperforms staggered round-robin** on clustered high-dimensional data ($-0.98$ pp at $n=2000$, $-0.44$ pp at $n=5000$ on real SIFT; $-1.82$ pp on clustered synthetic).
-- *Mechanism*: In clustered data, points within a cluster move in proximity. Synchronized batch reinsertion rewires cluster neighbors simultaneously, preserving intra-cluster connectivity. Staggered reinsertion inserts early points into an intermediate graph where their fellow cluster members have drifted but not yet been re-indexed.
+### 9.1.3 Empirical Insight on Clustered Descriptors & Motion Model Dependence
+On real Texmex SIFT embeddings, the relative ranking of repair policies depends directly on the motion model:
+- Under independent isotropic drift (Tables 9.1A, 9.1B), batch periodic reinsertion slightly outperforms or matches staggered round-robin ($-0.98$ pp at $n=2000$, $-0.44$ pp at $n=5000$). Similarly, on SIFT-like synthetic clustered vectors under isotropic drift (Table 9.2), periodic reinsertion maintains a $-1.82$ pp advantage.
+- Conversely, under linear interpolation drift (Section 9.4), staggered round-robin outperforms periodic reinsertion on trajectory-mean recall (+2.10 pp at $f=0.50$, +7.16 pp at $f=1.00$ with jitter on the committed metric; +2.26 pp and +7.55 pp self-excluded). This interpolation finding is exploratory, and the underlying topological mechanism remains untested.
 
 ---
 
@@ -182,8 +183,187 @@ $$\text{Decision Rule: WIN iff } \Delta \text{Recall} \ge +0.0200 \text{ at matc
 
 ### 9.3.1 Scientific Implications for Claims Register
 1. **Claim 13 (Temporal Staggering Advantage)**:
-   - On synthetic Gaussian data constructed with production beam width (`efConstruction = 200`), temporal staggering achieves a statistically significant win (+2.67% at $n=500$ and +3.44% at $n=2000$), confirming the core theoretical prediction across all 5 seeds.
-   - However, under constrained construction (`efConstruction = 16`), the advantage narrows to $+1.44\% - +1.71\%$.
-   - On clustered manifolds (both real SIFT-128 and SIFT-like synthetic clustered descriptors), the relationship reverses: batch periodic reinsertion is superior by $\approx 0.4\% - 1.8\%$.
+   - On synthetic Gaussian data constructed with production beam width (`efConstruction = 200`), temporal staggering achieves a statistically significant win (+2.67% at $n=500$ and +3.44% at $n=2000$) under independent isotropic drift, confirming the theoretical prediction across all 5 seeds.
+   - Under constrained construction (`efConstruction = 16`), the advantage narrows to $+1.44\% - +1.71\%$.
+   - On real SIFT-128 embeddings, policy ordering depends on the motion model: under isotropic drift periodic reinsertion is slightly superior ($-0.4\%$ to $-1.0\%$), whereas under linear interpolation drift staggered round-robin outperforms periodic reinsertion on trajectory-mean recall (+2.1% to +7.2% committed, +2.3% to +7.6% self-excluded, exploratory, mechanism untested).
 2. **Claim 12 (Recall Collapse Under Motion)**:
-   - Strongly confirmed across every configuration: unmanaged drift collapses recall to $20\% - 55\%$.
+   - Confirmed under unmanaged drift across tested configurations:
+     - Synthetic Gaussian isotropic drift: final Rec@16 collapses to 0.5026 ($n=500$) and 0.2004 ($n=2000$) under `efConstruction=16`, and 0.5740 ($n=500$) and 0.2556 ($n=2000$) under `efConstruction=200` (`docs/data/external_benchmarks.json`).
+     - Real Texmex SIFT isotropic drift: final Rec@16 degrades to 0.6360 at $n=2000$ (`docs/data/external_benchmarks.json`) and 0.5494 at $n=5000$ (`docs/data/sift_n5000_ef200.json`).
+     - Real Texmex SIFT linear interpolation drift ($n=2000$, `efConstruction=200`): final Rec@16 reaches 0.8262 ($f=0.25$), 0.3790 ($f=0.50$), and 0.7518 ($f=1.00$ with jitter) (`docs/data/interpolation_benchmark.json`).
+
+
+---
+
+## 9.4 Interpolation Drift (Exploratory)
+
+### 9.4.1 Exploratory Status, Protocol Scope, & Movement Model
+To investigate whether motion geometry influences dynamic maintenance effectiveness, an interpolation drift benchmark was conducted on the Texmex SIFT-128 siftsmall subset ($n=2000, d=128$, `ef_construction=200`, seeds 110â€“114). In this setting:
+- $\delta = 30\%$ of nodes ($600$ points) drift linearly toward randomly selected database target points over $T=10$ discrete steps ($t_{\text{final}} = 0.30, \Delta t = 0.03$):
+  $$\vec{x}_u(t) = \vec{x}_u(0) + \frac{t}{t_{\text{final}}} \cdot f \cdot (\vec{x}_{\text{target}} - \vec{x}_u(0) + \vec{\eta})$$
+- We evaluate displacement fractions $f \in \{0.25, 0.50, 1.00\}$ without jitter, and $f \in \{0.50, 1.00\}$ with small random target jitter $\vec{\eta}$.
+- **Exploratory Status**: This protocol and choice of $f$ parameters were designed post-hoc after observing that batch periodic reinsertion matched or slightly outperformed temporal staggering under independent isotropic drift. Seeds 110â€“112 were previously examined during diagnostic exploration, and the $+2.0$ percentage point decision rule was not pre-registered for this movement regime. Accordingly, all results in this section are strictly **exploratory**, scoped exclusively to this linear interpolation movement model, and do not transfer to isotropic drift. Any proposed structural or routing mechanism remains untested.
+
+### 9.4.2 Metric Definitions, Self-Exclusion, and Jitter Calibration
+1. **Search Expansion & Beam Width**:
+   In accordance with the benchmark accounting framework, Rec@16 and Rec@32 denote Recall@10 evaluated at search expansion beam widths $ef=16$ and $ef=32$, respectively ($k=10$ nearest neighbors).
+2. **Committed vs. Self-Excluded Recall**:
+   - The primary committed metric records the query vector's own node ID on both sides (ground truth and candidate retrieval).
+   - To rule out self-retrieval inflation, a self-excluded check was executed concurrently: index search requests $k+1=11$ candidates at beam width $ef$, drops the query node's own ID by node ID (never by distance threshold), and retains the first $k=10$ items. Instantaneous ground truth is similarly computed as the 10 nearest non-self points (query node ID excluded).
+   - Self-exclusion lowers absolute recall magnitudes across all arms, but preserves the sign, rank ordering, and statistical significance of all paired differences.
+3. **Target Jitter Formulation & Norm Ratio**:
+   In `benchmarks/run_interpolation_benchmark.py:107-114`, Gaussian jitter noise is sampled independently per coordinate:
+   $$\vec{\eta} \sim \mathcal{N}\left(\mathbf{0}, (0.05 \cdot \bar{d}_{\text{1-NN}})^2 \mathbf{I}_d\right)$$
+   Across $d=128$ dimensions, the expected Euclidean norm follows a scaled chi distribution with 128 degrees of freedom:
+   $$\mathbb{E}[\|\vec{\eta}\|] \approx 0.05 \cdot \bar{d}_{\text{1-NN}} \cdot \sqrt{128} \approx 0.5657 \cdot \bar{d}_{\text{1-NN}}$$
+   Empirical measurement across all 600 drifting nodes for seeds 110â€“114 yields a pooled mean $\|\vec{\eta}\| / \bar{d}_{\text{1-NN}} = 0.565827$ (min $0.438147$, max $0.683792$), exactly $11.316539 \times 0.05$ ($\approx \sqrt{128} = 11.3137$).
+4. **Duplicate Collision vs. Jittered Headline**:
+   In $f=1.00$ without jitter, 72â€“85% of evaluated drifting nodes arrive at exact duplicate collisions ($d < 10^{-3}$, smallest nonzero distance ratio $\approx 5.04 \times 10^{-8}$) with stationary target vectors, inducing 0-distance tie artifacts in reinsertion edge pruning. Adding jitter completely eliminates duplicate collisions (smallest nonzero distance ratio $\ge 0.462 \times \bar{d}_{\text{1-NN}}$). The jittered row ($f=1.00$ with jitter) represents the valid headline result for full-displacement interpolation.
+5. **Rebuild Ceiling & Cost Parity**:
+   `rebuild` represents a single fresh HNSW index construction on final positions ($t=0.30$); trajectory-mean recall equals final-step recall by construction. No periodic-rebuild arm was evaluated. Dynamic maintenance cost ($\approx 930\text{k} - 970\text{k}$ distance computations) is comparable to a single full rebuild ($\approx 920\text{k} - 1,085\text{k}$); hence, no computational cost savings are claimed relative to static rebuilds.
+
+---
+
+### Table 9.4A: Policy Arm Performance Summary Across 5 Interpolation Conditions
+*Parameters: Real SIFT siftsmall ($n=2000, d=128, efConstruction=200, \delta=0.30, T=10$ steps, seeds 110â€“114). Metrics report self-excluded Recall@10 (mean Â± sample std over 5 seeds).*
+
+<!-- BEGIN GENERATED: interpolation_by_arm_summary -->
+| Condition | Policy Arm | Mean Drift Rec@16 | Final Drift Rec@16 | Mean Drift Rec@32 | Final Drift Rec@32 | Mean Static Rec@16 | Mean Cost (Dists) | Reinsertions |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| f=0.25 (no jitter) | `no_repair` | 0.9135 +/- 0.0046 | 0.7970 +/- 0.0037 | 0.9669 +/- 0.0041 | 0.9032 +/- 0.0119 | 0.9634 +/- 0.0025 | 0 +/- 0 | 0 |
+| f=0.25 (no jitter) | `periodic_k5` | 0.9677 +/- 0.0057 | 0.9796 +/- 0.0082 | 0.9910 +/- 0.0028 | 0.9970 +/- 0.0007 | 0.9793 +/- 0.0013 | 903,829 +/- 10,108 | 1,200 |
+| f=0.25 (no jitter) | `round_robin` | 0.9699 +/- 0.0028 | 0.9720 +/- 0.0088 | 0.9933 +/- 0.0017 | 0.9936 +/- 0.0034 | 0.9805 +/- 0.0011 | 879,283 +/- 8,286 | 1,200 |
+| f=0.25 (no jitter) | `rebuild` | 0.9762 +/- 0.0039 | 0.9762 +/- 0.0039 | 0.9966 +/- 0.0009 | 0.9966 +/- 0.0009 | 0.9724 +/- 0.0045 | 1,004,310 +/- 4,753 | 0 |
+| f=0.50 (no jitter) | `no_repair` | 0.7115 +/- 0.0057 | 0.3638 +/- 0.0242 | 0.8037 +/- 0.0067 | 0.4804 +/- 0.0317 | 0.8978 +/- 0.0049 | 0 +/- 0 | 0 |
+| f=0.50 (no jitter) | `periodic_k5` | 0.9327 +/- 0.0057 | 0.9864 +/- 0.0011 | 0.9780 +/- 0.0025 | 0.9980 +/- 0.0012 | 0.9574 +/- 0.0022 | 965,449 +/- 7,597 | 1,200 |
+| f=0.50 (no jitter) | `round_robin` | 0.9547 +/- 0.0030 | 0.9484 +/- 0.0076 | 0.9892 +/- 0.0018 | 0.9872 +/- 0.0062 | 0.9645 +/- 0.0015 | 954,903 +/- 9,649 | 1,200 |
+| f=0.50 (no jitter) | `rebuild` | 0.9828 +/- 0.0038 | 0.9828 +/- 0.0038 | 0.9976 +/- 0.0009 | 0.9976 +/- 0.0009 | 0.9792 +/- 0.0068 | 1,084,601 +/- 6,315 | 0 |
+| f=1.00 (no jitter) | `no_repair` | 0.5559 +/- 0.0089 | 0.6748 +/- 0.0148 | 0.6346 +/- 0.0078 | 0.7276 +/- 0.0197 | 0.7633 +/- 0.0072 | 0 +/- 0 | 0 |
+| f=1.00 (no jitter) | `periodic_k5` | 0.8364 +/- 0.0053 | 0.9676 +/- 0.0023 | 0.9073 +/- 0.0045 | 0.9846 +/- 0.0023 | 0.9087 +/- 0.0046 | 946,662 +/- 10,756 | 1,200 |
+| f=1.00 (no jitter) | `round_robin` | 0.9273 +/- 0.0021 | 0.9428 +/- 0.0082 | 0.9748 +/- 0.0008 | 0.9772 +/- 0.0044 | 0.9409 +/- 0.0021 | 972,344 +/- 11,693 | 1,200 |
+| f=1.00 (no jitter) | `rebuild` | 0.9786 +/- 0.0060 | 0.9786 +/- 0.0060 | 0.9910 +/- 0.0040 | 0.9910 +/- 0.0040 | 0.9702 +/- 0.0057 | 919,728 +/- 5,761 | 0 |
+| f=0.50 (with jitter) | `no_repair` | 0.7188 +/- 0.0045 | 0.3924 +/- 0.0178 | 0.8093 +/- 0.0080 | 0.5046 +/- 0.0229 | 0.9058 +/- 0.0032 | 0 +/- 0 | 0 |
+| f=0.50 (with jitter) | `periodic_k5` | 0.9297 +/- 0.0040 | 0.9858 +/- 0.0024 | 0.9755 +/- 0.0030 | 0.9970 +/- 0.0014 | 0.9586 +/- 0.0021 | 963,928 +/- 10,275 | 1,200 |
+| f=0.50 (with jitter) | `round_robin` | 0.9523 +/- 0.0032 | 0.9440 +/- 0.0084 | 0.9877 +/- 0.0010 | 0.9862 +/- 0.0044 | 0.9639 +/- 0.0020 | 952,055 +/- 8,061 | 1,200 |
+| f=0.50 (with jitter) | `rebuild` | 0.9826 +/- 0.0048 | 0.9826 +/- 0.0048 | 0.9978 +/- 0.0018 | 0.9978 +/- 0.0018 | 0.9758 +/- 0.0064 | 1,081,415 +/- 5,395 | 0 |
+| f=1.00 (with jitter) | `no_repair` | 0.6285 +/- 0.0111 | 0.8182 +/- 0.0164 | 0.7055 +/- 0.0081 | 0.8792 +/- 0.0086 | 0.8282 +/- 0.0073 | 0 +/- 0 | 0 |
+| f=1.00 (with jitter) | `periodic_k5` | 0.8440 +/- 0.0036 | 0.9174 +/- 0.0126 | 0.9132 +/- 0.0031 | 0.9738 +/- 0.0042 | 0.9167 +/- 0.0038 | 928,088 +/- 10,119 | 1,200 |
+| f=1.00 (with jitter) | `round_robin` | 0.9195 +/- 0.0038 | 0.9176 +/- 0.0050 | 0.9712 +/- 0.0024 | 0.9756 +/- 0.0030 | 0.9376 +/- 0.0047 | 967,185 +/- 11,338 | 1,200 |
+| f=1.00 (with jitter) | `rebuild` | 0.9778 +/- 0.0056 | 0.9778 +/- 0.0056 | 0.9968 +/- 0.0016 | 0.9968 +/- 0.0016 | 0.9808 +/- 0.0047 | 939,222 +/- 4,269 | 0 |
+<!-- END GENERATED: interpolation_by_arm_summary -->
+
+---
+
+### Table 9.4B: Paired Differences in Trajectory-Mean Drift Recall
+*Paired differences ($arm_1 - arm_2$) evaluated on trajectory-mean drift recall ($k=10$).*
+
+<!-- BEGIN GENERATED: interpolation_paired_differences_trajectory_mean -->
+| Condition | Comparison | Traj Rec@16 Diff | 95% CI | Pos | Traj Rec@32 Diff | 95% CI | Pos |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| f=0.25 (no jitter) | periodic_k5 - no_repair | +0.0541 | [+0.0467, +0.0616] | 5/5 | +0.0241 | [+0.0189, +0.0294] | 5/5 |
+| f=0.25 (no jitter) | round_robin - no_repair | +0.0563 | [+0.0506, +0.0621] | 5/5 | +0.0264 | [+0.0222, +0.0305] | 5/5 |
+| f=0.25 (no jitter) | round_robin - periodic_k5 | +0.0022 | [-0.0015, +0.0059] | 3/5 | +0.0022 | [-0.0020, +0.0065] | 4/5 |
+| f=0.50 (no jitter) | periodic_k5 - no_repair | +0.2212 | [+0.2074, +0.2350] | 5/5 | +0.1743 | [+0.1638, +0.1849] | 5/5 |
+| f=0.50 (no jitter) | round_robin - no_repair | +0.2432 | [+0.2344, +0.2520] | 5/5 | +0.1856 | [+0.1760, +0.1951] | 5/5 |
+| f=0.50 (no jitter) | round_robin - periodic_k5 | +0.0220 | [+0.0158, +0.0282] | 5/5 | +0.0112 | [+0.0097, +0.0127] | 5/5 |
+| f=1.00 (no jitter) | periodic_k5 - no_repair | +0.2804 | [+0.2715, +0.2894] | 5/5 | +0.2727 | [+0.2640, +0.2814] | 5/5 |
+| f=1.00 (no jitter) | round_robin - no_repair | +0.3714 | [+0.3615, +0.3812] | 5/5 | +0.3402 | [+0.3302, +0.3502] | 5/5 |
+| f=1.00 (no jitter) | round_robin - periodic_k5 | +0.0910 | [+0.0834, +0.0985] | 5/5 | +0.0675 | [+0.0612, +0.0739] | 5/5 |
+| f=0.50 (with jitter) | periodic_k5 - no_repair | +0.2109 | [+0.2013, +0.2205] | 5/5 | +0.1662 | [+0.1544, +0.1780] | 5/5 |
+| f=0.50 (with jitter) | round_robin - no_repair | +0.2335 | [+0.2262, +0.2408] | 5/5 | +0.1784 | [+0.1676, +0.1893] | 5/5 |
+| f=0.50 (with jitter) | round_robin - periodic_k5 | +0.0226 | [+0.0160, +0.0292] | 5/5 | +0.0122 | [+0.0081, +0.0163] | 5/5 |
+| f=1.00 (with jitter) | periodic_k5 - no_repair | +0.2155 | [+0.2016, +0.2293] | 5/5 | +0.2078 | [+0.1979, +0.2176] | 5/5 |
+| f=1.00 (with jitter) | round_robin - no_repair | +0.2910 | [+0.2787, +0.3033] | 5/5 | +0.2657 | [+0.2551, +0.2763] | 5/5 |
+| f=1.00 (with jitter) | round_robin - periodic_k5 | +0.0755 | [+0.0680, +0.0830] | 5/5 | +0.0579 | [+0.0517, +0.0641] | 5/5 |
+<!-- END GENERATED: interpolation_paired_differences_trajectory_mean -->
+
+---
+
+### Table 9.4C: Paired Differences in Final-Step Drift Recall (Timing-Dependent Metric)
+*Paired differences ($arm_1 - arm_2$) evaluated at the final step ($t=10, t_{\text{final}}=0.30$). Note that periodic_k5 reinserts all nodes at step 10 immediately prior to final evaluation.*
+
+<!-- BEGIN GENERATED: interpolation_paired_differences_final_step -->
+| Condition | Comparison | Final Rec@16 Diff | 95% CI | Pos | Final Rec@32 Diff | 95% CI | Pos |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| f=0.25 (no jitter) | periodic_k5 - no_repair | +0.1826 | [+0.1708, +0.1944] | 5/5 | +0.0938 | [+0.0784, +0.1092] | 5/5 |
+| f=0.25 (no jitter) | round_robin - no_repair | +0.1750 | [+0.1617, +0.1883] | 5/5 | +0.0904 | [+0.0715, +0.1093] | 5/5 |
+| f=0.25 (no jitter) | round_robin - periodic_k5 | -0.0076 | [-0.0173, +0.0021] | 1/5 | -0.0034 | [-0.0070, +0.0002] | 0/5 |
+| f=0.50 (no jitter) | periodic_k5 - no_repair | +0.6226 | [+0.5927, +0.6525] | 5/5 | +0.5176 | [+0.4777, +0.5575] | 5/5 |
+| f=0.50 (no jitter) | round_robin - no_repair | +0.5846 | [+0.5503, +0.6189] | 5/5 | +0.5068 | [+0.4628, +0.5508] | 5/5 |
+| f=0.50 (no jitter) | round_robin - periodic_k5 | -0.0380 | [-0.0474, -0.0286] | 0/5 | -0.0108 | [-0.0182, -0.0034] | 0/5 |
+| f=1.00 (no jitter) | periodic_k5 - no_repair | +0.2928 | [+0.2748, +0.3108] | 5/5 | +0.2570 | [+0.2330, +0.2810] | 5/5 |
+| f=1.00 (no jitter) | round_robin - no_repair | +0.2680 | [+0.2402, +0.2958] | 5/5 | +0.2496 | [+0.2221, +0.2771] | 5/5 |
+| f=1.00 (no jitter) | round_robin - periodic_k5 | -0.0248 | [-0.0363, -0.0133] | 0/5 | -0.0074 | [-0.0120, -0.0028] | 0/5 |
+| f=0.50 (with jitter) | periodic_k5 - no_repair | +0.5934 | [+0.5709, +0.6159] | 5/5 | +0.4924 | [+0.4630, +0.5218] | 5/5 |
+| f=0.50 (with jitter) | round_robin - no_repair | +0.5516 | [+0.5231, +0.5801] | 5/5 | +0.4816 | [+0.4537, +0.5095] | 5/5 |
+| f=0.50 (with jitter) | round_robin - periodic_k5 | -0.0418 | [-0.0521, -0.0315] | 0/5 | -0.0108 | [-0.0152, -0.0064] | 0/5 |
+| f=1.00 (with jitter) | periodic_k5 - no_repair | +0.0992 | [+0.0741, +0.1243] | 5/5 | +0.0946 | [+0.0870, +0.1022] | 5/5 |
+| f=1.00 (with jitter) | round_robin - no_repair | +0.0994 | [+0.0804, +0.1184] | 5/5 | +0.0964 | [+0.0883, +0.1045] | 5/5 |
+| f=1.00 (with jitter) | round_robin - periodic_k5 | +0.0002 | [-0.0109, +0.0113] | 3/5 | +0.0018 | [-0.0037, +0.0073] | 2/5 |
+<!-- END GENERATED: interpolation_paired_differences_final_step -->
+
+---
+
+### Table 9.4D: Self-Excluded vs. Committed Metric Side-by-Side Comparison & Self-Hit Rates
+*Comparison between committed metric (self included on both sides) and self-excluded metric (self removed by node ID), alongside trajectory-mean self-hit rate at beam width ef=16.*
+
+<!-- BEGIN GENERATED: interpolation_self_excluded_vs_committed -->
+| Condition | Arm | Comm Traj Rec@16 | Self-Ex Traj Rec@16 | Comm Final Rec@16 | Self-Ex Final Rec@16 | Self-Hit ef=16 | Comm Traj Rec@32 | Self-Ex Traj Rec@32 | Comm Final Rec@32 | Self-Ex Final Rec@32 |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| f=0.25 (no jitter) | `no_repair` | 0.9267 | 0.9135 | 0.8262 | 0.7970 | 0.9982 | 0.9723 | 0.9669 | 0.9182 | 0.9032 |
+| f=0.25 (no jitter) | `periodic_k5` | 0.9738 | 0.9677 | 0.9858 | 0.9796 | 0.9980 | 0.9928 | 0.9910 | 0.9974 | 0.9970 |
+| f=0.25 (no jitter) | `round_robin` | 0.9757 | 0.9699 | 0.9778 | 0.9720 | 0.9994 | 0.9946 | 0.9933 | 0.9944 | 0.9936 |
+| f=0.25 (no jitter) | `rebuild` | 0.9816 | 0.9762 | 0.9816 | 0.9762 | 1.0000 | 0.9972 | 0.9966 | 0.9972 | 0.9966 |
+| f=0.50 (no jitter) | `no_repair` | 0.7324 | 0.7115 | 0.3790 | 0.3638 | 0.8790 | 0.8184 | 0.8037 | 0.4980 | 0.4804 |
+| f=0.50 (no jitter) | `periodic_k5` | 0.9426 | 0.9327 | 0.9884 | 0.9864 | 0.9940 | 0.9815 | 0.9780 | 0.9980 | 0.9980 |
+| f=0.50 (no jitter) | `round_robin` | 0.9627 | 0.9547 | 0.9552 | 0.9484 | 0.9990 | 0.9911 | 0.9892 | 0.9888 | 0.9872 |
+| f=0.50 (no jitter) | `rebuild` | 0.9874 | 0.9828 | 0.9874 | 0.9828 | 1.0000 | 0.9980 | 0.9976 | 0.9980 | 0.9976 |
+| f=1.00 (no jitter) | `no_repair` | 0.5571 | 0.5559 | 0.6220 | 0.6748 | 0.5282 | 0.6331 | 0.6346 | 0.6714 | 0.7276 |
+| f=1.00 (no jitter) | `periodic_k5` | 0.8512 | 0.8364 | 0.9710 | 0.9676 | 0.9416 | 0.9157 | 0.9073 | 0.9836 | 0.9846 |
+| f=1.00 (no jitter) | `round_robin` | 0.9371 | 0.9273 | 0.9484 | 0.9428 | 0.9896 | 0.9780 | 0.9748 | 0.9768 | 0.9772 |
+| f=1.00 (no jitter) | `rebuild` | 0.9790 | 0.9786 | 0.9790 | 0.9786 | 1.0000 | 0.9882 | 0.9910 | 0.9882 | 0.9910 |
+| f=0.50 (with jitter) | `no_repair` | 0.7413 | 0.7188 | 0.4080 | 0.3924 | 0.8888 | 0.8253 | 0.8093 | 0.5208 | 0.5046 |
+| f=0.50 (with jitter) | `periodic_k5` | 0.9397 | 0.9297 | 0.9888 | 0.9858 | 0.9922 | 0.9794 | 0.9755 | 0.9976 | 0.9970 |
+| f=0.50 (with jitter) | `round_robin` | 0.9606 | 0.9523 | 0.9526 | 0.9440 | 0.9982 | 0.9898 | 0.9877 | 0.9886 | 0.9862 |
+| f=0.50 (with jitter) | `rebuild` | 0.9868 | 0.9826 | 0.9868 | 0.9826 | 1.0000 | 0.9984 | 0.9978 | 0.9984 | 0.9978 |
+| f=1.00 (with jitter) | `no_repair` | 0.6245 | 0.6285 | 0.7518 | 0.8182 | 0.5388 | 0.6978 | 0.7055 | 0.8090 | 0.8792 |
+| f=1.00 (with jitter) | `periodic_k5` | 0.8597 | 0.8440 | 0.9326 | 0.9174 | 0.9380 | 0.9214 | 0.9132 | 0.9784 | 0.9738 |
+| f=1.00 (with jitter) | `round_robin` | 0.9313 | 0.9195 | 0.9262 | 0.9176 | 0.9818 | 0.9752 | 0.9712 | 0.9768 | 0.9756 |
+| f=1.00 (with jitter) | `rebuild` | 0.9832 | 0.9778 | 0.9832 | 0.9778 | 1.0000 | 0.9976 | 0.9968 | 0.9976 | 0.9968 |
+<!-- END GENERATED: interpolation_self_excluded_vs_committed -->
+
+---
+
+### Table 9.4E: Diagnostic Verification: Duplicate Co-Location and Jitter Norms
+
+<!-- BEGIN GENERATED: interpolation_colocation_and_jitter -->
+#### Duplicate Co-Location at Final Step ($t=0.30$)
+| Condition | Seed 110 | Seed 111 | Seed 112 | Seed 113 | Seed 114 | Mean Near Count / 100 | Smallest Nonzero Dist / mean_1nn |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| f=0.25 (no jitter) | 0/100 | 0/100 | 0/100 | 0/100 | 0/100 | 0.0/100 | 4.337087e-01 |
+| f=0.50 (no jitter) | 0/100 | 0/100 | 0/100 | 0/100 | 0/100 | 0.0/100 | 5.560426e-01 |
+| f=1.00 (no jitter) | 79/100 | 85/100 | 81/100 | 76/100 | 72/100 | 78.6/100 | 5.035033e-08 |
+| f=0.50 (with jitter) | 0/100 | 0/100 | 0/100 | 0/100 | 0/100 | 0.0/100 | 6.392975e-01 |
+| f=1.00 (with jitter) | 0/100 | 0/100 | 0/100 | 0/100 | 0/100 | 0.0/100 | 4.620345e-01 |
+
+#### Measured Jitter Displacement Norm Relative to 1-NN Distance
+| Seed | Mean ||jitter|| / mean_1nn | Min ||jitter|| / mean_1nn | Max ||jitter|| / mean_1nn | Mean Ratio / 0.05 |
+|:---:|:---:|:---:|:---:|:---:|
+| 110 | 0.566949 | 0.462035 | 0.661999 | 11.338984 |
+| 111 | 0.564323 | 0.466693 | 0.669776 | 11.286457 |
+| 112 | 0.566579 | 0.438147 | 0.676360 | 11.331571 |
+| 113 | 0.567526 | 0.452450 | 0.678528 | 11.350521 |
+| 114 | 0.563758 | 0.448721 | 0.683792 | 11.275164 |
+| **Pooled** | **0.565827** | **0.438147** | **0.683792** | **11.316539** |
+<!-- END GENERATED: interpolation_colocation_and_jitter -->
+
+---
+
+### 9.4.3 Analysis of Exploratory Observations
+1. **Trajectory-Mean vs. Final-Step Timing Dependence**:
+   - On trajectory-mean drift recall, temporal staggering (`round_robin`) outperforms batch periodic reinsertion across all intermediate and high displacement conditions: $+2.20$ pp at $f=0.50$ (no jitter), $+2.26$ pp at $f=0.50$ (with jitter), and $+7.55$ pp at $f=1.00$ (with jitter) on self-excluded Rec@16 (all 5/5 positive seeds, 95% CIs strictly excluding 0).
+   - At the final evaluation step, however, `periodic_k5` surpasses `round_robin` at $f=0.50$ (paired difference RR âˆ’ k5 is $-0.0362$ committed, $-0.0418$ self-excluded, 0/5 positive seeds). This reversal occurs because `periodic_k5` performs a full batch reinsertion at step 10 immediately before final recall measurement, whereas `round_robin` has reinserted only $20\%$ of moving nodes since step 9.
+2. **Search Beam Expansion ($ef=16$ vs. $ef=32$)**:
+   Paired recall differences narrow at $ef=32$ relative to $ef=16$ (e.g., RR âˆ’ k5 trajectory-mean margin decreases from $+2.26$ pp to $+1.22$ pp at $f=0.50$ jittered, and from $+7.55$ pp to $+5.79$ pp at $f=1.00$ jittered) as wider candidate exploration mitigates local edge degradation.
+3. **Motion-Model Sensitivity**:
+   These findings demonstrate that the empirical ranking between batch periodic and continuous staggered maintenance is highly sensitive to the motion regime: batch repair maintains parity or a slight edge under independent isotropic drift, while continuous staggering provides higher time-averaged recall under coherent interpolation drift.
