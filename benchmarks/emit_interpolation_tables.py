@@ -1,15 +1,15 @@
-"""Generate markdown tables from interpolation benchmark JSON artifacts.
+"""Generate markdown tables and inline values from interpolation benchmark JSON artifacts.
 
-Pure generator functions that produce markdown tables for Chapter 9:
+Pure generator functions that produce markdown tables and inline metrics for Chapter 9:
 - T1: by-arm summary (5 conditions x 4 arms)
 - T2_traj: paired differences (trajectory-mean, Rec@16 and Rec@32)
 - T2_final: paired differences (final-step, Rec@16 and Rec@32)
 - T3: self-excluded vs committed side-by-side with self-hit rates
 - T4: co-location counts and jitter-norm ratios
+- Inlines: dictionary of named scalar/interval metrics for Chapter 9 prose and bullets
 
 Supports:
-- --write: updates markdown chapter file between <!-- BEGIN GENERATED: <name> -->
-  and <!-- END GENERATED: <name> -->
+- --write: updates markdown chapter file between table markers and inline markers
 - --check: verifies chapter file matches exactly without modifying; exits 1 if any difference.
 """
 
@@ -21,6 +21,8 @@ import re
 import sys
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 # Ensure repo root and src/ are in sys.path
 _repo_root = Path(__file__).resolve().parent.parent
@@ -44,6 +46,20 @@ PAIR_DISPLAY_NAMES = {
     "round_robin_vs_no_repair": "round_robin - no_repair",
     "round_robin_vs_periodic_k5": "round_robin - periodic_k5",
 }
+
+
+def _get_stat_mean(stat_obj: dict[str, Any]) -> float:
+    """Return mean from per_seed list if available, else from mean field."""
+    if "per_seed" in stat_obj and stat_obj["per_seed"]:
+        return float(np.mean(stat_obj["per_seed"]))
+    return float(stat_obj["mean"])
+
+
+def _get_stat_std(stat_obj: dict[str, Any]) -> float:
+    """Return sample std from per_seed list if available, else from std field."""
+    if "per_seed" in stat_obj and len(stat_obj["per_seed"]) > 1:
+        return float(np.std(stat_obj["per_seed"], ddof=1))
+    return float(stat_obj.get("std", 0.0))
 
 
 def format_val_pm_sd(mean_val: float, sd_val: float, precision: int = 4) -> str:
@@ -70,19 +86,25 @@ def generate_t1_by_arm_summary(data: dict[str, Any]) -> str:
         cond_data = data["conditions"][cond_name]["arm_summary"]
         for arm_name in ["no_repair", "periodic_k5", "round_robin", "rebuild"]:
             arm = cond_data[arm_name]
-            m16 = format_val_pm_sd(arm["mean_drift_rec16"]["mean"], arm["mean_drift_rec16"]["std"])
-            f16 = format_val_pm_sd(
-                arm["final_drift_rec16"]["mean"], arm["final_drift_rec16"]["std"]
+            m16 = format_val_pm_sd(
+                _get_stat_mean(arm["mean_drift_rec16"]), _get_stat_std(arm["mean_drift_rec16"])
             )
-            m32 = format_val_pm_sd(arm["mean_drift_rec32"]["mean"], arm["mean_drift_rec32"]["std"])
+            f16 = format_val_pm_sd(
+                _get_stat_mean(arm["final_drift_rec16"]), _get_stat_std(arm["final_drift_rec16"])
+            )
+            m32 = format_val_pm_sd(
+                _get_stat_mean(arm["mean_drift_rec32"]), _get_stat_std(arm["mean_drift_rec32"])
+            )
             f32 = format_val_pm_sd(
-                arm["final_drift_rec32"]["mean"], arm["final_drift_rec32"]["std"]
+                _get_stat_mean(arm["final_drift_rec32"]), _get_stat_std(arm["final_drift_rec32"])
             )
             st16 = format_val_pm_sd(
-                arm["mean_static_rec16"]["mean"], arm["mean_static_rec16"]["std"]
+                _get_stat_mean(arm["mean_static_rec16"]), _get_stat_std(arm["mean_static_rec16"])
             )
-            cst = format_cost_pm_sd(arm["mean_cost"]["mean"], arm["mean_cost"]["std"])
-            reins = f"{arm['mean_reinsertions']['mean']:,.0f}"
+            c_obj = arm.get("mean_cost") or arm.get("total_cost", {})
+            cst = format_cost_pm_sd(_get_stat_mean(c_obj), _get_stat_std(c_obj))
+            r_obj = arm.get("mean_reinsertions") or arm.get("total_reinsertions", {})
+            reins = f"{_get_stat_mean(r_obj):,.0f}"
             row = (
                 f"| {display_name} | `{arm_name}` | {m16} | {f16} | {m32} | "
                 f"{f32} | {st16} | {cst} | {reins} |"
@@ -150,16 +172,16 @@ def generate_t3_self_excluded_vs_committed(
             se_a = se_arms[arm_name]
             comm_a = comm_arms[arm_name]
 
-            c_m16 = f"{comm_a['mean_drift_rec16']['mean']:.4f}"
-            s_m16 = f"{se_a['mean_drift_rec16']['mean']:.4f}"
-            c_f16 = f"{comm_a['final_drift_rec16']['mean']:.4f}"
-            s_f16 = f"{se_a['final_drift_rec16']['mean']:.4f}"
-            s_hit = f"{se_a['self_hit_rate_ef16']['mean']:.4f}"
+            c_m16 = f"{_get_stat_mean(comm_a['mean_drift_rec16']):.4f}"
+            s_m16 = f"{_get_stat_mean(se_a['mean_drift_rec16']):.4f}"
+            c_f16 = f"{_get_stat_mean(comm_a['final_drift_rec16']):.4f}"
+            s_f16 = f"{_get_stat_mean(se_a['final_drift_rec16']):.4f}"
+            s_hit = f"{_get_stat_mean(se_a['self_hit_rate_ef16']):.4f}"
 
-            c_m32 = f"{comm_a['mean_drift_rec32']['mean']:.4f}"
-            s_m32 = f"{se_a['mean_drift_rec32']['mean']:.4f}"
-            c_f32 = f"{comm_a['final_drift_rec32']['mean']:.4f}"
-            s_f32 = f"{se_a['final_drift_rec32']['mean']:.4f}"
+            c_m32 = f"{_get_stat_mean(comm_a['mean_drift_rec32']):.4f}"
+            s_m32 = f"{_get_stat_mean(se_a['mean_drift_rec32']):.4f}"
+            c_f32 = f"{_get_stat_mean(comm_a['final_drift_rec32']):.4f}"
+            s_f32 = f"{_get_stat_mean(se_a['final_drift_rec32']):.4f}"
 
             row = (
                 f"| {display_name} | `{arm_name}` | {c_m16} | {s_m16} | {c_f16} | {s_f16} "
@@ -254,9 +276,8 @@ def generate_all_tables(self_ex_json_path: Path, committed_json_path: Path) -> d
                 for s in raw_seed_records
             ]
             recomp_traj_16 = compute_paired_stats(diffs_m16)
-            assert abs(recomp_traj_16["mean"] - stored_traj["rec16"][p_key]["mean"]) < 1e-9, (
-                f"Stored trajectory mean diff for {p_key} rec16 does not match recomputed data: "
-                f"{stored_traj['rec16'][p_key]['mean']} != {recomp_traj_16['mean']}"
+            assert abs(stored_traj["rec16"][p_key]["mean"] - recomp_traj_16["mean"]) < 1e-9, (
+                "Stored traj rec16 diff does not match recomputed data"
             )
 
             # Final rec16
@@ -266,15 +287,9 @@ def generate_all_tables(self_ex_json_path: Path, committed_json_path: Path) -> d
                 for s in raw_seed_records
             ]
             recomp_final_16 = compute_paired_stats(diffs_f16)
-            assert abs(recomp_final_16["mean"] - stored_final["rec16"][p_key]["mean"]) < 1e-9, (
-                f"Stored final-step diff for {p_key} rec16 does not match recomputed data: "
-                f"{stored_final['rec16'][p_key]['mean']} != {recomp_final_16['mean']}"
+            assert abs(stored_final["rec16"][p_key]["mean"] - recomp_final_16["mean"]) < 1e-9, (
+                "Stored final rec16 diff does not match recomputed data"
             )
-
-    print(
-        "[VERIFIED] Generator recomputed paired differences match stored JSON stats "
-        "exactly across all conditions and metrics."
-    )
 
     t2_traj = generate_t2_paired_differences(data, "trajectory_mean")
     t2_final = generate_t2_paired_differences(data, "final_step")
@@ -289,8 +304,149 @@ def generate_all_tables(self_ex_json_path: Path, committed_json_path: Path) -> d
     }
 
 
-def update_markdown_file(file_path: Path, tables: dict[str, str], check_only: bool = False) -> bool:
-    """Update or check markdown file containing generated table blocks."""
+def generate_all_inlines(self_ex_json_path: Path, committed_json_path: Path) -> dict[str, str]:
+    """Pure function generating all named inline metric strings from JSON artifacts."""
+    with open(self_ex_json_path, encoding="utf-8") as f:
+        self_ex = json.load(f)
+    with open(committed_json_path, encoding="utf-8") as f:
+        comm = json.load(f)
+
+    inlines: dict[str, str] = {}
+
+    # 1. Costs
+    costs_dyn = []
+    costs_rebuild = []
+    for cond_name in ["f_0.25", "f_0.50", "f_0.50_jitter", "f_1.00", "f_1.00_jitter"]:
+        arms = comm["conditions"][cond_name]["arm_summary"]
+        for a in ["periodic_k5", "round_robin"]:
+            cost_obj = arms[a].get("total_cost") or arms[a].get("mean_cost", {})
+            costs_dyn.append(_get_stat_mean(cost_obj))
+        r_cost = arms["rebuild"].get("total_cost") or arms["rebuild"].get("mean_cost", {})
+        costs_rebuild.append(_get_stat_mean(r_cost))
+
+    inlines["interp_dyn_cost_min"] = f"{min(costs_dyn):,.0f}"
+    inlines["interp_dyn_cost_max"] = f"{max(costs_dyn):,.0f}"
+    inlines["interp_rebuild_cost_min"] = f"{min(costs_rebuild):,.0f}"
+    inlines["interp_rebuild_cost_max"] = f"{max(costs_rebuild):,.0f}"
+
+    # 2. RR vs periodic_k5 trajectory mean paired differences
+    # f=0.25
+    c_f025 = comm["conditions"]["f_0.25"]["trajectory_mean_paired_differences"][
+        "round_robin_vs_periodic_k5"
+    ]
+    s_f025 = self_ex["conditions"]["f_0.25"]["trajectory_mean_paired_differences"]
+    inlines["interp_f025_rr_k5_traj_diff_rec16_comm"] = f"{c_f025['mean_drift_rec16']['mean']:+.4f}"
+    ci = c_f025["mean_drift_rec16"]["t_interval_95"]
+    inlines["interp_f025_rr_k5_traj_ci16_comm"] = f"[{ci[0]:+.4f}, {ci[1]:+.4f}]"
+    inlines["interp_f025_rr_k5_traj_diff_rec32_comm"] = f"{c_f025['mean_drift_rec32']['mean']:+.4f}"
+
+    s_p16 = s_f025["rec16"]["round_robin_vs_periodic_k5"]
+    s_p32 = s_f025["rec32"]["round_robin_vs_periodic_k5"]
+    inlines["interp_f025_rr_k5_traj_diff_rec16_se"] = f"{s_p16['mean']:+.4f}"
+    inlines["interp_f025_rr_k5_traj_ci16_se"] = (
+        f"[{s_p16['t_interval_95'][0]:+.4f}, {s_p16['t_interval_95'][1]:+.4f}]"
+    )
+    inlines["interp_f025_rr_k5_traj_diff_rec32_se"] = f"{s_p32['mean']:+.4f}"
+
+    # f=0.50 (no jitter)
+    s_f050 = self_ex["conditions"]["f_0.50"]["trajectory_mean_paired_differences"]
+    inlines["interp_f050_rr_k5_traj_diff_rec16_se_pp"] = (
+        f"{s_f050['rec16']['round_robin_vs_periodic_k5']['mean'] * 100:.2f}"
+    )
+
+    # f=0.50_jitter
+    c_f050j = comm["conditions"]["f_0.50_jitter"]["trajectory_mean_paired_differences"][
+        "round_robin_vs_periodic_k5"
+    ]
+    s_f050j = self_ex["conditions"]["f_0.50_jitter"]["trajectory_mean_paired_differences"]
+    inlines["interp_f050j_rr_k5_traj_diff_rec16_comm"] = (
+        f"{c_f050j['mean_drift_rec16']['mean'] * 100:.2f}"
+    )
+    inlines["interp_f050j_rr_k5_traj_diff_rec32_comm"] = (
+        f"{c_f050j['mean_drift_rec32']['mean'] * 100:.2f}"
+    )
+    inlines["interp_f050j_rr_k5_traj_diff_rec16_se"] = (
+        f"{s_f050j['rec16']['round_robin_vs_periodic_k5']['mean'] * 100:.2f}"
+    )
+    inlines["interp_f050j_rr_k5_traj_diff_rec32_se"] = (
+        f"{s_f050j['rec32']['round_robin_vs_periodic_k5']['mean'] * 100:.2f}"
+    )
+    inlines["interp_f050j_rr_k5_traj_diff_rec16_se_pp"] = (
+        f"{s_f050j['rec16']['round_robin_vs_periodic_k5']['mean'] * 100:.2f}"
+    )
+    inlines["interp_f050j_rr_k5_traj_diff_rec32_se_pp"] = (
+        f"{s_f050j['rec32']['round_robin_vs_periodic_k5']['mean'] * 100:.2f}"
+    )
+
+    # f=0.50_jitter final step diff
+    c_f050j_fin = comm["conditions"]["f_0.50_jitter"][
+        "final_step_timing_dependent_paired_differences"
+    ]["round_robin_vs_periodic_k5"]
+    s_f050j_fin = self_ex["conditions"]["f_0.50_jitter"]["final_step_paired_differences"]
+    inlines["interp_f050j_rr_k5_final_diff_rec16_comm"] = (
+        f"{c_f050j_fin['final_drift_rec16']['mean']:+.4f}"
+    )
+    inlines["interp_f050j_rr_k5_final_diff_rec16_se"] = (
+        f"{s_f050j_fin['rec16']['round_robin_vs_periodic_k5']['mean']:+.4f}"
+    )
+
+    # f=1.00_jitter
+    c_f100j = comm["conditions"]["f_1.00_jitter"]["trajectory_mean_paired_differences"][
+        "round_robin_vs_periodic_k5"
+    ]
+    s_f100j = self_ex["conditions"]["f_1.00_jitter"]["trajectory_mean_paired_differences"]
+    inlines["interp_f100j_rr_k5_traj_diff_rec16_comm"] = (
+        f"{c_f100j['mean_drift_rec16']['mean'] * 100:.2f}"
+    )
+    inlines["interp_f100j_rr_k5_traj_diff_rec32_comm"] = (
+        f"{c_f100j['mean_drift_rec32']['mean'] * 100:.2f}"
+    )
+    inlines["interp_f100j_rr_k5_traj_diff_rec16_se"] = (
+        f"{s_f100j['rec16']['round_robin_vs_periodic_k5']['mean'] * 100:.2f}"
+    )
+    inlines["interp_f100j_rr_k5_traj_diff_rec32_se"] = (
+        f"{s_f100j['rec32']['round_robin_vs_periodic_k5']['mean'] * 100:.2f}"
+    )
+    inlines["interp_f100j_rr_k5_traj_diff_rec16_se_pp"] = (
+        f"{s_f100j['rec16']['round_robin_vs_periodic_k5']['mean'] * 100:.2f}"
+    )
+    inlines["interp_f100j_rr_k5_traj_diff_rec32_se_pp"] = (
+        f"{s_f100j['rec32']['round_robin_vs_periodic_k5']['mean'] * 100:.2f}"
+    )
+
+    # 3. no_repair final and trajectory-mean recalls (Claim 12)
+    for cond_name, prefix in [
+        ("f_0.25", "interp_f025_nr"),
+        ("f_0.50", "interp_f050_nr"),
+        ("f_0.50_jitter", "interp_f050j_nr"),
+        ("f_1.00", "interp_f100_nr"),
+        ("f_1.00_jitter", "interp_f100j_nr"),
+    ]:
+        nr = comm["conditions"][cond_name]["arm_summary"]["no_repair"]
+        inlines[f"{prefix}_traj_rec16"] = f"{_get_stat_mean(nr['mean_drift_rec16']):.4f}"
+        inlines[f"{prefix}_final_rec16"] = f"{_get_stat_mean(nr['final_drift_rec16']):.4f}"
+
+    # 4. Jitter diagnostics
+    jitter_data = self_ex["diagnostics"]["jitter_norm_ratios"]
+    means = [jitter_data[str(s)]["mean_ratio"] for s in [110, 111, 112, 113, 114]]
+    pooled_mean = sum(means) / len(means)
+    min_pooled = min(jitter_data[str(s)]["min_ratio"] for s in [110, 111, 112, 113, 114])
+    max_pooled = max(jitter_data[str(s)]["max_ratio"] for s in [110, 111, 112, 113, 114])
+    inlines["interp_jitter_pooled_ratio"] = f"{pooled_mean:.6f}"
+    inlines["interp_jitter_min_ratio"] = f"{min_pooled:.6f}"
+    inlines["interp_jitter_max_ratio"] = f"{max_pooled:.6f}"
+    inlines["interp_jitter_scaled_factor"] = f"{pooled_mean / 0.05:.6f}"
+
+    return inlines
+
+
+def update_markdown_file(
+    file_path: Path,
+    tables: dict[str, str],
+    inlines: dict[str, str] | None = None,
+    check_only: bool = False,
+) -> bool:
+    """Update or check markdown file containing generated table blocks and inline values."""
     if not file_path.exists():
         raise FileNotFoundError(f"Chapter file not found: {file_path}")
 
@@ -298,6 +454,7 @@ def update_markdown_file(file_path: Path, tables: dict[str, str], check_only: bo
     original_content = content
     has_diff = False
 
+    # 1. Check/update table blocks
     for name, table_md in tables.items():
         pattern = rf"(<!-- BEGIN GENERATED: {name} -->\r?\n)(.*?)(<!-- END GENERATED: {name} -->)"
         match = re.search(pattern, content, flags=re.DOTALL)
@@ -313,16 +470,43 @@ def update_markdown_file(file_path: Path, tables: dict[str, str], check_only: bo
         replacement = rf"\g<1>{table_md}\n\g<3>"
         content = re.sub(pattern, replacement, content, flags=re.DOTALL)
 
+    # 2. Check/update inline values
+    if inlines is not None:
+        inline_pattern = re.compile(r"<!-- GEN-INLINE:\s*(\w+)\s*-->(.*?)<!-- /GEN-INLINE -->")
+
+        if check_only:
+            for match in inline_pattern.finditer(content):
+                key = match.group(1)
+                curr_val = match.group(2)
+                if key not in inlines:
+                    print(f"[CHECK FAILED] Unknown inline key '{key}' in {file_path.name}")
+                    has_diff = True
+                elif curr_val != inlines[key]:
+                    print(
+                        f"[CHECK FAILED] Inline '{key}' in {file_path.name} is '{curr_val}', "
+                        f"expected '{inlines[key]}'"
+                    )
+                    has_diff = True
+        else:
+
+            def _inline_repl(m: re.Match[str]) -> str:
+                k = m.group(1)
+                if k in inlines:
+                    return f"<!-- GEN-INLINE: {k} -->{inlines[k]}<!-- /GEN-INLINE -->"
+                return m.group(0)
+
+            content = inline_pattern.sub(_inline_repl, content)
+
     if not check_only and content != original_content:
         file_path.write_text(content, encoding="utf-8")
-        print(f"[UPDATED] Written generated blocks to {file_path}")
+        print(f"[UPDATED] Written generated blocks and inlines to {file_path}")
 
     return not has_diff
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Emit markdown tables for interpolation benchmark."
+        description="Emit markdown tables and inlines for interpolation benchmark."
     )
     parser.add_argument(
         "--self-ex-json",
@@ -343,7 +527,9 @@ def main() -> None:
         help="Path to chapter 9 markdown file",
     )
     parser.add_argument(
-        "--write", action="store_true", help="Write tables between markers in chapter file"
+        "--write",
+        action="store_true",
+        help="Write tables and inlines between markers in chapter file",
     )
     parser.add_argument(
         "--check",
@@ -366,19 +552,25 @@ def main() -> None:
     )
 
     tables = generate_all_tables(self_ex_path, comm_path)
+    inlines = generate_all_inlines(self_ex_path, comm_path)
 
     if args.write:
-        update_markdown_file(chap_path, tables, check_only=False)
+        update_markdown_file(chap_path, tables, inlines=inlines, check_only=False)
     elif args.check:
-        clean = update_markdown_file(chap_path, tables, check_only=True)
+        clean = update_markdown_file(chap_path, tables, inlines=inlines, check_only=True)
         if not clean:
-            print("[CHECK FAILED] One or more generated table blocks differ.")
+            print("[CHECK FAILED] One or more generated table blocks or inline metrics differ.")
             sys.exit(1)
         else:
-            print("[CHECK PASSED] All generated table blocks match chapter file exactly.")
+            print(
+                "[CHECK PASSED] All generated table blocks and inline metrics match chapter file."
+            )
     else:
         for name, md in tables.items():
             print(f"\n<!-- BEGIN GENERATED: {name} -->\n{md}\n<!-- END GENERATED: {name} -->\n")
+        print("\n--- Inline Values ---")
+        for k, v in sorted(inlines.items()):
+            print(f"{k}: {v}")
 
 
 if __name__ == "__main__":
