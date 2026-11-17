@@ -480,6 +480,14 @@ def generate_all_inlines(
     inlines["interp_cost_ratio_rr_per_seed_min"] = f"{min(rr_per_seeds):.4f}"
     inlines["interp_cost_ratio_rr_per_seed_max"] = f"{max(rr_per_seeds):.4f}"
 
+    # Item 5: Per-seed ratio range of dynamic repair cost to one rebuild
+    # across both repair arms (k5 and rr) and all conditions
+    min_seed_repair_to_reb = min(all_k5_ratios + all_rr_ratios)
+    max_seed_repair_to_reb = max(all_k5_ratios + all_rr_ratios)
+    inlines["interp_repair_to_rebuild_cost_ratio_seed_range"] = (
+        f"{min_seed_repair_to_reb:.4f} to {max_seed_repair_to_reb:.4f}"
+    )
+
     # 2. RR vs periodic_k5 trajectory mean paired differences
     # f=0.25
     c_f025 = comm["conditions"]["f_0.25"]["trajectory_mean_paired_differences"][
@@ -609,9 +617,18 @@ def generate_all_inlines(
     inlines["interp_f100_jitter_dist_min"] = f"{min(f100_j_dists):.2f}"
     inlines["interp_f100_no_jitter_nonzero_dist_min"] = f"{min(f100_noj_dists):.2e}"
 
-    inlines["inline_jitter_min_dist_abs"] = inlines["interp_f100_jitter_dist_min"]
-    inlines["inline_jitter_min_dist_frac"] = inlines["interp_f100_jitter_ratio_min"]
-    inlines["inline_nojitter_min_dist_abs"] = inlines["interp_f100_no_jitter_nonzero_dist_min"]
+    # Descriptive token names for Item 4
+    inlines["interp_f100j_min_dist_abs"] = inlines["interp_f100_jitter_dist_min"]
+    inlines["interp_f100j_min_dist_frac"] = inlines["interp_f100_jitter_ratio_min"]
+    inlines["interp_f100_nojitter_min_dist_abs"] = inlines["interp_f100_no_jitter_nonzero_dist_min"]
+    inlines["interp_f100_nojitter_min_dist_frac"] = inlines[
+        "interp_f100_no_jitter_nonzero_ratio_min"
+    ]
+
+    # Backward compatibility aliases
+    inlines["inline_jitter_min_dist_abs"] = inlines["interp_f100j_min_dist_abs"]
+    inlines["inline_jitter_min_dist_frac"] = inlines["interp_f100j_min_dist_frac"]
+    inlines["inline_nojitter_min_dist_abs"] = inlines["interp_f100_nojitter_min_dist_abs"]
     inlines["inline_nojitter_min_dist_frac"] = inlines["interp_f100_no_jitter_nonzero_ratio_min"]
 
     # 5. External and synthetic baselines
@@ -646,29 +663,67 @@ def generate_all_inlines(
             f"+{c2000_16['decision_rule']['recall_margin'] * 100:.2f}"
         )
 
-        # Aliases for Item 6
-        inlines["inline_sift_n2000_rr_vs_periodic_mean"] = inlines["sift_iso_2k_rr_minus_per_pp"]
-        inlines["inline_sift_n2000_rr_vs_periodic_raw"] = f"{m_2k:.4f}"
-        inlines["inline_sift_n5000_3x_rr_vs_periodic_mean"] = inlines[
+        # Descriptive names specifying dataset, motion model, ef, and n
+        inlines["sift_real_iso_ef200_n2000_margin_pp"] = inlines["sift_iso_2k_rr_minus_per_pp"]
+        inlines["sift_real_iso_ef200_n2000_margin_raw"] = f"{m_2k:.4f}"
+        inlines["synth_sift_clustered_iso_ef16_n500_margin_pp"] = inlines[
             "sift_clustered_rr_minus_per_pp"
         ]
-        inlines["inline_sift_n5000_3x_rr_vs_periodic_raw"] = f"{m_clust:.4f}"
-        inlines["inline_interp_f050_rr_vs_periodic_diff"] = inlines["synth_ef200_n500_margin_pp"]
-        inlines["inline_interp_f025_rr_vs_periodic_diff"] = inlines["synth_ef200_n2000_margin_pp"]
-        inlines["inline_interp_f100_rr_vs_periodic_diff"] = inlines["synth_ef16_n2000_margin_pp"]
-        inlines["inline_interp_f050j_rr_vs_periodic_diff"] = inlines["synth_ef16_n500_margin_pp"]
-        inlines["inline_interp_f050_rr_vs_periodic_diff_pct"] = (
+        inlines["synth_sift_clustered_iso_ef16_n500_margin_raw"] = f"{m_clust:.4f}"
+        inlines["synth_gaussian_iso_ef200_n500_margin_pp"] = inlines["synth_ef200_n500_margin_pp"]
+        inlines["synth_gaussian_iso_ef200_n2000_margin_pp"] = inlines["synth_ef200_n2000_margin_pp"]
+        inlines["synth_gaussian_iso_ef16_n2000_margin_pp"] = inlines["synth_ef16_n2000_margin_pp"]
+        inlines["synth_gaussian_iso_ef16_n500_margin_pp"] = inlines["synth_ef16_n500_margin_pp"]
+        inlines["synth_gaussian_iso_ef200_n500_margin_pct"] = (
             f"{c500_200['decision_rule']['recall_margin'] * 100:.2f}%"
         )
-        inlines["inline_interp_f025_rr_vs_periodic_diff_pct"] = (
+        inlines["synth_gaussian_iso_ef200_n2000_margin_pct"] = (
             f"{c2000_200['decision_rule']['recall_margin'] * 100:.2f}%"
         )
-        inlines["inline_interp_f100_rr_vs_periodic_diff_pct"] = (
+        inlines["synth_gaussian_iso_ef16_n2000_margin_pct"] = (
             f"{c2000_16['decision_rule']['recall_margin'] * 100:.2f}%"
         )
-        inlines["inline_interp_f050j_rr_vs_periodic_diff_pct"] = (
+        inlines["synth_gaussian_iso_ef16_n500_margin_pct"] = (
             f"{c500_16['decision_rule']['recall_margin'] * 100:.2f}%"
         )
+
+        # Backward compatibility aliases
+        inlines["inline_sift_n2000_rr_vs_periodic_mean"] = inlines[
+            "sift_real_iso_ef200_n2000_margin_pp"
+        ]
+        inlines["inline_sift_n2000_rr_vs_periodic_raw"] = inlines[
+            "sift_real_iso_ef200_n2000_margin_raw"
+        ]
+        inlines["inline_sift_n5000_3x_rr_vs_periodic_mean"] = inlines[
+            "synth_sift_clustered_iso_ef16_n500_margin_pp"
+        ]
+        inlines["inline_sift_n5000_3x_rr_vs_periodic_raw"] = inlines[
+            "synth_sift_clustered_iso_ef16_n500_margin_raw"
+        ]
+        inlines["inline_interp_f050_rr_vs_periodic_diff"] = inlines[
+            "synth_gaussian_iso_ef200_n500_margin_pp"
+        ]
+        inlines["inline_interp_f025_rr_vs_periodic_diff"] = inlines[
+            "synth_gaussian_iso_ef200_n2000_margin_pp"
+        ]
+        inlines["inline_interp_f100_rr_vs_periodic_diff"] = inlines[
+            "synth_gaussian_iso_ef16_n2000_margin_pp"
+        ]
+        inlines["inline_interp_f050j_rr_vs_periodic_diff"] = inlines[
+            "synth_gaussian_iso_ef16_n500_margin_pp"
+        ]
+        inlines["inline_interp_f050_rr_vs_periodic_diff_pct"] = inlines[
+            "synth_gaussian_iso_ef200_n500_margin_pct"
+        ]
+        inlines["inline_interp_f025_rr_vs_periodic_diff_pct"] = inlines[
+            "synth_gaussian_iso_ef200_n2000_margin_pct"
+        ]
+        inlines["inline_interp_f100_rr_vs_periodic_diff_pct"] = inlines[
+            "synth_gaussian_iso_ef16_n2000_margin_pct"
+        ]
+        inlines["inline_interp_f050j_rr_vs_periodic_diff_pct"] = inlines[
+            "synth_gaussian_iso_ef16_n500_margin_pct"
+        ]
 
     if sift_5k_json_path.exists():
         with open(sift_5k_json_path, encoding="utf-8") as f:
@@ -676,12 +731,24 @@ def generate_all_inlines(
         m_5k = d_5k["runs"]["decision_rule"]["recall_margin"]
         inlines["sift_iso_5k_rr_minus_per_pp"] = f"{m_5k * 100:.2f}"
         inlines["sift_iso_range_min_pp"] = f"{m_5k * 100:.1f}"
-        inlines["inline_sift_n5000_rr_vs_periodic_mean"] = inlines["sift_iso_5k_rr_minus_per_pp"]
-        inlines["inline_sift_n5000_rr_vs_periodic_raw"] = f"{m_5k:.4f}"
+
+        # Descriptive names for SIFT 5k
+        inlines["sift_real_iso_ef200_n5000_margin_pp"] = inlines["sift_iso_5k_rr_minus_per_pp"]
+        inlines["sift_real_iso_ef200_n5000_margin_raw"] = f"{m_5k:.4f}"
+        inlines["inline_sift_n5000_rr_vs_periodic_mean"] = inlines[
+            "sift_real_iso_ef200_n5000_margin_pp"
+        ]
+        inlines["inline_sift_n5000_rr_vs_periodic_raw"] = inlines[
+            "sift_real_iso_ef200_n5000_margin_raw"
+        ]
+
         if "sift_iso_range_max_pp" in inlines:
-            inlines["inline_sift_isotropic_rr_vs_periodic_range"] = (
+            inlines["sift_real_iso_ef200_range_pct"] = (
                 f"{inlines['sift_iso_range_min_pp']}% to {inlines['sift_iso_range_max_pp']}%"
             )
+            inlines["inline_sift_isotropic_rr_vs_periodic_range"] = inlines[
+                "sift_real_iso_ef200_range_pct"
+            ]
 
     return inlines
 
