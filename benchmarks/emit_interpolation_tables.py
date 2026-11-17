@@ -338,6 +338,50 @@ def generate_t6_cost_and_ratios(comm_data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def generate_t7_cost_and_recall_comparison(
+    self_ex_data: dict[str, Any], committed_data: dict[str, Any]
+) -> str:
+    """Generate Table T7: trajectory-mean Rec@16 and cost ratio to rebuild per condition."""
+    h1 = (
+        "| Condition | Rebuild Rec@16 | Round-Robin Rec@16 | Round-Robin / Rebuild Cost "
+        "| Periodic_k5 Rec@16 | Periodic_k5 / Rebuild Cost |"
+    )
+    h2 = "|:---|:---:|:---:|:---:|:---:|:---:|"
+    lines = [h1, h2]
+
+    for cond_name, display_name in CONDITION_DISPLAY_NAMES.items():
+        arms_se = self_ex_data["conditions"][cond_name]["arm_summary"]
+        arms_comm = committed_data["conditions"][cond_name]["arm_summary"]
+
+        reb_rec = format_val_pm_sd(
+            _get_stat_mean(arms_se["rebuild"]["mean_drift_rec16"]),
+            _get_stat_std(arms_se["rebuild"]["mean_drift_rec16"]),
+        )
+        rr_rec = format_val_pm_sd(
+            _get_stat_mean(arms_se["round_robin"]["mean_drift_rec16"]),
+            _get_stat_std(arms_se["round_robin"]["mean_drift_rec16"]),
+        )
+        k5_rec = format_val_pm_sd(
+            _get_stat_mean(arms_se["periodic_k5"]["mean_drift_rec16"]),
+            _get_stat_std(arms_se["periodic_k5"]["mean_drift_rec16"]),
+        )
+
+        reb_costs = arms_comm["rebuild"]["total_cost"]["per_seed"]
+        rr_costs = arms_comm["round_robin"]["total_cost"]["per_seed"]
+        k5_costs = arms_comm["periodic_k5"]["total_cost"]["per_seed"]
+
+        rr_ratio = float(np.mean([rr / r for rr, r in zip(rr_costs, reb_costs, strict=False)]))
+        k5_ratio = float(np.mean([k / r for k, r in zip(k5_costs, reb_costs, strict=False)]))
+
+        row = (
+            f"| {display_name} | {reb_rec} | {rr_rec} | {rr_ratio:.4f} "
+            f"| {k5_rec} | {k5_ratio:.4f} |"
+        )
+        lines.append(row)
+
+    return "\n".join(lines)
+
+
 def generate_all_tables(self_ex_json_path: Path, committed_json_path: Path) -> dict[str, str]:
     """Pure function generating all markdown tables from JSON artifacts."""
     with open(self_ex_json_path, encoding="utf-8") as f:
@@ -392,6 +436,9 @@ def generate_all_tables(self_ex_json_path: Path, committed_json_path: Path) -> d
         "interpolation_colocation_and_jitter": generate_t4_colocation_and_jitter(data),
         "interpolation_step_dynamics_f050j": generate_t5_step_dynamics_f050j(committed_data),
         "interpolation_cost_and_ratios": generate_t6_cost_and_ratios(committed_data),
+        "interpolation_cost_and_recall_comparison": generate_t7_cost_and_recall_comparison(
+            data, committed_data
+        ),
     }
 
 
@@ -486,6 +533,20 @@ def generate_all_inlines(
     max_seed_repair_to_reb = max(all_k5_ratios + all_rr_ratios)
     inlines["interp_repair_to_rebuild_cost_ratio_seed_range"] = (
         f"{min_seed_repair_to_reb:.4f} to {max_seed_repair_to_reb:.4f}"
+    )
+
+    # Trajectory-mean Rec@16 ranges (self-excluded) for rebuild and round-robin across conditions
+    reb_recs_se = [
+        _get_stat_mean(self_ex["conditions"][c]["arm_summary"]["rebuild"]["mean_drift_rec16"])
+        for c in CONDITION_DISPLAY_NAMES
+    ]
+    rr_recs_se = [
+        _get_stat_mean(self_ex["conditions"][c]["arm_summary"]["round_robin"]["mean_drift_rec16"])
+        for c in CONDITION_DISPLAY_NAMES
+    ]
+    inlines["interp_rebuild_traj_rec16_range"] = f"{min(reb_recs_se):.4f} to {max(reb_recs_se):.4f}"
+    inlines["interp_round_robin_traj_rec16_range"] = (
+        f"{min(rr_recs_se):.4f} to {max(rr_recs_se):.4f}"
     )
 
     # 2. RR vs periodic_k5 trajectory mean paired differences
