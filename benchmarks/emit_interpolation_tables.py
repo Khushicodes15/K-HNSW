@@ -844,6 +844,82 @@ def generate_all_inlines(
         f"{min(gaps_comm):.2f} to {max(gaps_comm):.2f}"
     )
 
+    # f >= 0.50 specific deficit ranges and cost ratios
+    f_ge_050_conds = ["f_0.50", "f_0.50_jitter", "f_1.00", "f_1.00_jitter"]
+    reb_fin_se_ge050 = [
+        _get_stat_mean(self_ex["conditions"][c]["arm_summary"]["rebuild"]["final_drift_rec16"])
+        for c in f_ge_050_conds
+    ]
+    rr_fin_se_ge050 = [
+        _get_stat_mean(self_ex["conditions"][c]["arm_summary"]["round_robin"]["final_drift_rec16"])
+        for c in f_ge_050_conds
+    ]
+    gaps_se_ge050 = [
+        (reb - rr) * 100 for reb, rr in zip(reb_fin_se_ge050, rr_fin_se_ge050, strict=False)
+    ]
+
+    reb_fin_comm_ge050 = [
+        _get_stat_mean(comm["conditions"][c]["arm_summary"]["rebuild"]["final_drift_rec16"])
+        for c in f_ge_050_conds
+    ]
+    rr_fin_comm_ge050 = [
+        _get_stat_mean(comm["conditions"][c]["arm_summary"]["round_robin"]["final_drift_rec16"])
+        for c in f_ge_050_conds
+    ]
+    gaps_comm_ge050 = [
+        (reb - rr) * 100 for reb, rr in zip(reb_fin_comm_ge050, rr_fin_comm_ge050, strict=False)
+    ]
+
+    inlines["interp_f_ge_050_rr_reb_final_gap_se_range_pp"] = (
+        f"{min(gaps_se_ge050):.2f} to {max(gaps_se_ge050):.2f}"
+    )
+    inlines["interp_f_ge_050_rr_reb_final_gap_comm_range_pp"] = (
+        f"{min(gaps_comm_ge050):.2f} to {max(gaps_comm_ge050):.2f}"
+    )
+
+    rr_reb_means_ge050 = []
+    rr_reb_seeds_ge050 = []
+    for c in f_ge_050_conds:
+        rr_costs = comm["conditions"][c]["arm_summary"]["round_robin"]["total_cost"]["per_seed"]
+        reb_costs = comm["conditions"][c]["arm_summary"]["rebuild"]["total_cost"]["per_seed"]
+        ratios = [rr / reb for rr, reb in zip(rr_costs, reb_costs, strict=False)]
+        rr_reb_means_ge050.append(float(np.mean(ratios)))
+        rr_reb_seeds_ge050.extend(ratios)
+
+    inlines["interp_f_ge_050_cost_ratio_rr_reb_mean_min"] = f"{min(rr_reb_means_ge050):.4f}"
+    inlines["interp_f_ge_050_cost_ratio_rr_reb_mean_max"] = f"{max(rr_reb_means_ge050):.4f}"
+    inlines["interp_f_ge_050_cost_ratio_rr_reb_seed_min"] = f"{min(rr_reb_seeds_ge050):.4f}"
+    inlines["interp_f_ge_050_cost_ratio_rr_reb_seed_max"] = f"{max(rr_reb_seeds_ge050):.4f}"
+
+    # k5 cost reduction range at f <= 0.50
+    k5_f_le_050_conds = ["f_0.25", "f_0.50", "f_0.50_jitter"]
+    k5_le050_ratios = [
+        float(
+            np.mean(
+                [
+                    k / r
+                    for k, r in zip(
+                        comm["conditions"][c]["arm_summary"]["periodic_k5"]["total_cost"][
+                            "per_seed"
+                        ],
+                        comm["conditions"][c]["arm_summary"]["rebuild"]["total_cost"]["per_seed"],
+                        strict=False,
+                    )
+                ]
+            )
+        )
+        for c in k5_f_le_050_conds
+    ]
+    k5_le050_reds = [(1.0 - rat) * 100 for rat in k5_le050_ratios]
+    inlines["interp_f_le_050_k5_cost_reduction_pct_range"] = (
+        f"{min(k5_le050_reds):.2f}% to {max(k5_le050_reds):.2f}%"
+    )
+
+    inlines["interp_dynamic_total_reinsertions"] = "1,200"
+    inlines["interp_drifting_node_count"] = "600"
+    inlines["interp_total_node_count"] = "2,000"
+    inlines["interp_rr_stagger_fraction_pct"] = "20%"
+
     # Final step paired CIs vs rebuild for periodic_k5 and round_robin
     slug_map = {
         "f_0.25": "f025",

@@ -66,7 +66,7 @@ def run_colocation_diagnostics(
 
         # Final positions at t = t_final
         # Note: No dedicated function exists in benchmarks/run_interpolation_benchmark.py;
-        # pos_final is computed inline at benchmarks/run_interpolation_benchmark.py:299:
+        # pos_final is computed inline in benchmarks/run_interpolation_benchmark.py:
         # pos_final = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(np.float32)
         pos_final = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(np.float32)
 

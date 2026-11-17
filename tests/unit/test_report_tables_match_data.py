@@ -14,7 +14,6 @@ import json
 import re
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from benchmarks.emit_interpolation_tables import generate_all_inlines, generate_all_tables
@@ -266,22 +265,49 @@ def test_colocation_categories_matches_data() -> None:
 
 
 def test_pos_final_computation_parity() -> None:
-    """Verify parity of pos_final computation between benchmark and diagnose script.
+    """Verify exact pos_final computation expression appears in all benchmark scripts.
 
-    run_interpolation_benchmark.py:299 computes pos_final inline as:
-      pos_final = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(np.float32)
-    diagnose_interpolation_colocation.py:71 computes it identically.
+    Asserts that the exact expression (whitespace-normalised):
+      (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(np.float32)
+    appears in benchmarks/run_interpolation_benchmark.py,
+    benchmarks/run_interpolation_self_excluded.py, and
+    benchmarks/diagnose_interpolation_colocation.py.
     """
-    rng = np.random.default_rng(12345)
-    X0 = rng.standard_normal((50, 16)).astype(np.float32)
-    vels = rng.standard_normal((50, 16)).astype(np.float32)
-    t_final = 0.30
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    benchmarks_dir = repo_root / "benchmarks"
 
-    pos_final_benchmark = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(
-        np.float32
-    )
-    pos_final_diagnose = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(
-        np.float32
-    )
+    target_expr = "(X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(np.float32)"
+    target_norm = re.sub(r"\s+", "", target_expr)
 
-    assert np.array_equal(pos_final_benchmark, pos_final_diagnose)
+    files_to_check = [
+        benchmarks_dir / "run_interpolation_benchmark.py",
+        benchmarks_dir / "run_interpolation_self_excluded.py",
+        benchmarks_dir / "diagnose_interpolation_colocation.py",
+    ]
+
+    for file_path in files_to_check:
+        assert file_path.exists(), f"File {file_path.name} not found"
+        content = file_path.read_text(encoding="utf-8")
+        content_norm = re.sub(r"\s+", "", content)
+        assert target_norm in content_norm, (
+            f"Expected pos_final expression '{target_expr}' not found in {file_path.name}"
+        )
+
+
+def test_f_ge_050_tokens_scope() -> None:
+    """Verify f_ge_050 inline tokens are computed strictly from the 4 conditions f >= 0.50.
+
+    Ensures that f=0.25 is excluded from these ranges.
+    """
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    self_ex_json = repo_root / "docs" / "data" / "interpolation_self_excluded.json"
+    comm_json = repo_root / "docs" / "data" / "interpolation_benchmark.json"
+
+    inlines = generate_all_inlines(self_ex_json, comm_json)
+
+    assert inlines["interp_f_ge_050_rr_reb_final_gap_se_range_pp"] == "3.44 to 6.02"
+    assert inlines["interp_f_ge_050_rr_reb_final_gap_comm_range_pp"] == "3.06 to 5.70"
+    assert inlines["interp_f_ge_050_cost_ratio_rr_reb_mean_min"] == "0.8804"
+    assert inlines["interp_f_ge_050_cost_ratio_rr_reb_mean_max"] == "1.0572"
+    assert inlines["interp_f_ge_050_cost_ratio_rr_reb_seed_min"] == "0.8709"
+    assert inlines["interp_f_ge_050_cost_ratio_rr_reb_seed_max"] == "1.0663"
