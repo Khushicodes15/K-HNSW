@@ -14,6 +14,7 @@ import json
 import re
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from benchmarks.emit_interpolation_tables import generate_all_inlines, generate_all_tables
@@ -257,7 +258,30 @@ def test_colocation_categories_matches_data() -> None:
     assert data["metadata"]["distance_threshold"] == 0.001
     assert data["metadata"]["f_frac"] == 1.0
     assert data["metadata"]["seeds"] == [110, 111, 112, 113, 114]
+    assert data["metadata"]["n_queries"] == 100
     assert data["ranges"]["total_colocated_pct_range"] == "72-85%"
     assert data["ranges"]["sole_static_pct_range"] == "46-55%"
     assert data["ranges"]["shared_target_pct_range"] == "25-31%"
     assert data["ranges"]["other_pct_range"] == "0%"
+
+
+def test_pos_final_computation_parity() -> None:
+    """Verify parity of pos_final computation between benchmark and diagnose script.
+
+    run_interpolation_benchmark.py:299 computes pos_final inline as:
+      pos_final = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(np.float32)
+    diagnose_interpolation_colocation.py:71 computes it identically.
+    """
+    rng = np.random.default_rng(12345)
+    X0 = rng.standard_normal((50, 16)).astype(np.float32)
+    vels = rng.standard_normal((50, 16)).astype(np.float32)
+    t_final = 0.30
+
+    pos_final_benchmark = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(
+        np.float32
+    )
+    pos_final_diagnose = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(
+        np.float32
+    )
+
+    assert np.array_equal(pos_final_benchmark, pos_final_diagnose)

@@ -65,6 +65,9 @@ def run_colocation_diagnostics(
         eval_queries = drift_nodes[:eval_query_count]
 
         # Final positions at t = t_final
+        # Note: No dedicated function exists in benchmarks/run_interpolation_benchmark.py;
+        # pos_final is computed inline at benchmarks/run_interpolation_benchmark.py:299:
+        # pos_final = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(np.float32)
         pos_final = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(np.float32)
 
         # Count occurrences of each target node across all drifting nodes
@@ -121,6 +124,7 @@ def run_colocation_diagnostics(
             "t_final": t_final,
             "distance_threshold": threshold,
             "eval_query_count": eval_query_count,
+            "n_queries": eval_query_count,
         },
         "per_seed": per_seed,
         "ranges": {

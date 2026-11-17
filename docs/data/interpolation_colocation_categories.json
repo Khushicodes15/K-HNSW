@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "git_head": "ac698a4a723e54ebce177c057786b19aec9428bb",
+    "git_head": "1c3fd27aa83e530b062bfb28c8f4d03ca942984c",
     "seeds": [
       110,
       111,
@@ -12,7 +12,8 @@
     "drift_frac": 0.3,
     "t_final": 0.3,
     "distance_threshold": 0.001,
-    "eval_query_count": 100
+    "eval_query_count": 100,
+    "n_queries": 100
   },
   "per_seed": {
     "110": {

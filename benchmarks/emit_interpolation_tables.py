@@ -35,6 +35,8 @@ if str(_repo_root / "src") not in sys.path:
 
 from benchmarks.run_interpolation_benchmark import compute_paired_stats  # noqa: E402
 
+T_STUDENT_95_N5 = 2.7764451051977987
+
 CONDITION_DISPLAY_NAMES = {
     "f_0.25": "f=0.25 (no jitter)",
     "f_0.50": "f=0.50 (no jitter)",
@@ -443,6 +445,126 @@ def generate_t8_cost_and_recall_comparison_self_excluded(
     return "\n".join(lines)
 
 
+def generate_t9_final_step_paired_differences_committed(
+    committed_data: dict[str, Any],
+) -> str:
+    """Generate Table 9.4J: final-step paired differences for committed metric."""
+    h1 = "| Condition | Comparison | Final Rec@16 Diff | 95% CI | Pos |"
+    h2 = "|:---|:---|:---:|:---:|:---:|"
+    lines = [h1, h2]
+
+    pair_keys = [
+        ("round_robin_minus_rebuild", "round_robin - rebuild", "round_robin", "rebuild"),
+        ("periodic_k5_minus_rebuild", "periodic_k5 - rebuild", "periodic_k5", "rebuild"),
+        (
+            "round_robin_minus_periodic_k5",
+            "round_robin - periodic_k5",
+            "round_robin",
+            "periodic_k5",
+        ),
+    ]
+
+    for cond_name, display_name in CONDITION_DISPLAY_NAMES.items():
+        arms = committed_data["conditions"][cond_name]["arm_summary"]
+        for _, comp_label, arm1, arm2 in pair_keys:
+            vals1 = arms[arm1]["final_drift_rec16"]["per_seed"]
+            vals2 = arms[arm2]["final_drift_rec16"]["per_seed"]
+            diffs = [v1 - v2 for v1, v2 in zip(vals1, vals2, strict=False)]
+            mean_d = float(np.mean(diffs))
+            std_d = float(np.std(diffs, ddof=1))
+            ci_half = T_STUDENT_95_N5 * std_d / np.sqrt(5)
+            ci_low = mean_d - ci_half
+            ci_high = mean_d + ci_half
+            pos_count = sum(1 for d in diffs if d > 0)
+
+            diff_str = f"{mean_d:+.4f}"
+            ci_str = f"[{ci_low:+.4f}, {ci_high:+.4f}]"
+            pos_str = f"{pos_count}/5"
+
+            row = f"| {display_name} | {comp_label} | {diff_str} | {ci_str} | {pos_str} |"
+            lines.append(row)
+
+    return "\n".join(lines)
+
+
+def generate_t10_final_step_paired_differences_self_excluded(
+    self_ex_data: dict[str, Any],
+) -> str:
+    """Generate Table 9.4K: final-step paired differences for self-excluded metric."""
+    h1 = "| Condition | Comparison | Final Rec@16 Diff | 95% CI | Pos |"
+    h2 = "|:---|:---|:---:|:---:|:---:|"
+    lines = [h1, h2]
+
+    pair_keys = [
+        ("round_robin_minus_rebuild", "round_robin - rebuild", "round_robin", "rebuild"),
+        ("periodic_k5_minus_rebuild", "periodic_k5 - rebuild", "periodic_k5", "rebuild"),
+        (
+            "round_robin_minus_periodic_k5",
+            "round_robin - periodic_k5",
+            "round_robin",
+            "periodic_k5",
+        ),
+    ]
+
+    for cond_name, display_name in CONDITION_DISPLAY_NAMES.items():
+        arms = self_ex_data["conditions"][cond_name]["arm_summary"]
+        for _, comp_label, arm1, arm2 in pair_keys:
+            vals1 = arms[arm1]["final_drift_rec16"]["per_seed"]
+            vals2 = arms[arm2]["final_drift_rec16"]["per_seed"]
+            diffs = [v1 - v2 for v1, v2 in zip(vals1, vals2, strict=False)]
+            mean_d = float(np.mean(diffs))
+            std_d = float(np.std(diffs, ddof=1))
+            ci_half = T_STUDENT_95_N5 * std_d / np.sqrt(5)
+            ci_low = mean_d - ci_half
+            ci_high = mean_d + ci_half
+            pos_count = sum(1 for d in diffs if d > 0)
+
+            diff_str = f"{mean_d:+.4f}"
+            ci_str = f"[{ci_low:+.4f}, {ci_high:+.4f}]"
+            pos_str = f"{pos_count}/5"
+
+            row = f"| {display_name} | {comp_label} | {diff_str} | {ci_str} | {pos_str} |"
+            lines.append(row)
+
+    return "\n".join(lines)
+
+
+def generate_t11_per_reinsertion_cost(committed_data: dict[str, Any]) -> str:
+    """Generate Table 9.4L: per-reinsertion cost and ratio to rebuild node cost."""
+    h1 = (
+        "| Condition | Rebuild Cost | Rebuild Cost / Node | Periodic_k5 Cost "
+        "| Periodic_k5 Cost / Reins | Periodic_k5 Ratio | Round-Robin Cost "
+        "| Round-Robin Cost / Reins | Round-Robin Ratio |"
+    )
+    h2 = "|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
+    lines = [h1, h2]
+
+    for cond_name, display_name in CONDITION_DISPLAY_NAMES.items():
+        cond_data = committed_data["conditions"][cond_name]["arm_summary"]
+
+        reb_cost = float(cond_data["rebuild"]["total_cost"]["mean"])
+        reb_cost_per_node = reb_cost / 2000.0
+
+        k5_cost = float(cond_data["periodic_k5"]["total_cost"]["mean"])
+        k5_reins = float(cond_data["periodic_k5"]["total_reinsertions"]["mean"])
+        k5_cost_per_reins = k5_cost / k5_reins if k5_reins > 0 else 0.0
+        k5_ratio = k5_cost_per_reins / reb_cost_per_node
+
+        rr_cost = float(cond_data["round_robin"]["total_cost"]["mean"])
+        rr_reins = float(cond_data["round_robin"]["total_reinsertions"]["mean"])
+        rr_cost_per_reins = rr_cost / rr_reins if rr_reins > 0 else 0.0
+        rr_ratio = rr_cost_per_reins / reb_cost_per_node
+
+        row = (
+            f"| {display_name} | {reb_cost:,.1f} | {reb_cost_per_node:.2f} | {k5_cost:,.1f} "
+            f"| {k5_cost_per_reins:.2f} | {k5_ratio:.4f} | {rr_cost:,.1f} "
+            f"| {rr_cost_per_reins:.2f} | {rr_ratio:.4f} |"
+        )
+        lines.append(row)
+
+    return "\n".join(lines)
+
+
 def generate_all_tables(self_ex_json_path: Path, committed_json_path: Path) -> dict[str, str]:
     """Pure function generating all markdown tables from JSON artifacts."""
     with open(self_ex_json_path, encoding="utf-8") as f:
@@ -503,6 +625,13 @@ def generate_all_tables(self_ex_json_path: Path, committed_json_path: Path) -> d
         "interpolation_cost_and_recall_comparison_self_excluded": (
             generate_t8_cost_and_recall_comparison_self_excluded(data, committed_data)
         ),
+        "interpolation_final_step_paired_differences_committed": (
+            generate_t9_final_step_paired_differences_committed(committed_data)
+        ),
+        "interpolation_final_step_paired_differences_self_excluded": (
+            generate_t10_final_step_paired_differences_self_excluded(data)
+        ),
+        "interpolation_per_reinsertion_cost": (generate_t11_per_reinsertion_cost(committed_data)),
     }
 
 
@@ -701,6 +830,7 @@ def generate_all_inlines(
         )
     )
     inlines["interp_f025_rr_reb_cost_ratio"] = f"{rr_f025_reb_cost_ratio:.4f}"
+    inlines["interp_f025_rr_cost_reduction_pct"] = f"{(1.0 - rr_f025_reb_cost_ratio) * 100:.2f}%"
     inlines["interp_f025_rr_reb_gap_se_pp"] = f"{(reb_f025_se - rr_f025_se) * 100:.2f}"
     inlines["interp_f025_rr_reb_gap_comm_pp"] = f"{(reb_f025_comm - rr_f025_comm) * 100:.2f}"
 
@@ -714,11 +844,96 @@ def generate_all_inlines(
         f"{min(gaps_comm):.2f} to {max(gaps_comm):.2f}"
     )
 
+    # Final step paired CIs vs rebuild for periodic_k5 and round_robin
+    slug_map = {
+        "f_0.25": "f025",
+        "f_0.50": "f050",
+        "f_0.50_jitter": "f050j",
+        "f_1.00": "f100",
+        "f_1.00_jitter": "f100j",
+    }
+    for cond_key, cond_slug in slug_map.items():
+        c_arms = comm["conditions"][cond_key]["arm_summary"]
+        s_arms = self_ex["conditions"][cond_key]["arm_summary"]
+
+        k5_c = c_arms["periodic_k5"]["final_drift_rec16"]["per_seed"]
+        rr_c = c_arms["round_robin"]["final_drift_rec16"]["per_seed"]
+        reb_c = c_arms["rebuild"]["final_drift_rec16"]["per_seed"]
+
+        k5_s = s_arms["periodic_k5"]["final_drift_rec16"]["per_seed"]
+        rr_s = s_arms["round_robin"]["final_drift_rec16"]["per_seed"]
+        reb_s = s_arms["rebuild"]["final_drift_rec16"]["per_seed"]
+
+        def _fmt_paired_ci(v1: list[float], v2: list[float]) -> str:
+            d = [a - b for a, b in zip(v1, v2, strict=False)]
+            m = float(np.mean(d))
+            s = float(np.std(d, ddof=1))
+            h = T_STUDENT_95_N5 * s / np.sqrt(len(d))
+            return f"[{m - h:+.4f}, {m + h:+.4f}]"
+
+        inlines[f"interp_{cond_slug}_k5_reb_final_ci_comm"] = _fmt_paired_ci(k5_c, reb_c)
+        inlines[f"interp_{cond_slug}_k5_reb_final_ci_se"] = _fmt_paired_ci(k5_s, reb_s)
+        inlines[f"interp_{cond_slug}_rr_reb_final_ci_comm"] = _fmt_paired_ci(rr_c, reb_c)
+        inlines[f"interp_{cond_slug}_rr_reb_final_ci_se"] = _fmt_paired_ci(rr_s, reb_s)
+
+    # Specific cost ratios
+    k5_f025_c = comm["conditions"]["f_0.25"]["arm_summary"]["periodic_k5"]["total_cost"]["mean"]
+    reb_f025_c = comm["conditions"]["f_0.25"]["arm_summary"]["rebuild"]["total_cost"]["mean"]
+    inlines["interp_f025_k5_reb_cost_ratio"] = f"{k5_f025_c / reb_f025_c:.4f}"
+
+    k5_f100j_c = comm["conditions"]["f_1.00_jitter"]["arm_summary"]["periodic_k5"]["total_cost"][
+        "mean"
+    ]
+    reb_f100j_c = comm["conditions"]["f_1.00_jitter"]["arm_summary"]["rebuild"]["total_cost"][
+        "mean"
+    ]
+    inlines["interp_f100j_k5_reb_cost_ratio"] = f"{k5_f100j_c / reb_f100j_c:.4f}"
+
+    # Per-reinsertion cost and rebuild cost per node
+    k5_reins_costs: list[float] = []
+    rr_reins_costs: list[float] = []
+    reb_node_costs: list[float] = []
+    all_reins_to_reb_ratios: list[float] = []
+
+    for cond_key in CONDITION_DISPLAY_NAMES:
+        c_arms = comm["conditions"][cond_key]["arm_summary"]
+        reb_m = float(c_arms["rebuild"]["total_cost"]["mean"])
+        reb_node = reb_m / 2000.0
+        reb_node_costs.append(reb_node)
+
+        k5_m = float(c_arms["periodic_k5"]["total_cost"]["mean"])
+        k5_r = float(c_arms["periodic_k5"]["total_reinsertions"]["mean"])
+        k5_per = k5_m / k5_r
+        k5_reins_costs.append(k5_per)
+        all_reins_to_reb_ratios.append(k5_per / reb_node)
+
+        rr_m = float(c_arms["round_robin"]["total_cost"]["mean"])
+        rr_r = float(c_arms["round_robin"]["total_reinsertions"]["mean"])
+        rr_per = rr_m / rr_r
+        rr_reins_costs.append(rr_per)
+        all_reins_to_reb_ratios.append(rr_per / reb_node)
+
+    inlines["interp_k5_cost_per_reins_min"] = f"{min(k5_reins_costs):.2f}"
+    inlines["interp_k5_cost_per_reins_max"] = f"{max(k5_reins_costs):.2f}"
+    inlines["interp_rr_cost_per_reins_min"] = f"{min(rr_reins_costs):.2f}"
+    inlines["interp_rr_cost_per_reins_max"] = f"{max(rr_reins_costs):.2f}"
+    inlines["interp_reb_cost_per_node_min"] = f"{min(reb_node_costs):.2f}"
+    inlines["interp_reb_cost_per_node_max"] = f"{max(reb_node_costs):.2f}"
+    inlines["interp_cost_per_reins_to_reb_node_ratio_range"] = (
+        f"{min(all_reins_to_reb_ratios):.4f} to {max(all_reins_to_reb_ratios):.4f}"
+    )
+
     coloc_cat_path = repo_dir / "data" / "interpolation_colocation_categories.json"
     if not coloc_cat_path.exists():
         raise FileNotFoundError(f"Missing required colocation categories file: {coloc_cat_path}")
     with open(coloc_cat_path, encoding="utf-8") as f:
         d_cat = json.load(f)
+
+    if "metadata" not in d_cat or "n_queries" not in d_cat["metadata"]:
+        raise KeyError(f"'metadata.n_queries' missing in {coloc_cat_path}")
+    n_queries = d_cat["metadata"]["n_queries"]
+    if n_queries <= 0:
+        raise ValueError(f"Invalid n_queries ({n_queries}) in {coloc_cat_path}")
 
     if "per_seed" not in d_cat or not d_cat["per_seed"]:
         raise KeyError(f"'per_seed' key missing or empty in {coloc_cat_path}")
@@ -743,17 +958,26 @@ def generate_all_inlines(
     min_sh, max_sh = min(shareds), max(shareds)
     min_oth, max_oth = min(others), max(others)
 
+    pct_tot_min = round(100.0 * min_tot / n_queries)
+    pct_tot_max = round(100.0 * max_tot / n_queries)
+    pct_sole_min = round(100.0 * min_sole / n_queries)
+    pct_sole_max = round(100.0 * max_sole / n_queries)
+    pct_sh_min = round(100.0 * min_sh / n_queries)
+    pct_sh_max = round(100.0 * max_sh / n_queries)
+    pct_oth_min = round(100.0 * min_oth / n_queries)
+    pct_oth_max = round(100.0 * max_oth / n_queries)
+
     inlines["interp_coloc_total_pct_range"] = (
-        f"{min_tot}%" if min_tot == max_tot else f"{min_tot}-{max_tot}%"
+        f"{pct_tot_min}%" if pct_tot_min == pct_tot_max else f"{pct_tot_min}-{pct_tot_max}%"
     )
     inlines["interp_coloc_sole_static_pct_range"] = (
-        f"{min_sole}%" if min_sole == max_sole else f"{min_sole}-{max_sole}%"
+        f"{pct_sole_min}%" if pct_sole_min == pct_sole_max else f"{pct_sole_min}-{pct_sole_max}%"
     )
     inlines["interp_coloc_shared_target_pct_range"] = (
-        f"{min_sh}%" if min_sh == max_sh else f"{min_sh}-{max_sh}%"
+        f"{pct_sh_min}%" if pct_sh_min == pct_sh_max else f"{pct_sh_min}-{pct_sh_max}%"
     )
     inlines["interp_coloc_other_pct_range"] = (
-        f"{min_oth}%" if min_oth == max_oth else f"{min_oth}-{max_oth}%"
+        f"{pct_oth_min}%" if pct_oth_min == pct_oth_max else f"{pct_oth_min}-{pct_oth_max}%"
     )
 
     # 2. RR vs periodic_k5 trajectory mean paired differences
