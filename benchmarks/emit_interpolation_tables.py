@@ -341,28 +341,37 @@ def generate_t6_cost_and_ratios(comm_data: dict[str, Any]) -> str:
 def generate_t7_cost_and_recall_comparison_committed(
     committed_data: dict[str, Any],
 ) -> str:
-    """Generate Table T7: trajectory-mean Rec@16 (committed) and cost ratio to rebuild."""
+    """Generate Table T7: trajectory-mean & final-step Rec@16 (committed)."""
     h1 = (
-        "| Condition | Rebuild Rec@16 | Round-Robin Rec@16 | Round-Robin / Rebuild Cost "
-        "| Periodic_k5 Rec@16 | Periodic_k5 / Rebuild Cost |"
+        "| Condition | Rebuild Rec@16 (Final) | Round-Robin Traj Rec@16 | Round-Robin Final Rec@16 "
+        "| Round-Robin / Rebuild Cost | Periodic_k5 Traj Rec@16 | Periodic_k5 Final Rec@16 "
+        "| Periodic_k5 / Rebuild Cost |"
     )
-    h2 = "|:---|:---:|:---:|:---:|:---:|:---:|"
+    h2 = "|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
     lines = [h1, h2]
 
     for cond_name, display_name in CONDITION_DISPLAY_NAMES.items():
         arms_comm = committed_data["conditions"][cond_name]["arm_summary"]
 
         reb_rec = format_val_pm_sd(
-            _get_stat_mean(arms_comm["rebuild"]["mean_drift_rec16"]),
-            _get_stat_std(arms_comm["rebuild"]["mean_drift_rec16"]),
+            _get_stat_mean(arms_comm["rebuild"]["final_drift_rec16"]),
+            _get_stat_std(arms_comm["rebuild"]["final_drift_rec16"]),
         )
-        rr_rec = format_val_pm_sd(
+        rr_traj = format_val_pm_sd(
             _get_stat_mean(arms_comm["round_robin"]["mean_drift_rec16"]),
             _get_stat_std(arms_comm["round_robin"]["mean_drift_rec16"]),
         )
-        k5_rec = format_val_pm_sd(
+        rr_final = format_val_pm_sd(
+            _get_stat_mean(arms_comm["round_robin"]["final_drift_rec16"]),
+            _get_stat_std(arms_comm["round_robin"]["final_drift_rec16"]),
+        )
+        k5_traj = format_val_pm_sd(
             _get_stat_mean(arms_comm["periodic_k5"]["mean_drift_rec16"]),
             _get_stat_std(arms_comm["periodic_k5"]["mean_drift_rec16"]),
+        )
+        k5_final = format_val_pm_sd(
+            _get_stat_mean(arms_comm["periodic_k5"]["final_drift_rec16"]),
+            _get_stat_std(arms_comm["periodic_k5"]["final_drift_rec16"]),
         )
 
         reb_costs = arms_comm["rebuild"]["total_cost"]["per_seed"]
@@ -373,8 +382,8 @@ def generate_t7_cost_and_recall_comparison_committed(
         k5_ratio = float(np.mean([k / r for k, r in zip(k5_costs, reb_costs, strict=False)]))
 
         row = (
-            f"| {display_name} | {reb_rec} | {rr_rec} | {rr_ratio:.4f} "
-            f"| {k5_rec} | {k5_ratio:.4f} |"
+            f"| {display_name} | {reb_rec} | {rr_traj} | {rr_final} | {rr_ratio:.4f} "
+            f"| {k5_traj} | {k5_final} | {k5_ratio:.4f} |"
         )
         lines.append(row)
 
@@ -384,12 +393,13 @@ def generate_t7_cost_and_recall_comparison_committed(
 def generate_t8_cost_and_recall_comparison_self_excluded(
     self_ex_data: dict[str, Any], committed_data: dict[str, Any]
 ) -> str:
-    """Generate Table T8: trajectory-mean Rec@16 (self-excluded) and cost ratio to rebuild."""
+    """Generate Table T8: trajectory-mean & final-step Rec@16 (self-excluded)."""
     h1 = (
-        "| Condition | Rebuild Rec@16 | Round-Robin Rec@16 | Round-Robin / Rebuild Cost "
-        "| Periodic_k5 Rec@16 | Periodic_k5 / Rebuild Cost |"
+        "| Condition | Rebuild Rec@16 (Final) | Round-Robin Traj Rec@16 | Round-Robin Final Rec@16 "
+        "| Round-Robin / Rebuild Cost | Periodic_k5 Traj Rec@16 | Periodic_k5 Final Rec@16 "
+        "| Periodic_k5 / Rebuild Cost |"
     )
-    h2 = "|:---|:---:|:---:|:---:|:---:|:---:|"
+    h2 = "|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
     lines = [h1, h2]
 
     for cond_name, display_name in CONDITION_DISPLAY_NAMES.items():
@@ -397,16 +407,24 @@ def generate_t8_cost_and_recall_comparison_self_excluded(
         arms_comm = committed_data["conditions"][cond_name]["arm_summary"]
 
         reb_rec = format_val_pm_sd(
-            _get_stat_mean(arms_se["rebuild"]["mean_drift_rec16"]),
-            _get_stat_std(arms_se["rebuild"]["mean_drift_rec16"]),
+            _get_stat_mean(arms_se["rebuild"]["final_drift_rec16"]),
+            _get_stat_std(arms_se["rebuild"]["final_drift_rec16"]),
         )
-        rr_rec = format_val_pm_sd(
+        rr_traj = format_val_pm_sd(
             _get_stat_mean(arms_se["round_robin"]["mean_drift_rec16"]),
             _get_stat_std(arms_se["round_robin"]["mean_drift_rec16"]),
         )
-        k5_rec = format_val_pm_sd(
+        rr_final = format_val_pm_sd(
+            _get_stat_mean(arms_se["round_robin"]["final_drift_rec16"]),
+            _get_stat_std(arms_se["round_robin"]["final_drift_rec16"]),
+        )
+        k5_traj = format_val_pm_sd(
             _get_stat_mean(arms_se["periodic_k5"]["mean_drift_rec16"]),
             _get_stat_std(arms_se["periodic_k5"]["mean_drift_rec16"]),
+        )
+        k5_final = format_val_pm_sd(
+            _get_stat_mean(arms_se["periodic_k5"]["final_drift_rec16"]),
+            _get_stat_std(arms_se["periodic_k5"]["final_drift_rec16"]),
         )
 
         reb_costs = arms_comm["rebuild"]["total_cost"]["per_seed"]
@@ -417,8 +435,8 @@ def generate_t8_cost_and_recall_comparison_self_excluded(
         k5_ratio = float(np.mean([k / r for k, r in zip(k5_costs, reb_costs, strict=False)]))
 
         row = (
-            f"| {display_name} | {reb_rec} | {rr_rec} | {rr_ratio:.4f} "
-            f"| {k5_rec} | {k5_ratio:.4f} |"
+            f"| {display_name} | {reb_rec} | {rr_traj} | {rr_final} | {rr_ratio:.4f} "
+            f"| {k5_traj} | {k5_final} | {k5_ratio:.4f} |"
         )
         lines.append(row)
 
@@ -616,19 +634,127 @@ def generate_all_inlines(
         "interp_round_robin_traj_rec16_se_range"
     ]
 
+    # Final-step Rec@16 ranges for rebuild and round-robin across conditions
+    reb_fin_recs_se = [
+        _get_stat_mean(self_ex["conditions"][c]["arm_summary"]["rebuild"]["final_drift_rec16"])
+        for c in CONDITION_DISPLAY_NAMES
+    ]
+    rr_fin_recs_se = [
+        _get_stat_mean(self_ex["conditions"][c]["arm_summary"]["round_robin"]["final_drift_rec16"])
+        for c in CONDITION_DISPLAY_NAMES
+    ]
+    reb_fin_recs_comm = [
+        _get_stat_mean(comm["conditions"][c]["arm_summary"]["rebuild"]["final_drift_rec16"])
+        for c in CONDITION_DISPLAY_NAMES
+    ]
+    rr_fin_recs_comm = [
+        _get_stat_mean(comm["conditions"][c]["arm_summary"]["round_robin"]["final_drift_rec16"])
+        for c in CONDITION_DISPLAY_NAMES
+    ]
+
+    inlines["interp_rebuild_final_rec16_se_range"] = (
+        f"{min(reb_fin_recs_se):.4f} to {max(reb_fin_recs_se):.4f}"
+    )
+    inlines["interp_round_robin_final_rec16_se_range"] = (
+        f"{min(rr_fin_recs_se):.4f} to {max(rr_fin_recs_se):.4f}"
+    )
+    inlines["interp_rebuild_final_rec16_comm_range"] = (
+        f"{min(reb_fin_recs_comm):.4f} to {max(reb_fin_recs_comm):.4f}"
+    )
+    inlines["interp_round_robin_final_rec16_comm_range"] = (
+        f"{min(rr_fin_recs_comm):.4f} to {max(rr_fin_recs_comm):.4f}"
+    )
+
+    # f=0.25 (no jitter) specific final Rec@16 and cost ratio values
+    reb_f025_se = _get_stat_mean(
+        self_ex["conditions"]["f_0.25"]["arm_summary"]["rebuild"]["final_drift_rec16"]
+    )
+    rr_f025_se = _get_stat_mean(
+        self_ex["conditions"]["f_0.25"]["arm_summary"]["round_robin"]["final_drift_rec16"]
+    )
+    reb_f025_comm = _get_stat_mean(
+        comm["conditions"]["f_0.25"]["arm_summary"]["rebuild"]["final_drift_rec16"]
+    )
+    rr_f025_comm = _get_stat_mean(
+        comm["conditions"]["f_0.25"]["arm_summary"]["round_robin"]["final_drift_rec16"]
+    )
+
+    inlines["interp_f025_reb_final_rec16_se"] = f"{reb_f025_se:.4f}"
+    inlines["interp_f025_rr_final_rec16_se"] = f"{rr_f025_se:.4f}"
+    inlines["interp_f025_reb_final_rec16_comm"] = f"{reb_f025_comm:.4f}"
+    inlines["interp_f025_rr_final_rec16_comm"] = f"{rr_f025_comm:.4f}"
+
+    rr_f025_reb_cost_ratio = float(
+        np.mean(
+            [
+                rr / r
+                for rr, r in zip(
+                    comm["conditions"]["f_0.25"]["arm_summary"]["round_robin"]["total_cost"][
+                        "per_seed"
+                    ],
+                    comm["conditions"]["f_0.25"]["arm_summary"]["rebuild"]["total_cost"][
+                        "per_seed"
+                    ],
+                    strict=False,
+                )
+            ]
+        )
+    )
+    inlines["interp_f025_rr_reb_cost_ratio"] = f"{rr_f025_reb_cost_ratio:.4f}"
+    inlines["interp_f025_rr_reb_gap_se_pp"] = f"{(reb_f025_se - rr_f025_se) * 100:.2f}"
+    inlines["interp_f025_rr_reb_gap_comm_pp"] = f"{(reb_f025_comm - rr_f025_comm) * 100:.2f}"
+
+    # Quality gap ranges (rebuild minus round_robin final Rec@16) across all conditions
+    gaps_se = [(reb - rr) * 100 for reb, rr in zip(reb_fin_recs_se, rr_fin_recs_se, strict=False)]
+    gaps_comm = [
+        (reb - rr) * 100 for reb, rr in zip(reb_fin_recs_comm, rr_fin_recs_comm, strict=False)
+    ]
+    inlines["interp_rr_reb_final_gap_se_range_pp"] = f"{min(gaps_se):.2f} to {max(gaps_se):.2f}"
+    inlines["interp_rr_reb_final_gap_comm_range_pp"] = (
+        f"{min(gaps_comm):.2f} to {max(gaps_comm):.2f}"
+    )
+
     coloc_cat_path = repo_dir / "data" / "interpolation_colocation_categories.json"
-    if coloc_cat_path.exists():
-        with open(coloc_cat_path, encoding="utf-8") as f:
-            d_cat = json.load(f)
-        ranges = d_cat.get("ranges", {})
-        inlines["interp_coloc_total_pct_range"] = ranges.get("total_colocated_pct_range", "72-85%")
-        inlines["interp_coloc_sole_static_pct_range"] = ranges.get(
-            "sole_static_pct_range", "46-55%"
-        )
-        inlines["interp_coloc_shared_target_pct_range"] = ranges.get(
-            "shared_target_pct_range", "25-31%"
-        )
-        inlines["interp_coloc_other_pct_range"] = ranges.get("other_pct_range", "0%")
+    if not coloc_cat_path.exists():
+        raise FileNotFoundError(f"Missing required colocation categories file: {coloc_cat_path}")
+    with open(coloc_cat_path, encoding="utf-8") as f:
+        d_cat = json.load(f)
+
+    if "per_seed" not in d_cat or not d_cat["per_seed"]:
+        raise KeyError(f"'per_seed' key missing or empty in {coloc_cat_path}")
+
+    required_keys = ["total_colocated", "sole_static_target", "shared_target", "other"]
+    totals: list[int] = []
+    soles: list[int] = []
+    shareds: list[int] = []
+    others: list[int] = []
+
+    for s_id, s_data in d_cat["per_seed"].items():
+        for req_k in required_keys:
+            if req_k not in s_data:
+                raise KeyError(f"Key '{req_k}' missing in per_seed[{s_id}] of {coloc_cat_path}")
+        totals.append(s_data["total_colocated"])
+        soles.append(s_data["sole_static_target"])
+        shareds.append(s_data["shared_target"])
+        others.append(s_data["other"])
+
+    min_tot, max_tot = min(totals), max(totals)
+    min_sole, max_sole = min(soles), max(soles)
+    min_sh, max_sh = min(shareds), max(shareds)
+    min_oth, max_oth = min(others), max(others)
+
+    inlines["interp_coloc_total_pct_range"] = (
+        f"{min_tot}%" if min_tot == max_tot else f"{min_tot}-{max_tot}%"
+    )
+    inlines["interp_coloc_sole_static_pct_range"] = (
+        f"{min_sole}%" if min_sole == max_sole else f"{min_sole}-{max_sole}%"
+    )
+    inlines["interp_coloc_shared_target_pct_range"] = (
+        f"{min_sh}%" if min_sh == max_sh else f"{min_sh}-{max_sh}%"
+    )
+    inlines["interp_coloc_other_pct_range"] = (
+        f"{min_oth}%" if min_oth == max_oth else f"{min_oth}-{max_oth}%"
+    )
 
     # 2. RR vs periodic_k5 trajectory mean paired differences
     # f=0.25
