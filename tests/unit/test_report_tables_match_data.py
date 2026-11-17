@@ -267,12 +267,16 @@ def test_colocation_categories_matches_data() -> None:
 def test_pos_final_computation_parity() -> None:
     """Verify exact pos_final computation expression appears in all benchmark scripts.
 
-    Asserts that the exact expression (whitespace-normalised):
+    Strips comments before checking to ensure matching against executable code,
+    asserting that the exact expression (whitespace-normalised):
       (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(np.float32)
     appears in benchmarks/run_interpolation_benchmark.py,
     benchmarks/run_interpolation_self_excluded.py, and
     benchmarks/diagnose_interpolation_colocation.py.
     """
+    import io
+    import tokenize
+
     repo_root = Path(__file__).resolve().parent.parent.parent
     benchmarks_dir = repo_root / "benchmarks"
 
@@ -287,10 +291,18 @@ def test_pos_final_computation_parity() -> None:
 
     for file_path in files_to_check:
         assert file_path.exists(), f"File {file_path.name} not found"
-        content = file_path.read_text(encoding="utf-8")
-        content_norm = re.sub(r"\s+", "", content)
-        assert target_norm in content_norm, (
-            f"Expected pos_final expression '{target_expr}' not found in {file_path.name}"
+        raw_text = file_path.read_text(encoding="utf-8")
+
+        tokens = tokenize.generate_tokens(io.StringIO(raw_text).readline)
+        non_comment_tokens = [
+            tok_str for tok_type, tok_str, _, _, _ in tokens if tok_type != tokenize.COMMENT
+        ]
+        code_without_comments = "".join(non_comment_tokens)
+        code_norm = re.sub(r"\s+", "", code_without_comments)
+
+        assert target_norm in code_norm, (
+            f"Expected pos_final expression '{target_expr}' "
+            f"not found in executable code of {file_path.name}"
         )
 
 
@@ -311,3 +323,21 @@ def test_f_ge_050_tokens_scope() -> None:
     assert inlines["interp_f_ge_050_cost_ratio_rr_reb_mean_max"] == "1.0572"
     assert inlines["interp_f_ge_050_cost_ratio_rr_reb_seed_min"] == "0.8709"
     assert inlines["interp_f_ge_050_cost_ratio_rr_reb_seed_max"] == "1.0663"
+    assert inlines["interp_f_le_050_k5_cost_ratio_min"] == "0.8901"
+    assert inlines["interp_f_le_050_k5_cost_ratio_max"] == "0.8999"
+
+
+def test_f_le_050_k5_tokens_scope() -> None:
+    """Verify f_le_050 k5 tokens are computed strictly from the 3 conditions f <= 0.50.
+
+    Ensures that f=1.00 conditions are excluded and that per-seed ratio rounding matches tables.
+    """
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    self_ex_json = repo_root / "docs" / "data" / "interpolation_self_excluded.json"
+    comm_json = repo_root / "docs" / "data" / "interpolation_benchmark.json"
+
+    inlines = generate_all_inlines(self_ex_json, comm_json)
+
+    assert inlines["interp_f_le_050_k5_cost_ratio_min"] == "0.8901"
+    assert inlines["interp_f_le_050_k5_cost_ratio_max"] == "0.8999"
+    assert inlines["interp_f_le_050_k5_cost_reduction_pct_range"] == "10.01% to 10.99%"

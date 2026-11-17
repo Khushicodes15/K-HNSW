@@ -911,6 +911,8 @@ def generate_all_inlines(
         for c in k5_f_le_050_conds
     ]
     k5_le050_reds = [(1.0 - rat) * 100 for rat in k5_le050_ratios]
+    inlines["interp_f_le_050_k5_cost_ratio_min"] = f"{min(k5_le050_ratios):.4f}"
+    inlines["interp_f_le_050_k5_cost_ratio_max"] = f"{max(k5_le050_ratios):.4f}"
     inlines["interp_f_le_050_k5_cost_reduction_pct_range"] = (
         f"{min(k5_le050_reds):.2f}% to {max(k5_le050_reds):.2f}%"
     )
@@ -953,9 +955,7 @@ def generate_all_inlines(
         inlines[f"interp_{cond_slug}_rr_reb_final_ci_se"] = _fmt_paired_ci(rr_s, reb_s)
 
     # Specific cost ratios
-    k5_f025_c = comm["conditions"]["f_0.25"]["arm_summary"]["periodic_k5"]["total_cost"]["mean"]
-    reb_f025_c = comm["conditions"]["f_0.25"]["arm_summary"]["rebuild"]["total_cost"]["mean"]
-    inlines["interp_f025_k5_reb_cost_ratio"] = f"{k5_f025_c / reb_f025_c:.4f}"
+    inlines["interp_f025_k5_reb_cost_ratio"] = f"{k5_le050_ratios[0]:.4f}"
 
     k5_f100j_c = comm["conditions"]["f_1.00_jitter"]["arm_summary"]["periodic_k5"]["total_cost"][
         "mean"

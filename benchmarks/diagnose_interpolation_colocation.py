@@ -66,8 +66,8 @@ def run_colocation_diagnostics(
 
         # Final positions at t = t_final
         # Note: No dedicated function exists in benchmarks/run_interpolation_benchmark.py;
-        # pos_final is computed inline in benchmarks/run_interpolation_benchmark.py:
-        # pos_final = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(np.float32)
+        # final coordinates are computed inline by linear displacement (initial positions plus
+        # velocity times t_final) cast to 32-bit floating point:
         pos_final = (X0.astype(np.float64) + vels.astype(np.float64) * t_final).astype(np.float32)
 
         # Count occurrences of each target node across all drifting nodes
