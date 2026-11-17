@@ -10,6 +10,7 @@ Enforces:
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -127,8 +128,6 @@ def verify_required_phrases(chapter_path: Path) -> None:
 
 def verify_table_9_1a_matches(chapter_path: Path, ext_json_path: Path) -> None:
     """Assert every cell of Table 9.1A matches external_benchmarks.json['real_sift_evaluation']."""
-    import json
-
     content = chapter_path.read_text(encoding="utf-8")
     table_match = re.search(
         r"### Table 9\.1A:.*?\n\n(.*?)(?=\n####|\n---|\Z)", content, flags=re.DOTALL
@@ -243,3 +242,22 @@ def test_table_9_1a_matches_data() -> None:
         pytest.skip("external_benchmarks.json not found")
 
     verify_table_9_1a_matches(chapter_path, ext_json)
+
+
+def test_colocation_categories_matches_data() -> None:
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    coloc_json = repo_root / "docs" / "data" / "interpolation_colocation_categories.json"
+
+    if not coloc_json.exists():
+        pytest.skip("interpolation_colocation_categories.json not found")
+
+    with open(coloc_json, encoding="utf-8") as f:
+        data = json.load(f)
+
+    assert data["metadata"]["distance_threshold"] == 0.001
+    assert data["metadata"]["f_frac"] == 1.0
+    assert data["metadata"]["seeds"] == [110, 111, 112, 113, 114]
+    assert data["ranges"]["total_colocated_pct_range"] == "72-85%"
+    assert data["ranges"]["sole_static_pct_range"] == "46-55%"
+    assert data["ranges"]["shared_target_pct_range"] == "25-31%"
+    assert data["ranges"]["other_pct_range"] == "0%"
