@@ -6,6 +6,8 @@ Pure generator functions that produce markdown tables and inline metrics for Cha
 - T2_final: paired differences (final-step, Rec@16 and Rec@32)
 - T3: self-excluded vs committed side-by-side with self-hit rates
 - T4: co-location counts and jitter-norm ratios
+- T5_step: step dynamics for f_0.50_jitter (steps 8, 9, 10)
+- T6_cost: cost and ratios to rebuild per condition and arm
 - Inlines: dictionary of named scalar/interval metrics for Chapter 9 prose and bullets
 
 Supports:
@@ -249,6 +251,93 @@ def generate_t4_colocation_and_jitter(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def generate_t5_step_dynamics_f050j(comm_data: dict[str, Any]) -> str:
+    """Generate Table T5: step dynamics at steps 8, 9, 10 for condition f_0.50_jitter."""
+    h1 = (
+        "| Step | t | periodic_k5 Reinserted | periodic_k5 Rec@16 | round_robin Reinserted "
+        "| round_robin Rec@16 | Paired Diff (RR - k5) | Pos Seeds |"
+    )
+    h2 = "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
+    lines = [h1, h2]
+
+    for step, t_val in [(8, "0.24"), (9, "0.27"), (10, "0.30")]:
+        rr_vals = []
+        k5_vals = []
+        diffs = []
+        rr_reins = 0
+        k5_reins = 0
+        for s_rec in comm_data["seed_records"]:
+            arms = s_rec["conditions"]["f_0.50_jitter"]["arms"]
+            rr_step = next(st for st in arms["round_robin"]["step_records"] if st["step"] == step)
+            k5_step = next(st for st in arms["periodic_k5"]["step_records"] if st["step"] == step)
+            rr_vals.append(rr_step["drift_rec16"])
+            k5_vals.append(k5_step["drift_rec16"])
+            diffs.append(rr_step["drift_rec16"] - k5_step["drift_rec16"])
+            rr_reins = rr_step["reinserted_count"]
+            k5_reins = k5_step["reinserted_count"]
+
+        k5_str = f"{np.mean(k5_vals):.4f} +/- {np.std(k5_vals, ddof=1):.4f}"
+        rr_str = f"{np.mean(rr_vals):.4f} +/- {np.std(rr_vals, ddof=1):.4f}"
+        d_mean = np.mean(diffs)
+        d_std = np.std(diffs, ddof=1)
+        diff_str = f"{d_mean:+.4f} +/- {d_std:.4f}"
+        pos_cnt = sum(1 for d in diffs if d > 0)
+        row = (
+            f"| Step {step} | t={t_val} | {k5_reins} | {k5_str} | {rr_reins} | "
+            f"{rr_str} | {diff_str} | {pos_cnt}/5 |"
+        )
+        lines.append(row)
+
+    return "\n".join(lines)
+
+
+def generate_t6_cost_and_ratios(comm_data: dict[str, Any]) -> str:
+    """Generate Table T6: cost and ratio of repair arms to rebuild across conditions."""
+    h1 = (
+        "| Condition | Policy Arm | Mean Cost (Dists) | Seed 110 Ratio | Seed 111 Ratio "
+        "| Seed 112 Ratio | Seed 113 Ratio | Seed 114 Ratio | Mean Ratio |"
+    )
+    h2 = "|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
+    lines = [h1, h2]
+
+    for cond_name, disp in CONDITION_DISPLAY_NAMES.items():
+        cond_arms = comm_data["conditions"][cond_name]["arm_summary"]
+        reb_costs = cond_arms["rebuild"]["total_cost"]["per_seed"]
+        reb_mean = cond_arms["rebuild"]["total_cost"]["mean"]
+        reb_std = cond_arms["rebuild"]["total_cost"]["std"]
+
+        # Row 1: rebuild
+        reb_cost_str = f"{reb_mean:,.0f} +/- {reb_std:,.0f}"
+        lines.append(
+            f"| {disp} | `rebuild` | {reb_cost_str} | 1.0000 | 1.0000 | 1.0000 | "
+            f"1.0000 | 1.0000 | 1.0000 |"
+        )
+
+        # Row 2: periodic_k5
+        k5_costs = cond_arms["periodic_k5"]["total_cost"]["per_seed"]
+        k5_mean = cond_arms["periodic_k5"]["total_cost"]["mean"]
+        k5_std = cond_arms["periodic_k5"]["total_cost"]["std"]
+        k5_cost_str = f"{k5_mean:,.0f} +/- {k5_std:,.0f}"
+        k5_ratios = [k / r for k, r in zip(k5_costs, reb_costs, strict=False)]
+        r_cols_k5 = " | ".join(f"{r:.4f}" for r in k5_ratios)
+        lines.append(
+            f"| {disp} | `periodic_k5` | {k5_cost_str} | {r_cols_k5} | {np.mean(k5_ratios):.4f} |"
+        )
+
+        # Row 3: round_robin
+        rr_costs = cond_arms["round_robin"]["total_cost"]["per_seed"]
+        rr_mean = cond_arms["round_robin"]["total_cost"]["mean"]
+        rr_std = cond_arms["round_robin"]["total_cost"]["std"]
+        rr_cost_str = f"{rr_mean:,.0f} +/- {rr_std:,.0f}"
+        rr_ratios = [rr / r for rr, r in zip(rr_costs, reb_costs, strict=False)]
+        r_cols_rr = " | ".join(f"{r:.4f}" for r in rr_ratios)
+        lines.append(
+            f"| {disp} | `round_robin` | {rr_cost_str} | {r_cols_rr} | {np.mean(rr_ratios):.4f} |"
+        )
+
+    return "\n".join(lines)
+
+
 def generate_all_tables(self_ex_json_path: Path, committed_json_path: Path) -> dict[str, str]:
     """Pure function generating all markdown tables from JSON artifacts."""
     with open(self_ex_json_path, encoding="utf-8") as f:
@@ -301,33 +390,95 @@ def generate_all_tables(self_ex_json_path: Path, committed_json_path: Path) -> d
             data, committed_data
         ),
         "interpolation_colocation_and_jitter": generate_t4_colocation_and_jitter(data),
+        "interpolation_step_dynamics_f050j": generate_t5_step_dynamics_f050j(committed_data),
+        "interpolation_cost_and_ratios": generate_t6_cost_and_ratios(committed_data),
     }
 
 
-def generate_all_inlines(self_ex_json_path: Path, committed_json_path: Path) -> dict[str, str]:
+def generate_all_inlines(
+    self_ex_json_path: Path,
+    committed_json_path: Path,
+    ext_json_path: Path | None = None,
+    sift_5k_json_path: Path | None = None,
+) -> dict[str, str]:
     """Pure function generating all named inline metric strings from JSON artifacts."""
     with open(self_ex_json_path, encoding="utf-8") as f:
         self_ex = json.load(f)
     with open(committed_json_path, encoding="utf-8") as f:
         comm = json.load(f)
 
+    repo_dir = committed_json_path.parent.parent
+    if ext_json_path is None:
+        ext_json_path = repo_dir / "data" / "external_benchmarks.json"
+    if sift_5k_json_path is None:
+        sift_5k_json_path = repo_dir / "data" / "sift_n5000_ef200.json"
+
     inlines: dict[str, str] = {}
 
-    # 1. Costs
+    # 1. Costs and Ratios
     costs_dyn = []
     costs_rebuild = []
+    all_k5_ratios = []
+    all_rr_ratios = []
+    cond_mean_ratios = []
+    per_reb_means, rr_reb_means, rr_per_means = [], [], []
+    per_reb_seeds, rr_reb_seeds, rr_per_seeds = [], [], []
+
     for cond_name in ["f_0.25", "f_0.50", "f_0.50_jitter", "f_1.00", "f_1.00_jitter"]:
         arms = comm["conditions"][cond_name]["arm_summary"]
+        k5_costs = arms["periodic_k5"]["total_cost"]["per_seed"]
+        rr_costs = arms["round_robin"]["total_cost"]["per_seed"]
+        reb_costs = arms["rebuild"]["total_cost"]["per_seed"]
+
+        pr = [k / r for k, r in zip(k5_costs, reb_costs, strict=False)]
+        rrr = [rr / r for rr, r in zip(rr_costs, reb_costs, strict=False)]
+        rp = [rr / k for rr, k in zip(rr_costs, k5_costs, strict=False)]
+
+        per_reb_means.append(float(np.mean(pr)))
+        rr_reb_means.append(float(np.mean(rrr)))
+        rr_per_means.append(float(np.mean(rp)))
+
+        per_reb_seeds.extend(pr)
+        rr_reb_seeds.extend(rrr)
+        rr_per_seeds.extend(rp)
+
         for a in ["periodic_k5", "round_robin"]:
             cost_obj = arms[a].get("total_cost") or arms[a].get("mean_cost", {})
             costs_dyn.append(_get_stat_mean(cost_obj))
         r_cost = arms["rebuild"].get("total_cost") or arms["rebuild"].get("mean_cost", {})
         costs_rebuild.append(_get_stat_mean(r_cost))
 
+        k5_r = [k / r for k, r in zip(k5_costs, reb_costs, strict=False)]
+        rr_r = [rr / r for rr, r in zip(rr_costs, reb_costs, strict=False)]
+        all_k5_ratios.extend(k5_r)
+        all_rr_ratios.extend(rr_r)
+        cond_mean_ratios.append(float(np.mean(k5_r)))
+        cond_mean_ratios.append(float(np.mean(rr_r)))
+
     inlines["interp_dyn_cost_min"] = f"{min(costs_dyn):,.0f}"
     inlines["interp_dyn_cost_max"] = f"{max(costs_dyn):,.0f}"
     inlines["interp_rebuild_cost_min"] = f"{min(costs_rebuild):,.0f}"
     inlines["interp_rebuild_cost_max"] = f"{max(costs_rebuild):,.0f}"
+
+    inlines["interp_cost_ratio_min"] = f"{min(cond_mean_ratios):.4f}"
+    inlines["interp_cost_ratio_max"] = f"{max(cond_mean_ratios):.4f}"
+    inlines["interp_cost_ratio_seed_min"] = f"{min(all_k5_ratios + all_rr_ratios):.4f}"
+    inlines["interp_cost_ratio_seed_max"] = f"{max(all_k5_ratios + all_rr_ratios):.4f}"
+
+    inlines["interp_cost_ratio_per_reb_mean_min"] = f"{min(per_reb_means):.4f}"
+    inlines["interp_cost_ratio_per_reb_mean_max"] = f"{max(per_reb_means):.4f}"
+    inlines["interp_cost_ratio_per_reb_seed_min"] = f"{min(per_reb_seeds):.4f}"
+    inlines["interp_cost_ratio_per_reb_seed_max"] = f"{max(per_reb_seeds):.4f}"
+
+    inlines["interp_cost_ratio_rr_reb_mean_min"] = f"{min(rr_reb_means):.4f}"
+    inlines["interp_cost_ratio_rr_reb_mean_max"] = f"{max(rr_reb_means):.4f}"
+    inlines["interp_cost_ratio_rr_reb_seed_min"] = f"{min(rr_reb_seeds):.4f}"
+    inlines["interp_cost_ratio_rr_reb_seed_max"] = f"{max(rr_reb_seeds):.4f}"
+
+    inlines["interp_cost_ratio_rr_per_mean_min"] = f"{min(rr_per_means):.4f}"
+    inlines["interp_cost_ratio_rr_per_mean_max"] = f"{max(rr_per_means):.4f}"
+    inlines["interp_cost_ratio_rr_per_seed_min"] = f"{min(rr_per_seeds):.4f}"
+    inlines["interp_cost_ratio_rr_per_seed_max"] = f"{max(rr_per_seeds):.4f}"
 
     # 2. RR vs periodic_k5 trajectory mean paired differences
     # f=0.25
@@ -426,7 +577,7 @@ def generate_all_inlines(self_ex_json_path: Path, committed_json_path: Path) -> 
         inlines[f"{prefix}_traj_rec16"] = f"{_get_stat_mean(nr['mean_drift_rec16']):.4f}"
         inlines[f"{prefix}_final_rec16"] = f"{_get_stat_mean(nr['final_drift_rec16']):.4f}"
 
-    # 4. Jitter diagnostics
+    # 4. Jitter diagnostics and bounds
     jitter_data = self_ex["diagnostics"]["jitter_norm_ratios"]
     means = [jitter_data[str(s)]["mean_ratio"] for s in [110, 111, 112, 113, 114]]
     pooled_mean = sum(means) / len(means)
@@ -436,6 +587,101 @@ def generate_all_inlines(self_ex_json_path: Path, committed_json_path: Path) -> 
     inlines["interp_jitter_min_ratio"] = f"{min_pooled:.6f}"
     inlines["interp_jitter_max_ratio"] = f"{max_pooled:.6f}"
     inlines["interp_jitter_scaled_factor"] = f"{pooled_mean / 0.05:.6f}"
+
+    coloc_data = self_ex["diagnostics"]["colocation_counts"]
+    f100_noj_ratios = [
+        coloc_data["f_1.00"][str(s)]["ratio_to_mean_1nn"] for s in [110, 111, 112, 113, 114]
+    ]
+    f100_j_ratios = [
+        coloc_data["f_1.00_jitter"][str(s)]["ratio_to_mean_1nn"] for s in [110, 111, 112, 113, 114]
+    ]
+    f100_noj_dists = [
+        coloc_data["f_1.00"][str(s)]["smallest_nonzero_dist"] for s in [110, 111, 112, 113, 114]
+    ]
+    f100_j_dists = [
+        coloc_data["f_1.00_jitter"][str(s)]["smallest_nonzero_dist"]
+        for s in [110, 111, 112, 113, 114]
+    ]
+    inlines["interp_f100_no_jitter_nonzero_ratio_min"] = f"{min(f100_noj_ratios):.2e}"
+    inlines["interp_f100_no_jitter_nonzero_ratio_max"] = f"{max(f100_noj_ratios):.2e}"
+    inlines["interp_f100_jitter_ratio_min"] = f"{min(f100_j_ratios):.3f}"
+    inlines["interp_f100_jitter_ratio_max"] = f"{max(f100_j_ratios):.3f}"
+    inlines["interp_f100_jitter_dist_min"] = f"{min(f100_j_dists):.2f}"
+    inlines["interp_f100_no_jitter_nonzero_dist_min"] = f"{min(f100_noj_dists):.2e}"
+
+    inlines["inline_jitter_min_dist_abs"] = inlines["interp_f100_jitter_dist_min"]
+    inlines["inline_jitter_min_dist_frac"] = inlines["interp_f100_jitter_ratio_min"]
+    inlines["inline_nojitter_min_dist_abs"] = inlines["interp_f100_no_jitter_nonzero_dist_min"]
+    inlines["inline_nojitter_min_dist_frac"] = inlines["interp_f100_no_jitter_nonzero_ratio_min"]
+
+    # 5. External and synthetic baselines
+    if ext_json_path.exists():
+        with open(ext_json_path, encoding="utf-8") as f:
+            d_ext = json.load(f)
+
+        m_2k = d_ext["real_sift_evaluation"]["decision_rule"]["recall_margin"]
+        inlines["sift_iso_2k_rr_minus_per_pp"] = f"{m_2k * 100:.2f}"
+        inlines["sift_iso_range_max_pp"] = f"{m_2k * 100:.1f}"
+
+        m_clust = d_ext["sift_like_synthetic_fallback"]["decision_rule"]["recall_margin"]
+        inlines["sift_clustered_rr_minus_per_pp"] = f"{m_clust * 100:.2f}"
+
+        conds_200 = d_ext["synthetic_drift_ef200"]["conditions"]
+        c500_200 = next(c for c in conds_200 if c["n"] == 500)
+        c2000_200 = next(c for c in conds_200 if c["n"] == 2000)
+        inlines["synth_ef200_n500_margin_pp"] = (
+            f"+{c500_200['decision_rule']['recall_margin'] * 100:.2f}"
+        )
+        inlines["synth_ef200_n2000_margin_pp"] = (
+            f"+{c2000_200['decision_rule']['recall_margin'] * 100:.2f}"
+        )
+
+        conds_16 = d_ext["synthetic_drift_ef16"]["conditions"]
+        c500_16 = next(c for c in conds_16 if c["n"] == 500)
+        c2000_16 = next(c for c in conds_16 if c["n"] == 2000)
+        inlines["synth_ef16_n500_margin_pp"] = (
+            f"+{c500_16['decision_rule']['recall_margin'] * 100:.2f}"
+        )
+        inlines["synth_ef16_n2000_margin_pp"] = (
+            f"+{c2000_16['decision_rule']['recall_margin'] * 100:.2f}"
+        )
+
+        # Aliases for Item 6
+        inlines["inline_sift_n2000_rr_vs_periodic_mean"] = inlines["sift_iso_2k_rr_minus_per_pp"]
+        inlines["inline_sift_n2000_rr_vs_periodic_raw"] = f"{m_2k:.4f}"
+        inlines["inline_sift_n5000_3x_rr_vs_periodic_mean"] = inlines[
+            "sift_clustered_rr_minus_per_pp"
+        ]
+        inlines["inline_sift_n5000_3x_rr_vs_periodic_raw"] = f"{m_clust:.4f}"
+        inlines["inline_interp_f050_rr_vs_periodic_diff"] = inlines["synth_ef200_n500_margin_pp"]
+        inlines["inline_interp_f025_rr_vs_periodic_diff"] = inlines["synth_ef200_n2000_margin_pp"]
+        inlines["inline_interp_f100_rr_vs_periodic_diff"] = inlines["synth_ef16_n2000_margin_pp"]
+        inlines["inline_interp_f050j_rr_vs_periodic_diff"] = inlines["synth_ef16_n500_margin_pp"]
+        inlines["inline_interp_f050_rr_vs_periodic_diff_pct"] = (
+            f"{c500_200['decision_rule']['recall_margin'] * 100:.2f}%"
+        )
+        inlines["inline_interp_f025_rr_vs_periodic_diff_pct"] = (
+            f"{c2000_200['decision_rule']['recall_margin'] * 100:.2f}%"
+        )
+        inlines["inline_interp_f100_rr_vs_periodic_diff_pct"] = (
+            f"{c2000_16['decision_rule']['recall_margin'] * 100:.2f}%"
+        )
+        inlines["inline_interp_f050j_rr_vs_periodic_diff_pct"] = (
+            f"{c500_16['decision_rule']['recall_margin'] * 100:.2f}%"
+        )
+
+    if sift_5k_json_path.exists():
+        with open(sift_5k_json_path, encoding="utf-8") as f:
+            d_5k = json.load(f)
+        m_5k = d_5k["runs"]["decision_rule"]["recall_margin"]
+        inlines["sift_iso_5k_rr_minus_per_pp"] = f"{m_5k * 100:.2f}"
+        inlines["sift_iso_range_min_pp"] = f"{m_5k * 100:.1f}"
+        inlines["inline_sift_n5000_rr_vs_periodic_mean"] = inlines["sift_iso_5k_rr_minus_per_pp"]
+        inlines["inline_sift_n5000_rr_vs_periodic_raw"] = f"{m_5k:.4f}"
+        if "sift_iso_range_max_pp" in inlines:
+            inlines["inline_sift_isotropic_rr_vs_periodic_range"] = (
+                f"{inlines['sift_iso_range_min_pp']}% to {inlines['sift_iso_range_max_pp']}%"
+            )
 
     return inlines
 
@@ -521,6 +767,18 @@ def main() -> None:
         help="Path to committed interpolation_benchmark.json",
     )
     parser.add_argument(
+        "--ext-json",
+        type=Path,
+        default=Path("docs/data/external_benchmarks.json"),
+        help="Path to external_benchmarks.json",
+    )
+    parser.add_argument(
+        "--sift-5k-json",
+        type=Path,
+        default=Path("docs/data/sift_n5000_ef200.json"),
+        help="Path to sift_n5000_ef200.json",
+    )
+    parser.add_argument(
         "--chapter-file",
         type=Path,
         default=Path("docs/report/chapter9_external_baselines.md"),
@@ -547,12 +805,16 @@ def main() -> None:
         if not args.committed_json.is_absolute()
         else args.committed_json
     )
+    ext_path = repo_root / args.ext_json if not args.ext_json.is_absolute() else args.ext_json
+    sift_5k_path = (
+        repo_root / args.sift_5k_json if not args.sift_5k_json.is_absolute() else args.sift_5k_json
+    )
     chap_path = (
         repo_root / args.chapter_file if not args.chapter_file.is_absolute() else args.chapter_file
     )
 
     tables = generate_all_tables(self_ex_path, comm_path)
-    inlines = generate_all_inlines(self_ex_path, comm_path)
+    inlines = generate_all_inlines(self_ex_path, comm_path, ext_path, sift_5k_path)
 
     if args.write:
         update_markdown_file(chap_path, tables, inlines=inlines, check_only=False)

@@ -125,6 +125,69 @@ def verify_required_phrases(chapter_path: Path) -> None:
     )
 
 
+def verify_table_9_1a_matches(chapter_path: Path, ext_json_path: Path) -> None:
+    """Assert every cell of Table 9.1A matches external_benchmarks.json['real_sift_evaluation']."""
+    import json
+
+    content = chapter_path.read_text(encoding="utf-8")
+    table_match = re.search(
+        r"### Table 9\.1A:.*?\n\n(.*?)(?=\n####|\n---|\Z)", content, flags=re.DOTALL
+    )
+    assert table_match is not None, f"Table 9.1A not found in {chapter_path.name}"
+    lines = [
+        line.strip() for line in table_match.group(1).strip().splitlines() if line.startswith("|")
+    ]
+    assert len(lines) >= 3, "Table 9.1A has insufficient rows"
+    rows = lines[2:]
+
+    with open(ext_json_path, encoding="utf-8") as f:
+        ext_data = json.load(f)["real_sift_evaluation"]["arm_stats"]
+
+    for r in rows:
+        cols = [c.strip() for c in r.split("|")[1:-1]]
+        arm = cols[0].replace("`", "")
+        assert arm in ext_data, f"Unknown arm '{arm}' in Table 9.1A"
+        stats = ext_data[arm]
+
+        # Check Mean Drift Rec@16
+        expected_m16 = f"{stats['mean_drift_rec16']:.4f} \u00b1 {stats['std_drift_rec16']:.3f}"
+        assert cols[2] == expected_m16, (
+            f"Table 9.1A arm '{arm}' col 2: got '{cols[2]}', expected '{expected_m16}'"
+        )
+
+        # Check Mean Drift Rec@32
+        expected_m32 = f"{stats['mean_drift_rec32']:.4f} \u00b1 {stats['std_drift_rec32']:.3f}"
+        assert cols[3] == expected_m32, (
+            f"Table 9.1A arm '{arm}' col 3: got '{cols[3]}', expected '{expected_m32}'"
+        )
+
+        # Check Final Drift Rec@16
+        expected_f16 = (
+            f"{stats['final_drift_rec16']:.4f} \u00b1 {stats['std_final_drift_rec16']:.3f}"
+        )
+        assert cols[4] == expected_f16, (
+            f"Table 9.1A arm '{arm}' col 4: got '{cols[4]}', expected '{expected_f16}'"
+        )
+
+        # Check Mean Cost
+        if stats["mean_cost"] == 0:
+            expected_cost = "0"
+        else:
+            expected_cost = f"{stats['mean_cost']:,.0f} \u00b1 {stats['std_cost']:,.0f}"
+        assert cols[5] == expected_cost, (
+            f"Table 9.1A arm '{arm}' col 5: got '{cols[5]}', expected '{expected_cost}'"
+        )
+
+        # Check Reinsertions
+        if stats["mean_reinsertions"] == 0:
+            expected_reins = "0"
+        else:
+            expected_reins = f"{round(stats['mean_reinsertions']):,}"
+        assert cols[6] == expected_reins, (
+            f"Table 9.1A arm '{arm}' col 6: got '{cols[6]}', expected '{expected_reins}'"
+        )
+
+
 # --- Test Functions ---
 
 
@@ -169,3 +232,14 @@ def test_required_phrases_in_interpolation_section() -> None:
     repo_root = Path(__file__).resolve().parent.parent.parent
     chapter_path = repo_root / "docs" / "report" / "chapter9_external_baselines.md"
     verify_required_phrases(chapter_path)
+
+
+def test_table_9_1a_matches_data() -> None:
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    chapter_path = repo_root / "docs" / "report" / "chapter9_external_baselines.md"
+    ext_json = repo_root / "docs" / "data" / "external_benchmarks.json"
+
+    if not ext_json.exists():
+        pytest.skip("external_benchmarks.json not found")
+
+    verify_table_9_1a_matches(chapter_path, ext_json)
