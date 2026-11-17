@@ -1,0 +1,56 @@
+{
+  "metadata": {
+    "git_head": "1c3fd27aa83e530b062bfb28c8f4d03ca942984c",
+    "seeds": [
+      110,
+      111,
+      112,
+      113,
+      114
+    ],
+    "f_frac": 1.0,
+    "drift_frac": 0.3,
+    "t_final": 0.3,
+    "distance_threshold": 0.001,
+    "eval_query_count": 100,
+    "n_queries": 100
+  },
+  "per_seed": {
+    "110": {
+      "total_colocated": 79,
+      "sole_static_target": 52,
+      "shared_target": 27,
+      "other": 0
+    },
+    "111": {
+      "total_colocated": 85,
+      "sole_static_target": 54,
+      "shared_target": 31,
+      "other": 0
+    },
+    "112": {
+      "total_colocated": 81,
+      "sole_static_target": 55,
+      "shared_target": 26,
+      "other": 0
+    },
+    "113": {
+      "total_colocated": 76,
+      "sole_static_target": 51,
+      "shared_target": 25,
+      "other": 0
+    },
+    "114": {
+      "total_colocated": 72,
+      "sole_static_target": 46,
+      "shared_target": 26,
+      "other": 0
+    }
+  },
+  "ranges": {
+    "total_colocated_pct_range": "72-85%",
+    "sole_static_pct_range": "46-55%",
+    "shared_target_pct_range": "25-31%",
+    "other_pct_range": "0%"
+  }
+}
