@@ -1,32 +1,34 @@
-# React + TypeScript + Vite
+# K-HNSW Graph Studio
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The React + TypeScript frontend provides seven interactive views:
 
-Currently, two official plugins are available:
+- **Graph playground:** D3-powered force layout on Canvas, with layer filters, zoom, pan, node selection, and adjacency inspection.
+- **Movement simulator:** discrete replacement, linear drift, cluster drift, and adversarial motion with playback and a displacement chart.
+- **Violation view:** affected edges, certificate details, predicted failure times, and repair-needed nodes.
+- **Priority view:** urgency ranking, illustrative recall-loss estimates, repair costs, and budget-fit scheduling.
+- **Rewiring view:** side-by-side before/after topology with removed, added, and affected elements highlighted.
+- **Baseline vs K-HNSW:** comparison table and chart for static HNSW, native update, delete/reinsert, full rebuild, and K-HNSW.
+- **Live metrics:** event-by-event trace replay with recall, mean query latency, repair pops, edge changes, connectivity, and processing-time summaries.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+The graph, movement, violation, priority, and rewiring views use deterministic local demo data in `src/data/playground.ts`; those values are illustrative. No baseline metrics are bundled because the repository does not contain a matching five-method benchmark with recall, latency, QPS, and memory measurements.
 
-## React Compiler
+The baseline view accepts a JSON file with `schema_version: 1`, `run_id`, `dataset`, positive integer `k`, and a `results` array. Each result has a `method` (`static_hnsw`, `native_update`, `delete_reinsert`, `full_rebuild`, or `khnsw`) and optional `recallAtK` (fraction from 0 to 1), `p50LatencyMs`, `qps`, and `memoryMb` values. Upload one comparable run; absent fields remain blank.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The live-metrics view accepts JSONL events validated against the event schema in a Web Worker. It derives mean latency from `search.payload.latency_ms`, recall and connectivity from `metric` events, repair count from `pop` events, modified edges from `edge_add`/`edge_remove` events, QPS when `run_end.payload.elapsed_seconds` is present, and processing time from that same run-end field. Missing metrics are displayed as unavailable. Traces marked with `payload.example: true` are explicitly identified as synthetic.
 
-## Expanding the Oxlint configuration
+## Development
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Checks
+
+```sh
+npm run lint
+npm test
+npm run build
+```
+
+The production build runs TypeScript project checks before Vite bundles the app.
