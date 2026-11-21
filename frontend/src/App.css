@@ -2545,6 +2545,591 @@ input[type="range"] {
   min-height: 140px;
 }
 
+/* Light workspace palette */
+.app-shell {
+  background: #f6f7fb;
+  color: #263047;
+}
+
+.sidebar,
+.topbar {
+  border-color: #e4e7ec;
+  background: #fff;
+}
+
+.brand,
+.sidebar-model strong,
+.user-profile strong,
+.breadcrumbs strong,
+.page-heading h1,
+.panel-heading h2,
+.metric-copy strong,
+.graph-counts strong,
+.node-summary strong,
+.inspector-stats strong,
+.subheading-row h3,
+.movement-option strong,
+.timeline-readout strong,
+.movement-summary strong,
+.violation-banner strong,
+.violation-detail,
+.detail-facts strong,
+.budget-intro h2,
+.budget-values strong,
+.budget-remaining > strong,
+.table-node,
+.queue-summary strong,
+.rewire-summary strong,
+.rewire-list h3,
+.baseline-source-copy h2,
+.baseline-table td:first-child,
+.trace-source-copy strong,
+.live-facts strong {
+  color: #20283a;
+}
+
+.brand small,
+.sidebar-section-label,
+.sidebar-model small,
+.user-profile small,
+.more-dots,
+.breadcrumbs,
+.sample-run,
+.eyebrow,
+.page-heading p,
+.metric-label,
+.metric-caption,
+.graph-counts,
+.graph-legend span,
+.graph-footer,
+.node-summary span,
+.inspector-stats span,
+.inspector-stats small,
+.subtle-count,
+.neighbor-level,
+.empty-note,
+.inspector-callout p,
+.below-graph-note,
+.movement-option small,
+.timeline-labels,
+.budget-scale,
+.timeline-readout small,
+.chart-unit,
+.chart-loading,
+.chart-legend-row span,
+.movement-summary span,
+.movement-summary p,
+.violation-banner span,
+.sort-label,
+.violation-status,
+.failure-time small,
+.detail-facts span,
+.small-disclaimer,
+.budget-intro p,
+.budget-values span,
+.budget-remaining > span,
+.budget-values small,
+.budget-remaining small,
+.priority-table th,
+.priority-table td,
+.rank-number,
+.percent-sign,
+.unit-sign,
+.queue-summary span,
+.queue-summary small,
+.scheduler-note p,
+.app-footer,
+.rewire-summary > div > span:last-child,
+.layer-diff-label,
+.source-tag,
+.event-count,
+.diff-row,
+.diff-row b,
+.diff-row small,
+.baseline-source-copy p,
+.baseline-table th,
+.baseline-table td,
+.baseline-footnote,
+.no-results-note,
+.baseline-chart-panel select,
+.chart-empty,
+.baseline-provenance,
+.trace-source-copy small,
+.trace-playback > span,
+.live-facts span,
+.live-explainer p,
+.event-feed-row,
+.event-feed-row time {
+  color: #667085;
+}
+
+.app-shell .sidebar-section-label,
+.app-shell .eyebrow {
+  color: #737d90;
+}
+
+.app-shell .brand {
+  color: #6d28d9;
+}
+
+.app-shell .brand small {
+  color: #7551b5;
+}
+
+.app-shell .brand-mark {
+  stroke: #7c3aed;
+}
+
+.app-shell .brand-mark circle {
+  fill: #7c3aed;
+}
+
+.app-shell .nav-item {
+  color: #596579;
+}
+
+.app-shell .nav-item:hover {
+  background: #f5f2fb;
+  color: #372b50;
+}
+
+.app-shell .nav-item.active {
+  border-color: #e5d9fa;
+  background: #f2ecfc;
+  color: #6337aa;
+}
+
+.nav-item.active::before,
+.brand-mark,
+.app-footer i,
+.callout-glyph,
+.scheduler-note span {
+  color: #743de2;
+}
+
+.nav-item.active::before {
+  background: #743de2;
+}
+
+.nav-item em,
+.title-count,
+.violation-number.active {
+  background: #fff0f2;
+  color: #b4233b;
+}
+
+.sidebar-model,
+.metric-card,
+.panel,
+.rewire-summary {
+  border-color: #e4e7ec;
+  background: #fff;
+}
+
+.sidebar-model {
+  background: #f8f9fc;
+}
+
+.model-indicator,
+.metric-icon.violet,
+.budget-icon,
+.affected-marker,
+.movement-option-icon {
+  background: #f0eaff;
+  color: #6938c7;
+}
+
+.metric-icon.blue,
+.movement-option-icon.model-1 {
+  background: #eaf3ff;
+  color: #2463a6;
+}
+
+.metric-icon.rose,
+.movement-option-icon.model-3,
+.warning-pill {
+  background: #fff0f2;
+  color: #b4233b;
+}
+
+.metric-icon.mint,
+.movement-option-icon.model-2,
+.healthy-pill,
+.fit-pill,
+.source-tag {
+  background: #eaf8f1;
+  color: #16794f;
+}
+
+.avatar {
+  border-color: #d7c6f5;
+  background: #f0eaff;
+  color: #6034ad;
+}
+
+.topbar,
+.graph-toolbar,
+.graph-footer,
+.timeline,
+.inspector-stats,
+.section-rule,
+.neighbor-row,
+.priority-table th,
+.priority-table td,
+.queue-summary,
+.baseline-table th,
+.baseline-table td,
+.live-facts,
+.live-facts div,
+.event-feed-row {
+  border-color: #e6e9f0;
+}
+
+.graph-toolbar {
+  background: #fafbfe;
+}
+
+.count-divider,
+.section-rule {
+  background: #e6e9f0;
+}
+
+.affected-line {
+  background: #7c3aed;
+}
+
+.state-pill i {
+  background: #7c3aed;
+}
+
+.state-pill.healthy-pill i {
+  background: #16845b;
+}
+
+.state-pill.warning-pill i {
+  background: #b4233b;
+}
+
+.graph-canvas-wrap {
+  background:
+    radial-gradient(ellipse at 49% 49%, rgba(124, 58, 237, 0.06), transparent 58%),
+    #fbfcff;
+}
+
+.layer-tab {
+  color: #667085;
+}
+
+.layer-tab:hover {
+  color: #344054;
+}
+
+.layer-tab.active {
+  border-color: #e5d9fa;
+  background: #f2ecfc;
+  color: #6337aa;
+}
+
+.canvas-controls {
+  border-color: #d9deea;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(27, 35, 54, 0.08);
+}
+
+.canvas-controls button {
+  border-color: #e6e9f0;
+  color: #596579;
+}
+
+.canvas-controls button:hover,
+.step-button {
+  background: #f5f2fb;
+  color: #6337aa;
+}
+
+.graph-panel-before .graph-heading .eyebrow,
+.removed-line,
+.removed-marker,
+.rewire-list:first-child .diff-row span,
+.event-cert_fail,
+.event-edge_remove,
+.failure-time strong,
+.repair-needed {
+  color: #b4233b;
+}
+
+.graph-panel-after .graph-heading .eyebrow,
+.added-line,
+.added-marker,
+.rewire-list:nth-child(2) .diff-row span,
+.event-edge_add,
+.event-run_end,
+.edge-status {
+  color: #16794f;
+}
+
+.removed-marker,
+.banner-symbol,
+.violation-item.selected .violation-number,
+.event-cert_fail,
+.event-edge_remove {
+  color: #b4233b;
+}
+
+.added-marker,
+.event-edge_add,
+.event-run_end {
+  color: #16794f;
+}
+
+.affected-marker,
+.event-type {
+  color: #6034ad;
+}
+
+.removed-line,
+.added-line,
+.affected-line {
+  background: currentColor;
+}
+
+.affected-line {
+  background: #743de2;
+}
+
+.trace-button,
+.upload-button {
+  border-color: #d8c8f2;
+  background: #f5f0ff;
+  color: #6034ad;
+}
+
+.trace-button:hover,
+.upload-button:hover {
+  border-color: #b99be8;
+  background: #eee5ff;
+}
+
+.trace-button span {
+  color: #743de2;
+}
+
+.help-button,
+.note-icon,
+.live-explainer > span {
+  border-color: #d8dce6;
+  color: #667085;
+}
+
+.graph-canvas-wrap,
+.panel,
+.metric-card,
+.rewire-summary,
+.trace-controls,
+.baseline-source {
+  box-shadow: 0 1px 2px rgba(28, 36, 54, 0.035);
+}
+
+.graph-legend .legend-dot {
+  background: #718096;
+}
+
+.graph-legend .legend-dot.selected {
+  background: #7c3aed;
+}
+
+.graph-legend .legend-dot.warning,
+.neighbor-node.has-warning,
+.repair-needed i {
+  background: #c24155;
+}
+
+.healthy-pill,
+.warning-pill {
+  border-radius: 999px;
+}
+
+.node-avatar {
+  border-color: #d7c6f5;
+  background: #f4efff;
+  color: #6337aa;
+}
+
+.neighbor-row {
+  color: #344054;
+}
+
+.edge-status.invalid,
+.repair-needed {
+  color: #b4233b;
+}
+
+.inspector-callout {
+  border-color: #e8def8;
+  background: #faf7ff;
+}
+
+.movement-option {
+  border-color: #e2e6ee;
+  background: #fafbfe;
+}
+
+.movement-option.active {
+  border-color: #cbb5f0;
+  background: #f5f0ff;
+}
+
+.movement-option-icon.model-1 {
+  background: #eaf3ff;
+  color: #2463a6;
+}
+
+.movement-option-icon.model-2 {
+  background: #eaf8f1;
+  color: #16794f;
+}
+
+.movement-option-icon.model-3 {
+  background: #fff0f2;
+  color: #b4233b;
+}
+
+.radio-dot {
+  border-color: #aab3c2;
+}
+
+.movement-option.active .radio-dot {
+  border-color: #7c3aed;
+  background: #7c3aed;
+  box-shadow: inset 0 0 0 1px #fff;
+}
+
+.play-button,
+.step-button {
+  border-color: #d8c8f2;
+  background: #f5f0ff;
+  color: #6337aa;
+}
+
+.step-button {
+  border-color: #d8dce6;
+  background: #f8f9fc;
+  color: #596579;
+}
+
+.violation-banner {
+  border-color: #f1cbd2;
+  background: linear-gradient(90deg, #fff4f5, #fffafb);
+}
+
+.banner-symbol,
+.violation-item.selected,
+.violation-number.active {
+  border-color: #f1cbd2;
+  background: #fff0f2;
+  color: #b4233b;
+}
+
+.violation-item:hover {
+  background: #fafbfe;
+}
+
+.violation-number {
+  background: #f1f3f8;
+  color: #596579;
+}
+
+.violation-edge {
+  color: #344054;
+}
+
+.repair-needed i {
+  background: #c24155;
+}
+
+.budget-progress {
+  background: #e8eaf0;
+}
+
+.fit-pill {
+  background: #eaf8f1;
+  color: #16794f;
+}
+
+.wait-pill {
+  background: #f1f3f8;
+  color: #667085;
+}
+
+.priority-score {
+  color: #6034ad;
+}
+
+.rewire-summary {
+  background: #fff;
+}
+
+.removed-marker {
+  background: #fff0f2;
+}
+
+.added-marker {
+  background: #eaf8f1;
+}
+
+.affected-marker {
+  background: #f0eaff;
+}
+
+.diff-row:hover,
+.affected-chip:hover {
+  background: #f5f6fa;
+}
+
+.affected-chip {
+  border-color: #e0e4ec;
+  background: #fafbfe;
+  color: #475467;
+}
+
+.affected-chip.selected {
+  border-color: #cbb5f0;
+  background: #f2ecfc;
+  color: #6337aa;
+}
+
+.baseline-table .khnsw-row td:first-child strong,
+.baseline-table .khnsw-row td:nth-child(2),
+.baseline-table td:first-child small {
+  color: #6337aa;
+}
+
+.source-tag {
+  border-color: #ccebd9;
+}
+
+.baseline-chart-panel select {
+  border-color: #d8dce6;
+  background: #fff;
+  color: #344054;
+}
+
+.import-error {
+  border-color: #f1cbd2;
+  background: #fff4f5;
+  color: #b4233b;
+}
+
+.synthetic-warning {
+  border-color: #ead9b5;
+  background: #fff8e9;
+  color: #805b16;
+}
+
+.table-footnote .legend-dot {
+  background: #718096;
+}
+
 @media (max-width: 1120px) {
   .baseline-layout,
   .live-details-grid {

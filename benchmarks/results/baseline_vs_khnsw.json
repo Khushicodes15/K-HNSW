@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "run_id": "baseline-khnsw-n200-d8-seed42",
+  "dataset": "Gaussian synthetic n=200, d=8; seed=42; 5 steps; 8.0x displacement",
+  "k": 10,
+  "results": [
+    {
+      "method": "static_hnsw",
+      "recallAtK": 0.835,
+      "p50LatencyMs": 0.4601,
+      "qps": 1801.893790529874
+    },
+    {
+      "method": "full_rebuild",
+      "recallAtK": 0.9633333333333334,
+      "p50LatencyMs": 0.41835,
+      "qps": 2005.0795405237714
+    },
+    {
+      "method": "khnsw",
+      "recallAtK": 0.9216666666666666,
+      "p50LatencyMs": 0.4377,
+      "qps": 2067.311665009208
+    }
+  ]
+}

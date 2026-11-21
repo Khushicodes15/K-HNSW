@@ -1,7 +1,8 @@
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #e9e5ef;
-  background: #0a090d;
+  color: #263047;
+  background: #f6f7fb;
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -25,11 +26,11 @@ body {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible {
-  outline: 2px solid #b18bfa;
+  outline: 2px solid #7c3aed;
   outline-offset: 3px;
 }
 
 ::selection {
-  background: #60418d;
-  color: #fff;
+  background: #e9ddff;
+  color: #34204f;
 }

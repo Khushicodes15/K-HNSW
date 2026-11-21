@@ -96,12 +96,12 @@ export function GraphCanvas({
       context.moveTo(source.x, source.y);
       context.lineTo(target.x, target.y);
       context.strokeStyle = isBroken
-        ? "rgba(255, 116, 135, 0.9)"
+        ? "rgba(185, 28, 58, 0.88)"
         : isAdded
-          ? "rgba(111, 213, 171, 0.9)"
+          ? "rgba(21, 128, 86, 0.9)"
         : isSelected
-          ? "rgba(171, 126, 255, 0.8)"
-          : "rgba(153, 145, 174, 0.19)";
+          ? "rgba(124, 58, 237, 0.82)"
+          : "rgba(100, 116, 139, 0.34)";
       context.lineWidth = isBroken || isAdded ? 1.5 : isSelected ? 1.2 : 0.8;
       context.setLineDash(isBroken ? [4, 4] : []);
       context.stroke();
@@ -123,21 +123,21 @@ export function GraphCanvas({
       context.beginPath();
       context.arc(position.x, position.y, isSelected ? 6 : isViolated || isAffected ? 4.8 : 3.6, 0, Math.PI * 2);
       context.fillStyle = isSelected
-        ? "#bd9bff"
+        ? "#7c3aed"
         : isViolated
-          ? "#ff7487"
+          ? "#c24155"
           : graphState === "after" && isAffected
-            ? "#78d8ae"
-            : "#aaa0bd";
+            ? "#16845b"
+            : "#718096";
       context.fill();
       if (isSelected || isAffected) {
         context.beginPath();
         context.arc(position.x, position.y, isSelected ? 10 : 8, 0, Math.PI * 2);
         context.strokeStyle = isSelected
-          ? "rgba(189, 155, 255, .36)"
+          ? "rgba(124, 58, 237, .3)"
           : graphState === "after"
-            ? "rgba(120, 216, 174, .38)"
-            : "rgba(255, 116, 135, .4)";
+            ? "rgba(22, 132, 91, .3)"
+            : "rgba(194, 65, 85, .3)";
         context.lineWidth = 1;
         context.stroke();
       }
